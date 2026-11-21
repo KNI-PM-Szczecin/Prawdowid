@@ -19,12 +19,16 @@ Model: dowolny serwer zgodny z OpenAI `/v1/chat/completions` (FastFlowLM, Ollama
 
 1. Pusty input → `needs_clarification`. URL → `POST /fetch` w `rag/` (422 → `needs_clarification`, „nie da się odczytać strony”).
 2. Jedno zdanie → to jest twierdzenie, bez modelu. Dłuższy tekst → prompt `extract` → maks. 3 najważniejsze twierdzenia; pominięte trafiają do `limitations`.
-3. Dla każdego twierdzenia `POST /search` (`topK` 5). Brak wyników → `insufficient_evidence` bez wołania modelu.
+3. Dla każdego twierdzenia `POST /search` (`topK` 5), maks. 3 twierdzenia równolegle. Wyniki są scalane w kolejności ekstrakcji, więc równoległość nie zmienia treści ani kolejności odpowiedzi. Brak wyników → `insufficient_evidence` bez wołania modelu.
 4. Prompt `judge` dostaje twierdzenie i `contextXml` w wiadomości użytkownika; prompt systemowy nigdy nie zawiera treści źródeł.
 5. Reguły (`rules.go`, `CONTRACT.md` §4) rozstrzygają: cytat musi być dosłownie we fragmencie o podanym `id`, `confirmed`/`false` wymaga mocnej podstawy (źródło urzędowe, ocena weryfikatora albo dwa niezależne wtórne) i cytatu o pasującej roli, ocena weryfikatora faktów w cytowanym fragmencie wygrywa z modelem, alert kampanii z `rag/` i flagi injection idą do `warnings`/`meta`, nigdy do werdyktu.
 6. `evidenceStrength` i `strengthReasons` liczone z przesłanek (typ i niezależność źródeł, wiek), nie z opinii modelu.
 
-Budżet: 25 s na `Verify`, 8 s na wywołanie `rag/`, 10 s na wywołanie modelu, temperatura 0, myślenie Qwen3 wyłączone.
+Budżet: 25 s na `Verify`, 12 s na wywołanie `rag/` (`RAG_TIMEOUT_SECONDS`), 10 s na wywołanie modelu, temperatura 0, myślenie Qwen3 wyłączone.
+
+## Koszt
+
+`meta.estimatedCostUsd` liczy się z tokenów zwróconych przez dostawcę (`usage.prompt_tokens` i `usage.completion_tokens`) przez wszystkie wywołania w jednym sprawdzeniu: ekstrakcję twierdzeń i ocenę każdego twierdzenia, razem z ponowieniem po błędnym JSON. Ceny to USD za 1M tokenów w `LLM_PRICE_INPUT_PER_M` i `LLM_PRICE_OUTPUT_PER_M`, domyślnie 0,10/0,50 dla `gpt-6-luna` (lista OpenAI). Dla serwera spoza `api.openai.com` obie ceny są zerowane, bo lokalny model nic nie kosztuje. Tokeny z pamięci podręcznej OpenAI nie są rozróżniane, więc koszt jest szacunkiem górnym.
 
 ## Testy
 
