@@ -18,7 +18,7 @@ Baza: `DATABASE_URL` z `../.env`, wspólna z `backend/` (Supabase, Session poole
 
 Lokalnie bez Dockera (Qdrant i ewentualnie Postgres nadal z compose): `uv sync`, potem `uv run uvicorn app.main:app --port 8001`. Ustawienia czyta z `../.env` i `rag/.env` (`DATABASE_URL`, `RAG_QDRANT_URL`, `RAG_MODEL_CACHE_DIR`). Nową paczkę dodajesz przez `uv add <paczka>`.
 
-Serwis: `http://127.0.0.1:8001` (OpenAPI: `/docs`). Słucha tylko na localhost, a lokalny Postgres i Qdrant nie są wystawione na hosta. Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
+Serwis: `http://127.0.0.1:8001` (OpenAPI: `/docs`). Słucha tylko na localhost. Qdrant nie jest wystawiony na hosta, a lokalny Postgres (profil `local-db`) tylko na `127.0.0.1:5432` dla `backend/` w trybie offline. Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
 
 Test dymny na fikcyjnych danych:
 ```
