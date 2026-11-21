@@ -108,6 +108,10 @@ Do pracy nad kodem możesz uruchomić samą infrastrukturę (`docker compose --p
 | Windows: znaki polskie w `curl -d` | Wysyłaj ciało z pliku UTF-8 (`--data-binary @plik.json`). |
 | Brak internetu na pokazie | Po pierwszym starcie obrazy i modele są lokalne, a kolekcje w wolumenach. Wyłączone zostaną tylko źródła zewnętrzne (Google Fact Check), co `rag` zgłasza w `externalSources`. |
 
+## Railway: port usługi rag
+
+`rag` słucha na stałym porcie 8000, bo pod tym adresem woła go `backend/` (`http://rag.railway.internal:8000`). Railway do healthchecku używa zmiennej `PORT`, a nie `EXPOSE` z Dockerfile'a, więc usługa `rag` musi mieć ustawione `PORT=8000` w Variables. Bez tego Railway sprawdza inny port: aplikacja startuje poprawnie, ale w jej logach nie ma żadnego `GET /health`, a log deployu pokazuje `Attempt #N failed with service unavailable` i `1/1 replicas never became healthy`. Deploy kończy się statusem failed, a `backend` zwraca `technical_error`. Tej zmiennej nie da się zapisać w repo, ustawia się ją w dashboardzie Railway.
+
 ## Czego ten zestaw nie obejmuje
 
 - **Brak końcowych testów budowy obrazów.** Pliki zostały sprawdzone składniowo (`docker compose config`), a front zbudowany poza Dockerem (`pnpm build`), ale **obrazy nie były budowane w Dockerze**: autorka plików nie miała dostępu do demona. Pierwsze `docker compose build` może wykazać błędy, np. nieistniejący tag `golang:1.27-alpine`. Zgłoś je w PR.

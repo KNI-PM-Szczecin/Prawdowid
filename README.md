@@ -56,3 +56,4 @@ Uzupełnić.
 
 ## Wdrożenie (Railway)
 Jeden publiczny adres obsługuje usługa `front` (Caddy): serwuje zbudowany `src/frontend/` i przekazuje `/api/*` do `src/backend/` przez sieć prywatną. `src/backend/`, `rag/` i Qdrant nie mają publicznych domen. Dockerfile'e są w `deploy/` (kontekst budowania to korzeń repo). Sekrety tylko w zmiennych Railwaya.
+Usługa `rag` musi mieć zmienną `PORT=8000`: Railway używa jej do healthchecku, a obraz słucha na 8000. Bez niej deploy kończy się błędem `service unavailable`, mimo że aplikacja wystartowała. Objawy i tło: `docs/docker.md`.
