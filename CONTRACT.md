@@ -1,6 +1,6 @@
 # Kontrakty między modułami
 
-Zmiana tutaj wymaga wpisu w tym pliku w tym samym PR. **Status: do akceptacji przez właścicieli `src/`, `backend/`, `agent/`, `rag/`.** Po akceptacji usuń tę linijkę.
+Zmiana tutaj wymaga wpisu w tym pliku w tym samym PR.
 
 Przepływ: `src/` (front) lub kanał → `backend/` (Go) → `agent/` (Go) → `rag/` (Python, HTTP).
 Pola JSON są w camelCase i takie same w każdym module. W tekstach dla użytkownika (`justification`, `message`, `limitations`, `warnings[].message`) używamy prostej polszczyzny. Daty to ISO 8601 (bez strefy = UTC).
