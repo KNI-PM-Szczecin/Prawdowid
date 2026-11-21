@@ -13,12 +13,21 @@ Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje si�
 Zasady pracy dla ludzi i agentów AI: `AGENTS.md`. Kontrakty między modułami: `CONTRACT.md`.
 
 ## Wymagania
-Narzędzia do zainstalowania przed startem.
+Narzędzia do zainstalowania przed startem: Git, Node.js z npm (`backend/`, `front/`, `agent/`), Python 3.12 i `uv` (`rag/`).
 
 ArchLinux:
 ```
-sudo pacman -S nodejs npm
+sudo pacman -S nodejs npm python uv
 ```
+
+Windows (PowerShell):
+```
+winget install Git.Git
+winget install OpenJS.NodeJS.LTS
+winget install Python.Python.3.12
+winget install astral-sh.uv
+```
+Po instalacji uruchom terminal ponownie. Hook `.githooks/commit-msg` działa w Git Bash dołączonym do Git for Windows.
 
 ## Start zespołu
 ```
