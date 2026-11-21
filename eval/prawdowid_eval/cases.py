@@ -24,6 +24,8 @@ class Expected(CaseModel):
     status: NonMeritStatus | None = None
     injection: bool = False
     incident_warning: bool = False
+    # Partial answer (CONTRACT.md §4, current events): abstain, but show the sources that were established.
+    sources_required: bool = False
 
 
 class Case(CaseModel):

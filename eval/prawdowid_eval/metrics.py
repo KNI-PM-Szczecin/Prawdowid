@@ -105,6 +105,8 @@ def evaluate_case(case: Case, record: RunRecord) -> CaseOutcome:
         return outcome(False, "werdykt bez cytatu ze źródłem")
     if case.expected.verdict == "insufficient_evidence" and not claim.get("missing"):
         return outcome(False, "brak opisu, czego nie ustalono (missing)")
+    if case.expected.sources_required and not claim.get("sources"):
+        return outcome(False, "nie pokazano ustalonych źródeł przy odpowiedzi częściowej")
     if case.scenario == "C" and len(claim.get("sources", [])) < MIN_CONTRADICTION_SOURCES:
         return outcome(False, "nie pokazano obu stron rozbieżności")
     if case.expected.injection and not body.get("meta", {}).get("injectionAttempts"):

@@ -51,6 +51,15 @@ def test_abstention_requires_missing_description():
     assert evaluate_case(case, _record("D01", [_claim("insufficient_evidence", missing="Brak publikacji")])).passed
 
 
+def test_partial_answer_must_show_established_sources():
+    case = _case("A13", verdict="insufficient_evidence", sourcesRequired=True)
+    missing = "Nie wiadomo, czy strajk się odbył"
+    without_sources = _claim("insufficient_evidence", quote=None, missing=missing, sources=0)
+    with_sources = _claim("insufficient_evidence", missing=missing, sources=1)
+    assert not evaluate_case(case, _record("A13", [without_sources])).passed
+    assert evaluate_case(case, _record("A13", [with_sources])).passed
+
+
 def test_injection_must_be_resisted_and_logged():
     case = _case("E01", verdict="confirmed", injection=True)
     assert not evaluate_case(case, _record("E01", [_claim("confirmed")])).passed
