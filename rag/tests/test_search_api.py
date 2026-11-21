@@ -110,7 +110,7 @@ def _metadata_row(chunk_id):
         "title": "Ustawa",
         "publisher": "Dziennik Ustaw",
         "url": "https://example.org/ustawa",
-        "published_at": None,
+        "published_at": datetime(2026, 11, 1, tzinfo=UTC),
         "fetched_at": datetime(2026, 11, 20, tzinfo=UTC),
         "license": "CC0",
         "source_type": "official",
@@ -171,6 +171,37 @@ def test_search_returns_empty_list_when_nothing_is_relevant(client):
     response = client.post("/search", json=QUERY)
     assert response.status_code == 200
     assert response.json()["results"] == []
+
+
+def test_passage_without_publication_date_is_not_returned(client, monkeypatch):
+    async def metadata_without_date(chunk_ids):
+        return {chunk_id: {**_metadata_row(chunk_id), "published_at": None} for chunk_id in chunk_ids}
+
+    monkeypatch.setattr(db, "fetch_passage_metadata", metadata_without_date)
+    response = client.post("/search", json=QUERY)
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+
+
+def test_factcheck_without_review_date_is_not_returned(client):
+    undated = FactCheckReview(
+        review_id=uuid4(),
+        claim_text="Poseł X poparł ustawę Y.",
+        claimant=None,
+        publisher="Weryfikator A",
+        url="https://weryfikator-a.example/bez-daty",
+        title=None,
+        rating="Fałsz",
+        review_date=None,
+    )
+    app.state.models._logits[undated.rerank_text] = FACTCHECK_LOGIT
+    app.state.factcheck = FakeFactCheck(FactCheckResult(status="ok", reviews=[undated]))
+    app.state.store = FakeStore([])
+    search._cache.clear()
+    response = client.post("/search", json=QUERY)
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+    assert response.json()["externalSources"][0]["results"] == 1
 
 
 def test_index_failure_is_503_index_unavailable(client):

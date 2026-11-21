@@ -38,6 +38,7 @@ class Page:
     title: str
     content: str
     fetched_at: datetime
+    published_at: datetime | None = None
 
 
 @dataclass
@@ -89,8 +90,28 @@ def web_document_id(url: str) -> str:
     return WEB_PREFIX + hashlib.sha256(url.encode("utf-8")).hexdigest()[:WEB_ID_LENGTH]
 
 
+def _seed_data() -> dict:
+    return json.loads(SEED_URLS_PATH.read_text(encoding="utf-8"))
+
+
 def seed_urls() -> list[str]:
-    return json.loads(SEED_URLS_PATH.read_text(encoding="utf-8"))["urls"]
+    return _seed_data()["urls"]
+
+
+def seed_published_at(url: str) -> datetime | None:
+    """
+    Publication date pinned for a seed page whose publisher exposes no machine-readable metadata.
+    The date must be visible on the page itself (e.g. a legal act's Dz.U. date), never inferred.
+    """
+    raw = _seed_data().get("publishedAt", {}).get(url)
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        logger.warning("Seed publication date for %s is not ISO 8601, ignored", url)
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
 
 
 def to_document(page: Page, cleaned_content: str) -> DocumentIn:
@@ -102,7 +123,7 @@ def to_document(page: Page, cleaned_content: str) -> DocumentIn:
             title=page.title.strip()[:TITLE_MAX_CHARS] or host,
             publisher=entry.publisher if entry else host,
             url=page.url,
-            published_at=None,
+            published_at=page.published_at,
             fetched_at=page.fetched_at,
             license=None,
             topic_tag=host,
@@ -214,6 +235,7 @@ async def fetch_corpus(
                         title=fetched.title,
                         content=fetched.text,
                         fetched_at=datetime.now(UTC),
+                        published_at=fetched.published_at or seed_published_at(url),
                     )
                 )
                 await asyncio.sleep(settings.corpus_fetch_delay_seconds)

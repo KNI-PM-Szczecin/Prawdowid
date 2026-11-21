@@ -100,6 +100,11 @@ def _factcheck_passage(review: FactCheckReview, score: float, fetched_at: dateti
     )
 
 
+def _complete_corpus_metadata(row) -> bool:
+    """Citations always carry title, publisher, publication date, fetch date and link (AGENTS.md §4, brief §5)."""
+    return all(row[field] for field in ("title", "publisher", "url", "published_at", "fetched_at"))
+
+
 def _corpus_passage(chunk: RetrievedChunk, row, score: float) -> Passage:
     return Passage(
         document_id=row["document_id"],
@@ -194,13 +199,22 @@ async def search_passages(
         )
         fetched_at = datetime.now(UTC)
         metadata = await metadata_task
+        skipped_incomplete = 0
         for candidate, score in ranked:
             if isinstance(candidate, FactCheckReview):
+                if candidate.review_date is None:
+                    skipped_incomplete += 1
+                    continue
                 passages.append(_factcheck_passage(candidate, score, fetched_at))
             elif (row := metadata.get(candidate.chunk_id)) is not None:
+                if not _complete_corpus_metadata(row):
+                    skipped_incomplete += 1
+                    continue
                 passages.append(_corpus_passage(candidate, row, score))
             if len(passages) == request.top_k:
                 break
+        if skipped_incomplete:
+            logger.info("Dropped %d passages without complete metadata", skipped_incomplete)
     else:
         await metadata_task
 

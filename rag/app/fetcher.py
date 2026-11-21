@@ -1,5 +1,7 @@
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 
 import httpx
@@ -30,6 +32,73 @@ class FetchedPage:
     url: str
     title: str
     text: str
+    published_at: datetime | None
+
+
+# Metadata keys publishers use for the publication date, most specific first. Values are matched case-insensitively.
+PUBLISHED_META_KEYS = (
+    "article:published_time",
+    "og:published_time",
+    "datepublished",
+    "publish-date",
+    "publish_date",
+    "pubdate",
+    "dc.date.issued",
+    "dc.date",
+    "dcterms.created",
+    "date",
+)
+META_TAG = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
+HTML_ATTRIBUTE = re.compile(r"([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*([\"'])(.*?)\2", re.DOTALL)
+JSON_LD_DATE = re.compile(r'"datePublished"\s*:\s*"([^"]+)"', re.IGNORECASE)
+TIME_DATE = re.compile(r"<time\b[^>]*\bdatetime\s*=\s*[\"']([^\"']+)[\"']", re.IGNORECASE)
+EARLIEST_PUBLISHED_YEAR = 1989
+FUTURE_DATE_TOLERANCE = timedelta(days=1)
+
+
+def _parse_published(value: str) -> datetime | None:
+    """Accepts ISO 8601 and RFC 2822 dates; anything else is unknown rather than guessed."""
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    parsed: datetime | None = None
+    try:
+        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(cleaned)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    parsed = parsed.astimezone(UTC)
+    if parsed.year < EARLIEST_PUBLISHED_YEAR or parsed > datetime.now(UTC) + FUTURE_DATE_TOLERANCE:
+        return None
+    return parsed
+
+
+def extract_published_at(html: str) -> datetime | None:
+    """
+    Publication date from machine-readable metadata only: OpenGraph/HTML meta, JSON-LD or <time datetime>.
+    A visible date in prose is not used because its meaning (publication, update, event) is ambiguous.
+    """
+    meta_values: dict[str, str] = {}
+    for tag in META_TAG.findall(html):
+        attributes = {name.lower(): value for name, _, value in HTML_ATTRIBUTE.findall(tag)}
+        key = (attributes.get("property") or attributes.get("name") or attributes.get("itemprop") or "").lower()
+        content = attributes.get("content", "")
+        if key and content and key not in meta_values:
+            meta_values[key] = content
+    for key in PUBLISHED_META_KEYS:
+        if (parsed := _parse_published(meta_values.get(key, ""))) is not None:
+            return parsed
+    for match in JSON_LD_DATE.findall(html):
+        if (parsed := _parse_published(match)) is not None:
+            return parsed
+    for match in TIME_DATE.findall(html):
+        if (parsed := _parse_published(match)) is not None:
+            return parsed
+    return None
 
 
 class _TextExtractor(HTMLParser):
@@ -92,4 +161,4 @@ async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
         raise FetchError("no visible text (JavaScript-only page?)")
     if title.casefold().startswith(BOT_WALL_TITLES):
         raise FetchError(f"anti-bot wall: {title}")
-    return FetchedPage(url=str(response.url), title=title, text=text)
+    return FetchedPage(url=str(response.url), title=title, text=text, published_at=extract_published_at(response.text))
