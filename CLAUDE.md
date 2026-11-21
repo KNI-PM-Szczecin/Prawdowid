@@ -1,6 +1,9 @@
 @AGENTS.md
+@spec/requirements.md
 
 # Dodatki dla Claude Code
+
+**Zanim zrobisz cokolwiek, przeczytaj wszystkie pliki w folderze `spec/`** (`spec/README.md`, `spec/requirements.md`, `spec/brief.md`, `spec/regulation.md`). `AGENTS.md` i `spec/requirements.md` są zaimportowane powyżej; `brief.md` i `regulation.md` przeczytaj samodzielnie.
 
 Wszystkie zasady są w `AGENTS.md` powyżej. Poniżej tylko to, co dotyczy samego Claude Code.
 
