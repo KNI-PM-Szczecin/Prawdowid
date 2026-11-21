@@ -24,7 +24,7 @@ Model: dowolny serwer zgodny z OpenAI `/v1/chat/completions` (FastFlowLM, Ollama
 5. Reguły (`rules.go`, `CONTRACT.md` §4) rozstrzygają: cytat musi być dosłownie we fragmencie o podanym `id`, `confirmed`/`false` wymaga mocnej podstawy (źródło urzędowe, ocena weryfikatora albo dwa niezależne wtórne) i cytatu o pasującej roli, ocena weryfikatora faktów w cytowanym fragmencie wygrywa z modelem, alert kampanii z `rag/` i flagi injection idą do `warnings`/`meta`, nigdy do werdyktu.
 6. `evidenceStrength` i `strengthReasons` liczone z przesłanek (typ i niezależność źródeł, wiek), nie z opinii modelu.
 
-Budżet: 25 s na `Verify`, 8 s na wywołanie `rag/`, 10 s na wywołanie modelu, temperatura 0, myślenie Qwen3 wyłączone.
+Budżet: 25 s na `Verify`, 12 s na wywołanie `rag/` (`RAG_TIMEOUT_SECONDS`), 10 s na wywołanie modelu, temperatura 0, myślenie Qwen3 wyłączone.
 
 ## Koszt
 

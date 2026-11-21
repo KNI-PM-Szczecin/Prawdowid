@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	defaultRagURL         = "http://localhost:8001"
-	defaultLLMBaseURL     = "http://127.0.0.1:52625/v1"
-	defaultLLMModel       = "qwen3:0.6b"
-	defaultMaxClaims      = 3
-	defaultVerifyTimeout  = 25 * time.Second // CONTRACT.md §2
-	defaultRagTimeout     = 8 * time.Second  // CONTRACT.md §2
+	defaultRagURL        = "http://localhost:8001"
+	defaultLLMBaseURL    = "http://127.0.0.1:52625/v1"
+	defaultLLMModel      = "qwen3:0.6b"
+	defaultMaxClaims     = 3
+	defaultVerifyTimeout = 25 * time.Second // CONTRACT.md §2
+	// CONTRACT.md §2 allows 12 s: the first measurement on Railway (rerank on a shared CPU) went over 8 s.
+	defaultRagTimeout     = 12 * time.Second
 	defaultLLMTimeout     = 10 * time.Second
 	defaultSearchTopK     = 5
 	defaultExtractMaxText = 6000 // characters of page/submission text handed to the extraction prompt
@@ -63,6 +64,11 @@ func ConfigFromEnv() (Config, error) {
 	if config.MaxClaims, err = intFromEnv("AGENT_MAX_CLAIMS", defaultMaxClaims); err != nil {
 		return Config{}, err
 	}
+	ragTimeoutSeconds, err := intFromEnv("RAG_TIMEOUT_SECONDS", int(defaultRagTimeout/time.Second))
+	if err != nil {
+		return Config{}, err
+	}
+	config.RagTimeout = time.Duration(ragTimeoutSeconds) * time.Second
 	if config.LLMBaseURL == "" {
 		return Config{}, errors.New("LLM_BASE_URL is empty")
 	}

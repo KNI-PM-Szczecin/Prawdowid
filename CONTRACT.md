@@ -110,7 +110,7 @@ type VerifyRequest struct {
 func Verify(ctx context.Context, req VerifyRequest) (CheckResult, error)
 ```
 
-Budżet czasu (cel: mediana ≤ 30 s): `ctx` z limitem 25 s dla całego `Verify`, wywołanie `rag/` max 8 s. Po przekroczeniu: `technical_error` z `meta.timedOut = true`.
+Budżet czasu (cel: mediana ≤ 30 s): `ctx` z limitem 25 s dla całego `Verify`, wywołanie `rag/` max 12 s (podniesione z 8 s po pomiarach na Railway, gdzie rerank na współdzielonym CPU trwa 6–9 s; `RAG_TIMEOUT_SECONDS` nadpisuje wartość). Po przekroczeniu: `technical_error` z `meta.timedOut = true`.
 `backend/` zapisuje przebieg sprawdzenia (pytanie zmaskowane, czas, użyte źródła, wynik, `meta`) na podstawie `CheckResult`.
 
 ### Kanały (drugi kanał: bot Discord przez Gateway; odpowiedzialny Paweł)
