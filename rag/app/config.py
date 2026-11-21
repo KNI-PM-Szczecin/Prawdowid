@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # DATABASE_URL is shared with backend/ (Supabase session pooler); RAG_POSTGRES_DSN overrides it for rag/ only.
     postgres_dsn: str = Field(
-        default="postgresql://rag:rag@localhost:5432/rag",
+        default="postgresql://rag@localhost:5432/rag",
         validation_alias=AliasChoices("RAG_POSTGRES_DSN", "DATABASE_URL"),
     )
     # Supabase free tier caps pooler connections and backend/ uses the same database.
