@@ -1,5 +1,4 @@
 import logging
-from datetime import date
 from pathlib import Path
 from uuid import UUID
 
@@ -47,8 +46,14 @@ async def upsert_source_with_chunks(source: SourceIn, chunk_ids: list[UUID]) -> 
                 published_at = EXCLUDED.published_at, fetched_at = EXCLUDED.fetched_at,
                 license = EXCLUDED.license, source_type = EXCLUDED.source_type
             """,
-            source.document_id, source.title, source.publisher, str(source.url),
-            source.published_at, source.fetched_at, source.license, source.source_type,
+            source.document_id,
+            source.title,
+            source.publisher,
+            str(source.url),
+            source.published_at,
+            source.fetched_at,
+            source.license,
+            source.source_type,
         )
         await connection.executemany(
             """
@@ -56,7 +61,14 @@ async def upsert_source_with_chunks(source: SourceIn, chunk_ids: list[UUID]) -> 
             VALUES ($1, $2, $3, $4, $5, NOW() + make_interval(days => $6))
             """,
             [
-                (chunk_id, source.document_id, source.topic_tag, source.tier, source.reliability, settings.protection_days)
+                (
+                    chunk_id,
+                    source.document_id,
+                    source.topic_tag,
+                    source.tier,
+                    source.reliability,
+                    settings.protection_days,
+                )
                 for chunk_id in chunk_ids
             ],
         )
@@ -95,14 +107,10 @@ async def corpus_version() -> str:
 
 
 async def mark_chunks_deleted(chunk_ids: list[UUID]) -> None:
-    await pool().execute(
-        "UPDATE document_metadata SET is_deleted = TRUE WHERE chunk_id = ANY($1::uuid[])", chunk_ids
-    )
+    await pool().execute("UPDATE document_metadata SET is_deleted = TRUE WHERE chunk_id = ANY($1::uuid[])", chunk_ids)
 
 
-async def fetch_passage_metadata(
-    chunk_ids: list[UUID], source_types: list[str] | None, published_after: date | None
-) -> dict[UUID, asyncpg.Record]:
+async def fetch_passage_metadata(chunk_ids: list[UUID]) -> dict[UUID, asyncpg.Record]:
     rows = await pool().fetch(
         """
         SELECT m.chunk_id, m.tier, m.reliability,
@@ -110,10 +118,8 @@ async def fetch_passage_metadata(
         FROM document_metadata m
         JOIN sources s ON s.document_id = m.source_id
         WHERE m.chunk_id = ANY($1::uuid[]) AND NOT m.is_deleted
-          AND ($2::text[] IS NULL OR s.source_type = ANY($2::text[]))
-          AND ($3::date IS NULL OR s.published_at > $3::date)
         """,
-        chunk_ids, source_types, published_after,
+        chunk_ids,
     )
     return {row["chunk_id"]: row for row in rows}
 

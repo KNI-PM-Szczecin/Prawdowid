@@ -21,12 +21,15 @@ class Settings(BaseSettings):
     collection_name: str = "evidence_chunks"
     model_cache_dir: str = "/models"
 
+    # Required for POST /ingest, DELETE /sources/{id} and POST /admin/eviction; empty = those endpoints are disabled.
+    admin_token: str = ""
+
     dense_model: str = "BAAI/bge-m3"
     dense_dim: int = 1024
     sparse_model: str = "Qdrant/bm25"
+    reranker_model: str = "BAAI/bge-reranker-v2-m3-int8"
     # Profile from app/languages/<code>.json (stemmer + stopwords) for BM25; FastEmbed has no Polish stemmer.
     corpus_language: str = "pl"
-    reranker_model: str = "BAAI/bge-reranker-v2-m3-int8"
 
     chunk_max_chars: int = 1200
     chunk_overlap_chars: int = 200
@@ -34,6 +37,7 @@ class Settings(BaseSettings):
     retrieval_limit_per_query: int = 30
     candidate_pool_size: int = 30
     rerank_top_k: int = 5
+    # Qwen 3.5 9B loses recall in the middle of long prompts; more than 7 passages drowns the contradiction rules.
     rerank_top_k_max: int = 7
     # Sigmoid of the BGE reranker logit; below 0.5 (logit < 0) the pair is judged irrelevant, so it is not evidence.
     rerank_min_score: float = 0.5
@@ -43,11 +47,14 @@ class Settings(BaseSettings):
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3.5:9b"
-    expansion_llm_api_key: str = "flm"
+    expansion_llm_api_key: str = ""
     expansion_llm_timeout_seconds: float = 20.0
 
     protection_days: int = 7
     eviction_max_active_chunks: int = 50000
+    # Brief minimum for the demo corpus; eviction never shrinks the corpus below it.
+    eviction_min_documents: int = 100
+    eviction_min_domains: int = 10
     eviction_age_weight: float = 0.4
     eviction_read_weight: float = 0.6
     eviction_tier3_age_multiplier: float = 2.0
