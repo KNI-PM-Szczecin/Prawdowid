@@ -60,8 +60,11 @@ export function App() {
       <a href="#main" class="skip-link">
         {texts.skipToContent}
       </a>
-      <Header onHome={goHome} onOpenAccessibility={() => setAccessibilityOpen(true)} />
-      {IS_MOCK_MODE && <p class="demo-banner">{texts.demoBanner}</p>}
+      <Header
+        onHome={goHome}
+        onOpenAccessibility={() => setAccessibilityOpen(true)}
+        notice={IS_MOCK_MODE ? texts.demoBanner : null}
+      />
       <main id="main">
         {view.kind === "form" && <Landing value={draft} onChange={setDraft} onSubmit={runCheck} />}
         {view.kind === "loading" && <LoadingView />}

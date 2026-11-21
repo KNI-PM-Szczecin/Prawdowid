@@ -20,11 +20,16 @@ interface ResultViewProps {
 export function ResultView({ result, submittedInput, onNewCheck }: ResultViewProps) {
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const panelScrollRef = useRef<HTMLDivElement>(null);
   const document = result.document;
   const selectedClaim = result.claims.find((claim) => claim.id === selectedClaimId) ?? null;
   const panelOpen = selectedClaim !== null;
 
   useEffect(() => headingRef.current?.focus(), [result.requestId]);
+
+  useEffect(() => {
+    panelScrollRef.current?.scrollTo({ top: 0 });
+  }, [selectedClaimId]);
 
   const closePanel = () => {
     const claimId = selectedClaimId;
@@ -82,7 +87,7 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
 
       {selectedClaim && (
         <div class={`result-view__side ${toneClass(verdictTone(selectedClaim))}`}>
-          <div class="result-view__side-inner">
+          <div ref={panelScrollRef} class="result-view__side-inner">
             <ClaimPanel claim={selectedClaim} onClose={closePanel} />
           </div>
         </div>

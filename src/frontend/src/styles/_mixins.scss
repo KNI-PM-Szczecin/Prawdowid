@@ -24,6 +24,11 @@ $weight-regular: 400;
 $weight-medium: 500;
 $weight-semibold: 600;
 
+// Strong ease-out: the movement is visible immediately, so the UI feels responsive.
+$ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+$duration-press: 160ms;
+$duration-panel: 240ms;
+
 @mixin from-sm {
   @media (min-width: $breakpoint-sm) {
     @content;
