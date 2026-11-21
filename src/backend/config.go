@@ -14,6 +14,7 @@ const (
 	defaultDatabaseMaxConns = 5
 	defaultRateLimit        = 20
 	defaultRetentionDays    = 30
+	defaultArchivalDays     = 365
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -28,6 +29,8 @@ type Config struct {
 	RateLimitPerMinute int
 	// RetentionDays is how long stored check runs are kept before they are deleted.
 	RetentionDays int
+	// ArchivalDays is the age of the newest source after which material is flagged as archival.
+	ArchivalDays int
 }
 
 func loadConfig() (Config, error) {
@@ -56,12 +59,18 @@ func loadConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	archivalDays, err := intFromEnv("BADGE_ARCHIVAL_DAYS", defaultArchivalDays)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Port:               stringFromEnv("PORT", defaultPort),
 		DatabaseURL:        databaseURL,
 		DatabaseMaxConns:   int32(maxConns),
 		RateLimitPerMinute: rateLimit,
 		RetentionDays:      retentionDays,
+		ArchivalDays:       archivalDays,
 	}, nil
 }
 

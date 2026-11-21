@@ -24,9 +24,10 @@ func newTestHandlers(verify verifyFunc, limit int) (*checkHandlers, *[]agent.Ver
 			saved = append(saved, request)
 			return nil
 		},
-		deleteRun: func(_ context.Context, requestID string) (bool, error) { return requestID != "", nil },
-		limiter:   newRateLimiter(limit, time.Minute),
-		now:       time.Now,
+		deleteRun:     func(_ context.Context, requestID string) (bool, error) { return requestID != "", nil },
+		limiter:       newRateLimiter(limit, time.Minute),
+		now:           time.Now,
+		archivalAfter: 365 * 24 * time.Hour,
 	}
 	return handlers, &saved
 }
@@ -221,5 +222,25 @@ func TestRateLimiterWindowResets(t *testing.T) {
 	current = current.Add(time.Minute + time.Second)
 	if !limiter.allow("a") {
 		t.Fatal("window should have reset")
+	}
+}
+
+func TestCheckResponseIncludesSummaryAndBadges(t *testing.T) {
+	handlers, _ := newTestHandlers(okVerify, 10)
+	recorder := postCheck(handlers, `{"input":"Polska jest w UE","inputType":"text"}`)
+
+	var raw map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	summary, ok := raw["summary"].(map[string]any)
+	if !ok || summary["level"] != summaryLevelUnknown || summary["score"] != nil {
+		t.Fatalf("an answer without verdicts must be unknown with null score, got %v", raw["summary"])
+	}
+	if badges, ok := raw["badges"].([]any); !ok || len(badges) != 0 {
+		t.Fatalf("badges must be an empty list, got %v", raw["badges"])
+	}
+	if raw["requestId"] == "" || raw["status"] != agent.StatusOK {
+		t.Fatalf("agent fields must stay at the top level: %v", raw)
 	}
 }

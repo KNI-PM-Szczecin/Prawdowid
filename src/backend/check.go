@@ -52,6 +52,8 @@ type checkHandlers struct {
 	deleteRun func(ctx context.Context, requestID string) (bool, error)
 	limiter   *rateLimiter
 	now       func() time.Time
+	// archivalAfter is the age of the newest source after which the archival_material badge is shown.
+	archivalAfter time.Duration
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
@@ -76,7 +78,22 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 	}
 
 	result, statusCode := h.runCheck(request.Context(), requestID, webChannel, body.Input, body.InputType)
-	h.reply(writer, statusCode, result)
+	writeJSON(h.logger, writer, statusCode, h.withSummary(result))
+}
+
+// checkResponse is the web answer: the agent result plus the deterministic fields from CONTRACT.md section 1a.
+type checkResponse struct {
+	agent.CheckResult
+	Summary Summary  `json:"summary"`
+	Badges  []string `json:"badges"`
+}
+
+func (h *checkHandlers) withSummary(result agent.CheckResult) checkResponse {
+	return checkResponse{
+		CheckResult: result,
+		Summary:     buildSummary(result),
+		Badges:      buildBadges(result, h.now(), h.archivalAfter),
+	}
 }
 
 // beginCheck reserves a request id and a rate-limit slot for every channel.

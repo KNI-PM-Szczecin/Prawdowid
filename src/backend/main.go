@@ -61,12 +61,13 @@ func run(logger *slog.Logger) error {
 	go purgeLoop(ctx, logger, store, retention)
 
 	checks := &checkHandlers{
-		logger:    logger,
-		verify:    verifier.Verify,
-		saveRun:   store.save,
-		deleteRun: store.delete,
-		limiter:   newRateLimiter(config.RateLimitPerMinute, rateLimitWindow),
-		now:       time.Now,
+		logger:        logger,
+		verify:        verifier.Verify,
+		saveRun:       store.save,
+		deleteRun:     store.delete,
+		limiter:       newRateLimiter(config.RateLimitPerMinute, rateLimitWindow),
+		now:           time.Now,
+		archivalAfter: time.Duration(config.ArchivalDays) * hoursPerDay * time.Hour,
 	}
 
 	demo := newChannelHandler(checks, demoAdapter{})
