@@ -261,7 +261,7 @@
     },
     "requires": "corpus:factcheck",
     "evidenceNeeded": "Ocena weryfikatora faktów (Demagog) dla tej wypowiedzi, odnaleziona przez Google Fact Check API.",
-    "note": "Rozbieżność wyjaśnialna (CONTRACT.md §4): jedna liczba to przybliżenie z wypowiedzi, druga konkretna pozycja z roku 2023. Werdykt weryfikatora to częściowa prawda, więc oczekujemy misleading z wyjaśnieniem i obu źródłami, nie insufficient_evidence. Uwaga: ta reguła jest w PR #23 (CONTRACT.md §4); do jego merge'u obowiązujący kontrakt dałby insufficient_evidence."
+    "note": "Rozbieżność wyjaśnialna (CONTRACT.md §4): jedna liczba to przybliżenie z wypowiedzi, druga konkretna pozycja z roku 2023. Werdykt weryfikatora to częściowa prawda, więc oczekujemy misleading z wyjaśnieniem i obu źródłami, nie insufficient_evidence."
   },
   {
     "id": "D07",
