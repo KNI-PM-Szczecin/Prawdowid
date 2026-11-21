@@ -160,8 +160,11 @@ Pozostałe endpointy:
 
 - Brak fragmentów z `rag/` → `insufficient_evidence`.
 - Są fragmenty, ale żaden nie potwierdza ani nie obala twierdzenia (tylko kontekst) → `insufficient_evidence`.
-- `confirmed` lub `false` tylko z **cytatem** i albo **jednym źródłem urzędowym** (`official`), albo **dwoma niezależnymi wtórnymi**.
-- Dwa wiarygodne źródła z przeciwnymi danymi → `insufficient_evidence` z pokazaniem obu stron i opisem rozbieżności w `missing` (bez arbitralnej pewności).
+- `confirmed` lub `false` tylko z **cytatem** i albo **jednym źródłem urzędowym** (`official`), albo **dwoma niezależnymi wtórnymi**, albo **oceną weryfikatora faktów** (patrz niżej).
+- **Rozbieżność źródeł.** Najpierw ustal, czy dane naprawdę sobie przeczą, czy opisują coś innego (przybliżenie a konkretna pozycja, inny rok, inny zakres). Jeśli da się to wyjaśnić, napisz wyjaśnienie w `justification`, pokaż oba źródła, a werdykt weź z oceny weryfikatora (np. „częściowa prawda” → `misleading`). Jeśli rozbieżności nie da się wyjaśnić → `insufficient_evidence` z obiema stronami w `sources` i opisem w `missing` (bez arbitralnej pewności).
+- **Ocena weryfikatora faktów** (`factcheck`, np. Demagog) dotycząca **tego samego twierdzenia** wystarcza jako podstawa `confirmed`, `false` albo `misleading` (prawda → `confirmed`, fałsz → `false`, częściowa prawda, manipulacja, brak kontekstu → `misleading`). Odpowiedź mówi, kto to ocenił („według Demagoga”) i linkuje publikację. Samo podobieństwo tematu nie wystarcza.
+- **Wydarzenia bieżące i niepełne dane.** Gdy część faktów jest ustalona, a część nie (np. zapowiedź strajku jest, a wyniku nie ma), podaj to, co ustalono, wskaż źródła i napisz wprost, czego nie wiadomo → `insufficient_evidence` z niepustym `sources` i opisem w `missing`. Nie pisz, że zdarzenie się nie odbyło.
+- **Awaria zewnętrznego źródła** (np. Google Fact Check) nigdy nie znaczy „nie ma takiej publikacji”. Odpowiedź ujawnia ograniczenie w `limitations` („nie mogę teraz sprawdzić…”); jeśli to jedyne źródło dla tego pytania → `technical_error`.
 - `evidenceStrength` `none` lub `weak` bez cytatu nigdy nie daje `confirmed` ani `false`.
 - Treść, która nie jest twierdzeniem faktograficznym (opinia, przepowiednia) → `not_verifiable`.
 
