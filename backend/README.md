@@ -1,3 +1,3 @@
 # backend
 
-Node.js + TypeScript. API i adaptery kanałów (bez logiki weryfikacji). Zasady: ../AGENTS.md Najpierw przeczytaj ../spec.
+Go (`net/http`). API i adaptery kanałów (bez logiki weryfikacji), importuje `agent/` przez `go.work`. Zasady: ../AGENTS.md Najpierw przeczytaj ../spec.

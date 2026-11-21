@@ -1,3 +1,3 @@
 # front
 
-Folder nieużywany. Frontend (Next.js) jest w `../src/`. Zasady: ../AGENTS.md. Najpierw przeczytaj ../spec.
+Folder nieużywany. Frontend (React + Vite) jest w `../src/`. Zasady: ../AGENTS.md. Najpierw przeczytaj ../spec.
