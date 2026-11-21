@@ -1,13 +1,16 @@
 import { useState } from "preact/hooks";
 import { AccessibilityPanel } from "./components/AccessibilityPanel";
-import { CheckForm } from "./components/CheckForm";
+import { BackgroundBlobs } from "./components/BackgroundBlobs";
+import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
+import { Landing } from "./components/Landing";
 import { LoadingView } from "./components/LoadingView";
 import { ResultView } from "./components/ResultView";
 import { StatusView, statusCopy } from "./components/StatusView";
 import { useAccessibilitySettings } from "./lib/accessibilitySettings";
 import { IS_MOCK_MODE, checkInput } from "./lib/api";
 import { detectInputType } from "./lib/input";
+import { SUMMARY_TONE, type Tone } from "./lib/presentation";
 import { texts } from "./lib/texts";
 import type { CheckResult } from "./lib/types";
 
@@ -43,15 +46,24 @@ export function App() {
     goHome();
   };
 
+  // Home is green like the Figma landing; a result takes its summary colour; other screens stay neutral.
+  let blobTone: Tone = "neutral";
+  if (view.kind === "form") {
+    blobTone = "positive";
+  } else if (view.kind === "result" && view.result.summary) {
+    blobTone = SUMMARY_TONE[view.result.summary.level];
+  }
+
   return (
     <div class="app">
+      <BackgroundBlobs tone={blobTone} />
       <a href="#main" class="skip-link">
         {texts.skipToContent}
       </a>
       <Header onHome={goHome} onOpenAccessibility={() => setAccessibilityOpen(true)} />
       {IS_MOCK_MODE && <p class="demo-banner">{texts.demoBanner}</p>}
-      <main id="main" data-tone={view.kind === "result" ? view.result.summary?.level : undefined} class="page-glow">
-        {view.kind === "form" && <CheckForm value={draft} onChange={setDraft} onSubmit={runCheck} />}
+      <main id="main">
+        {view.kind === "form" && <Landing value={draft} onChange={setDraft} onSubmit={runCheck} />}
         {view.kind === "loading" && <LoadingView />}
         {view.kind === "connection_error" && (
           <StatusView
@@ -74,6 +86,7 @@ export function App() {
           <ResultView result={view.result} submittedInput={submittedInput} onNewCheck={startNewCheck} />
         )}
       </main>
+      <Footer />
       <AccessibilityPanel
         open={accessibilityOpen}
         settings={accessibility.settings}

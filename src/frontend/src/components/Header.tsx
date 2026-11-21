@@ -8,20 +8,21 @@ interface HeaderProps {
 }
 
 export function Header({ onHome, onOpenAccessibility }: HeaderProps) {
-  const goHome = (event: MouseEvent) => {
-    event.preventDefault();
-    onHome();
-  };
   return (
     <header class="header">
       <div class="header__inner">
-        <a href="/" onClick={goHome} class="header__brand">
-          {texts.appName}
+        <a
+          href="/"
+          onClick={(event) => {
+            event.preventDefault();
+            onHome();
+          }}
+          class="header__brand"
+        >
+          <span class="header__name">{texts.appName}</span>
+          <span class="header__tagline">{texts.tagline}</span>
         </a>
-        <nav aria-label={texts.nav.label} class="header__nav">
-          <a href="/" onClick={goHome} class="header__link">
-            {texts.nav.home}
-          </a>
+        <nav aria-label={texts.nav.label}>
           <button type="button" onClick={onOpenAccessibility} class="header__accessibility">
             <AccessibilityIcon class="header__accessibility-icon" />
             {texts.nav.accessibility}

@@ -66,9 +66,29 @@
     align-self: flex-start;
   }
 
+  // Figma: the claim panel sits on a blurred wash of its verdict colour (top-right). clip-path keeps the
+  // blur inside the column without creating a scroll container, so the sticky inner panel still works.
   &__side {
+    position: relative;
+    clip-path: inset(0);
+
     @include from-lg {
       padding-left: 2rem;
+    }
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: -10rem;
+      right: -10rem;
+      z-index: -1;
+      width: 30rem;
+      height: 30rem;
+      border-radius: 50%;
+      background: var(--tone-blob);
+      filter: blur(60px);
+      pointer-events: none;
+      transition: background-color 500ms ease;
     }
   }
 

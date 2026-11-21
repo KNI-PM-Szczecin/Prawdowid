@@ -1,29 +1,6 @@
 @use "../styles/mixins" as *;
 
 .check-form {
-  max-width: 56rem;
-  margin: 0 auto;
-  padding: 3rem 1rem;
-
-  @include from-sm {
-    padding: 5rem 2rem;
-  }
-
-  &__title {
-    text-align: center;
-    font-size: $text-4xl;
-    font-weight: $weight-medium;
-    line-height: 1.25;
-
-    @include from-sm {
-      font-size: $text-6xl;
-    }
-  }
-
-  &__form {
-    margin-top: 2.5rem;
-  }
-
   &__input {
     display: block;
     width: 100%;
@@ -33,6 +10,8 @@
     background: var(--page);
     padding: 1rem;
     font-size: $text-xl;
+    caret-color: var(--ink);
+    transition: border-color 160ms ease;
 
     &::placeholder {
       color: var(--ink-soft);
@@ -82,44 +61,36 @@
   }
 
   &__examples {
-    margin-top: 2.5rem;
+    margin-top: 2rem;
+  }
+
+  &__examples-title {
+    font-size: $text-lg;
+    font-weight: $weight-semibold;
   }
 
   &__example-list {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    margin-top: 1rem;
+    margin-top: 0.75rem;
     list-style: none;
   }
 
   &__example {
     border: $border solid var(--line);
     border-radius: $radius-pill;
+    background: var(--page);
     padding: 0.5rem 1rem;
     font-size: $text-lg;
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), border-color 160ms ease;
 
     @include hover {
       border-color: var(--ink);
     }
-  }
 
-  &__how {
-    margin-top: 3.5rem;
-  }
-
-  &__how-title {
-    font-size: $text-3xl;
-    font-weight: $weight-medium;
-  }
-
-  &__steps {
-    margin-top: 1rem;
-    padding-left: 1.5rem;
-    font-size: $text-lg;
-
-    > li + li {
-      margin-top: 0.5rem;
+    &:active {
+      transform: scale(0.97);
     }
   }
 }

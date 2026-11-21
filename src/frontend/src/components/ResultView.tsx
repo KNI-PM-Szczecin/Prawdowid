@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { toneClass, verdictTone } from "../lib/presentation";
 import { texts } from "../lib/texts";
 import type { CheckResult } from "../lib/types";
 import { BadgeList } from "./BadgeList";
@@ -80,7 +81,7 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
       </div>
 
       {selectedClaim && (
-        <div class="result-view__side">
+        <div class={`result-view__side ${toneClass(verdictTone(selectedClaim))}`}>
           <div class="result-view__side-inner">
             <ClaimPanel claim={selectedClaim} onClose={closePanel} />
           </div>

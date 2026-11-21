@@ -22,6 +22,10 @@
   --alert-line: #000000;
   --alert-ring: #555555;
   --backdrop: rgb(0 0 0 / 50%);
+  --positive-blob: #c5f5a6;
+  --negative-blob: #ffbdbd;
+  --warning-blob: #ffec8a;
+  --neutral-blob: #d9dee6;
 }
 
 :root[data-contrast="high-light"] {
@@ -73,5 +77,15 @@
     --tone-soft: var(--#{$tone}-soft);
     --tone-line: var(--#{$tone}-line);
     --tone-strong: var(--#{$tone}-strong);
+    --tone-blob: var(--#{$tone}-blob);
+  }
+}
+
+// High contrast keeps the page flat: no blobs, no colour wash.
+:root[data-contrast="high-light"],
+:root[data-contrast="high-dark"] {
+  .blobs,
+  .result-view__side::before {
+    display: none;
   }
 }
