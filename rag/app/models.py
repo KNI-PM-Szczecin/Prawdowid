@@ -159,6 +159,17 @@ class EuvsDisinfoSyncStatus(ApiModel):
     available: int | None
 
 
+class CorpusSyncStatus(ApiModel):
+    running: bool
+    last_finished_at: Timestamp | None
+    available: int | None
+    indexed: int
+    skipped_duplicates: int
+    skipped_outside_catalog: int
+    failed: int
+    last_error: str | None
+
+
 class IncidentCatalogSummary(ApiModel):
     catalog_size: int
     euvsdisinfo: EuvsDisinfoSyncStatus | None = None

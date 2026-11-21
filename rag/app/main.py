@@ -13,6 +13,8 @@ from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedR
 from app import db
 from app.catalog import SourceOutsideCatalogError, load_catalog, resolve_entry
 from app.config import settings
+from app.corpus_sync import sync_corpus
+from app.corpus_sync import sync_state as corpus_sync_state
 from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
@@ -20,6 +22,7 @@ from app.factcheck import FactCheckClient
 from app.incidents import incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, ingest_document
 from app.models import (
+    CorpusSyncStatus,
     DeletionReport,
     EuvsDisinfoSyncStatus,
     EvictionReport,
@@ -262,6 +265,37 @@ async def delete_incident(source: str, incident_id: str) -> IncidentCatalogSumma
     await app.state.incidents.delete([incident_point_id(source, incident_id)])
     logger.info("incident %s/%s deleted on request", source, incident_id)
     return IncidentCatalogSummary(catalog_size=await app.state.incidents.count())
+
+
+def _corpus_sync_status() -> CorpusSyncStatus:
+    return CorpusSyncStatus(
+        running=corpus_sync_state.running,
+        last_finished_at=corpus_sync_state.last_finished_at,
+        available=corpus_sync_state.available,
+        indexed=corpus_sync_state.indexed,
+        skipped_duplicates=corpus_sync_state.skipped_duplicates,
+        skipped_outside_catalog=corpus_sync_state.skipped_outside_catalog,
+        failed=corpus_sync_state.failed,
+        last_error=corpus_sync_state.last_error,
+    )
+
+
+@app.get("/corpus/sync", response_model=CorpusSyncStatus)
+async def corpus_sync_status() -> CorpusSyncStatus:
+    return _corpus_sync_status()
+
+
+@app.post("/admin/corpus/sync", response_model=CorpusSyncStatus, status_code=HTTP_ACCEPTED, dependencies=AdminOnly)
+async def start_corpus_sync(
+    background_tasks: BackgroundTasks,
+    max_documents: Annotated[
+        int, Query(alias="maxDocuments", ge=1, le=settings.corpus_sync_max_documents)
+    ] = settings.corpus_sync_max_documents,
+) -> CorpusSyncStatus:
+    """Imports the scraper's pages from the shared database in the background; GET /corpus/sync shows progress."""
+    if not corpus_sync_state.running:
+        background_tasks.add_task(sync_corpus, app.state.models, app.state.store, max_documents)
+    return _corpus_sync_status()
 
 
 @app.post("/admin/eviction", response_model=EvictionReport, dependencies=AdminOnly)

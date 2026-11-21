@@ -34,14 +34,14 @@ class Settings(BaseSettings):
     corpus_language: str = "pl"
 
     # Cross-encoder cost grows with text length (10 x 1200 chars = 4.7 s on 8 threads); 600 keeps rerank in budget.
-    chunk_max_chars: int = 600
-    chunk_overlap_chars: int = 100
+    chunk_max_chars: int = 450
+    chunk_overlap_chars: int = 75
     # ONNX threads for embeddings and the reranker; 0 = all CPU cores.
     model_threads: int = 0
 
     retrieval_limit_per_query: int = 30
     # Rerank budget: 15 chunks x 600 chars + 10 fact-checks + 10 incidents is about 5 s on CPU (contract: rag max 8 s).
-    candidate_pool_size: int = 15
+    candidate_pool_size: int = 12
     rerank_top_k: int = 5
     # Qwen 3.5 9B loses recall in the middle of long prompts; more than 7 passages drowns the contradiction rules.
     rerank_top_k_max: int = 7
@@ -66,11 +66,18 @@ class Settings(BaseSettings):
 
     # Catalog of known disinformation campaigns (EUvsDisinfo, organizer's incident base), matched locally per search.
     incident_collection_name: str = "disinfo_incidents"
-    incident_retrieval_limit: int = 10
+    incident_retrieval_limit: int = 5
     # Stricter than evidence: wrongly tying a claim to a hostile campaign does more harm than a weak citation.
     incident_min_score: float = 0.7
     incident_max_matches: int = 3
     incident_summary_max_chars: int = 400
+
+    # Team scraper writes pages into this table of the shared database (id, date YYYYMMDD, site, title, content).
+    corpus_scraped_table: str = "ScrappedData"
+    corpus_sync_max_documents: int = 5000
+    # A line present in at least this share of scraped pages is navigation boilerplate, not content.
+    corpus_boilerplate_share: float = 0.3
+    corpus_boilerplate_min_documents: int = 3
 
     # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
     euvsdisinfo_token: str = Field(
@@ -84,6 +91,11 @@ class Settings(BaseSettings):
     euvsdisinfo_sync_max_cases: int = 25000
     euvsdisinfo_daily_sync_cases: int = 200
     euvsdisinfo_sync_cron_hour: int = 2
+
+    # Same query + filters within the TTL and the same corpus version returns the cached response: identical
+    # results across channels (brief scenario G) and no reranker cost on repeats. Memory only, keyed by hash.
+    search_cache_ttl_seconds: int = 600
+    search_cache_max_entries: int = 500
 
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""
