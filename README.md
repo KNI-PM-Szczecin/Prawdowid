@@ -4,6 +4,7 @@ Narzędzie dla obywatela do sprawdzania doniesień (tekst, URL) na podstawie wia
 Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje się od oceny.
 
 ## Struktura
+- `spec/` — brief zadania, regulamin, wymagania (przeczytaj najpierw)
 - `front/` — React (interfejs WWW)
 - `backend/` — Node.js (API, kanały)
 - `agent/` — logika weryfikacji
