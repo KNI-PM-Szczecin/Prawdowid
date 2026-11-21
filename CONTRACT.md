@@ -114,6 +114,7 @@ Adres w `RAG_URL`. Pola w camelCase. Błąd indeksu to `503` z ciałem `{ "error
 `topK` domyślnie 5, max 7 (więcej daje `422`). `query` 3–5000 znaków. Filtry są stosowane wewnątrz indeksu.
 
 Odpowiedź: `results` (lista `Passage`), `corpusVersion`, `contextXml`, `expandedQueries`, `elapsedMs`.
+`results` ma najwyżej `topK` elementów, malejąco po `score`. `score` to sigmoid(logit rerankera BGE / 4), skala 0..1.
 `Passage`: `documentId`, `title`, `publisher`, `publishedAt`, `fetchedAt`, `url`, `license`, `sourceType`, `passage`, `score` (0..1), `flags`, `chunkId`, `tier` (1–3), `reliability` (`high`, `medium`, `low`).
 
 Zasady:
