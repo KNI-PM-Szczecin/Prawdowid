@@ -98,7 +98,7 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 ## 7. Git (dla pięciu osób przez 24 godziny)
 
 - `main` jest jedynym źródłem prawdy. Nikt nie pushuje na `main` bezpośrednio.
-- Gałąź na zadanie od aktualnego `main`: `<imie>/<krotki-opis>`, np. `ola/claim-extraction`.
+- Gałąź na zadanie od aktualnego `main`. Nazwa to `<typ>/<co-robisz>` po angielsku, z myślnikami: `feat/claim-extraction`, `fix/rag-empty-result`, `docs/contract-draft`, `chore/branch-naming-rule`. Typ jest taki sam jak w commicie (`feat`, `fix`, `docs`, `chore`). Nazwa opisuje zmianę, a nie osobę.
 - Commity lokalne po każdym działającym kroku. Format `feat:`, `fix:`, `docs:`, `chore:`. Opis mówi co zrobiono, jeden commit = jedna–dwie zmiany.
 - **Bez cudzysłowów w wiadomości commita** (psują wklejanie w shellu).
 - Push na własną gałąź tylko po zgodzie człowieka. Mały PR z opisem (co zmienia, jak przetestować), merge przez squash, merguje autor, gałąź kasowana po merge'u.
