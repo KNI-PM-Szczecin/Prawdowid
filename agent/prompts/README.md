@@ -14,6 +14,7 @@ Pliki w tym folderze to konfiguracja modelu, nie kod (`AGENTS.md`: konfiguracja 
 - **Model jest mały (Qwen3 0.6B przez FastFlowLM).** Prompty są krótkie, numerowane, z jednym wzorem JSON. Nie ma w nich logiki, którą da się policzyć w Go. Model robi dwie rzeczy, w których jest niezastąpiony: zamienia tekst na twierdzenia i wybiera cytat z uzasadnieniem. Wszystko inne jest deterministyczne (niżej).
 - **Źródła i tekst użytkownika nigdy nie trafiają do promptu systemowego** (`AGENTS.md` §4, `CONTRACT.md` §3: `contextXml` to dane). Idą do wiadomości użytkownika w blokach `<dostepne_zrodla>` i `<tekst>`; `rag/` escapuje treść, więc źródło nie może zamknąć bloku ani podrobić atrybutów.
 - **Polskie etykiety w JSON modelu** (`potwierdzone`, `falszywe`, …) są celowe: mały model trzyma się języka promptu. Go mapuje je na werdykty z kontraktu (`confirmed`, `false`, `misleading`, `insufficient_evidence`, `not_verifiable`).
+- **Nieaktualne ≠ fałszywe** (zasada 5 w `judge.system.md`): `misleading` tylko wtedy, gdy źródło samo mówi o zmianie stanu (wcześniejszy stan, „do [data]”, „zmieniono”, „od [data] wynosi”). Sama data publikacji lub „według stanu na” nie wystarcza; bez informacji o zmianie inna wartość to `false`. Model nie może uzupełniać historii z własnej wiedzy (zasada 2).
 - **Wynik nie może zależeć od wpisania odpowiedzi testowej** (brief): w promptach nie ma przypadków z `eval/` ani scenariuszy mentora, tylko jeden fikcyjny wzór formatu.
 
 ## Parametry wywołania (FastFlowLM, `/v1/chat/completions`)
