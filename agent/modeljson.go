@@ -69,12 +69,16 @@ func firstJSONObject(text string) (string, bool) {
 }
 
 // askJSON runs the model and decodes its JSON answer into target, retrying once on malformed output.
+// The returned Completion carries the token counts of every attempt, also when both fail.
 func askJSON(ctx context.Context, provider LLMProvider, system, user string, target any) (Completion, error) {
 	var lastErr error
+	var usage Completion
 	for attempt := 0; attempt < 2; attempt++ {
 		completion, err := provider.Generate(ctx, system, user)
+		usage.InputTokens += completion.InputTokens
+		usage.OutputTokens += completion.OutputTokens
 		if err != nil {
-			return completion, err
+			return usage, err
 		}
 		object, found := firstJSONObject(completion.Text)
 		if !found {
@@ -85,7 +89,8 @@ func askJSON(ctx context.Context, provider LLMProvider, system, user string, tar
 			lastErr = fmt.Errorf("%w: %w", ErrModelAnswer, err)
 			continue
 		}
-		return completion, nil
+		usage.Text = completion.Text
+		return usage, nil
 	}
-	return Completion{}, lastErr
+	return usage, lastErr
 }

@@ -27,6 +27,9 @@ type fakeProvider struct {
 	extract string
 	err     error
 	calls   []string
+	// Tokens one call reports; the cost test checks that they reach meta.estimatedCostUsd.
+	inputTokens  int
+	outputTokens int
 }
 
 func (f *fakeProvider) Name() string { return "fake-model" }
@@ -35,13 +38,16 @@ func (f *fakeProvider) Generate(_ context.Context, system, user string) (Complet
 	if f.err != nil {
 		return Completion{}, f.err
 	}
+	completion := Completion{InputTokens: f.inputTokens, OutputTokens: f.outputTokens}
 	if strings.Contains(system, "Wyodrębniasz") {
 		f.calls = append(f.calls, "extract")
-		return Completion{Text: f.extract}, nil
+		completion.Text = f.extract
+		return completion, nil
 	}
 	if strings.Contains(system, "<dostepne_zrodla>") && strings.Contains(user, "<dostepne_zrodla>") {
 		f.calls = append(f.calls, "judge")
-		return Completion{Text: f.judge}, nil
+		completion.Text = f.judge
+		return completion, nil
 	}
 	return Completion{}, errors.New("unexpected prompt")
 }
@@ -127,6 +133,7 @@ func newTestAgent(t *testing.T, provider LLMProvider, rag *ragStub) *Agent {
 	config := Config{
 		RagURL: server.URL, LLMBaseURL: "http://unused", LLMModel: "fake-model", MaxClaims: 3, SearchTopK: 5,
 		VerifyTimeout: 5 * time.Second, RagTimeout: 2 * time.Second, LLMTimeout: 2 * time.Second, ExtractMaxText: 6000,
+		LLMPriceInputPerM: 0.10, LLMPriceOutputPerM: 0.50,
 	}
 	a, err := New(config, provider, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
 	if err != nil {
