@@ -6,7 +6,9 @@ Podstawa (MVP) jest w `spec/requirements.md`. Poniżej źródła i integracje us
 
 ### Źródła korpusu
 - [ZAPLANOWANE] **Domeny rządowe i urzędowe** z listy mentora (RCB, ostrzeżenia gov.pl, GIS, KG PSP, MSWiA, MSZ, policja, CERT Polska, IMGW, GDDKiA, ULC i in.). To przykłady, nie wszystkie muszą trafić do korpusu. Zasilanie przez skrypt ingest w `rag/` (odpowiada Dominik). Typ źródła: `official`.
-- [ZAPLANOWANE] **Google Fact Check Tools API** jako baza weryfikatorów faktów (typ źródła: `factcheck`). Wymaga klucza API, który trzymamy w `.env`, nigdy w repo. Odpowiada Vanessa (założenie klucza, test na polskich zapytaniach, klient w `agent/`, opis limitów i kosztów do dokumentacji).
+- [ZAIMPLEMENTOWANE] **Google Fact Check Tools API** jako baza weryfikatorów faktów (typ źródła: `factcheck`). Klient jest w `rag/` (odpowiada Dominik): zapytanie idzie na żywo, równolegle z korpusem, a wyniki przechodzą przez ten sam reranker i próg trafności. Brak klucza lub awaria API nie psuje wyszukiwania (status w `externalSources`). Klucz w `.env` (`FACTCHECK_API_KEY`), nigdy w repo, wysyłany w nagłówku, nie w URL.
+- [ZAPLANOWANE] Fact Check API, część zespołu (Vanessa): założenie klucza, test na polskich zapytaniach, opis limitów i kosztów do dokumentacji. Dokumentacja Google nie podaje limitów ani cennika, a API jest w wersji `v1alpha1`.
+- Uwaga: Google Fact Check pokazuje, czy weryfikatorzy już sprawdzali twierdzenie i z jaką oceną. Nie mówi, czy coś jest częścią wrogiej kampanii; do tego służy EUvsDisinfo poniżej.
 - [ZAPLANOWANE, funkcja premiowana] **EUvsDisinfo**: sprawdzenie, czy podobne twierdzenie pojawiło się we wrogich operacjach informacyjnych. Wynik pokazujemy jako kontekst (`incident_match`), nigdy jako podstawę werdyktu (zakaz z briefu, scenariusz I). Robimy dopiero po spełnieniu wymagań podstawowych. Token dostępowy: od mentora (PW) albo przez formularz EUvsDisinfo, trzymany w `.env`.
 
 ## Infrastruktura fizyczna
@@ -60,6 +62,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 - [ZAPLANOWANE] Cache wyników trzyma skrót (hash) znormalizowanego zgłoszenia jako klucz, nie samą treść.
 - [ZAPLANOWANE] Określona retencja logów sprawdzeń i możliwość usunięcia sesji demo.
 - [ZAIMPLEMENTOWANE] Korpus zawiera tylko materiały źródłowe z licencją i procedurą usunięcia (`DELETE /sources/{id}`), nie zgłoszenia użytkowników.
+- **Google Fact Check:** treść twierdzenia trafia do Google (dostawca spoza EOG). [ZAIMPLEMENTOWANE] `rag/` wysyła tylko jedno wyodrębnione twierdzenie, nie całe zgłoszenie. Nie zapisuje go w logach (przy błędzie loguje sam kod HTTP), a pamięć podręczna w RAM (1 h) ma jako klucz hash zapytania. [ZAPLANOWANE] `agent/` maskuje dane osobowe przed wywołaniem `rag/`; źródło można wyłączyć, zostawiając pusty `FACTCHECK_API_KEY`.
 
 ### Prompt injection
 **Opis:** treść pobranej strony, artykułu albo zgłoszenia zawiera polecenia dla modelu i próbuje zmienić jego zachowanie lub werdykt.
