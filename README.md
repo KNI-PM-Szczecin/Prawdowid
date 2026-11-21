@@ -38,6 +38,17 @@ git config core.hooksPath .githooks
 cp .env.example .env
 ```
 
+## Baza danych (Supabase)
+`backend/` i `rag/` korzystają z jednej bazy PostgreSQL w Supabase. Wystarczy wpisać `DATABASE_URL` w `.env`, kod nie wymaga zmian.
+
+1. Załóż projekt na supabase.com w regionie UE (np. Frankfurt, `eu-central-1`), żeby dane były przetwarzane w EOG.
+2. Project Settings → Database → Connection string → **Session pooler**. Skopiuj URI, wstaw hasło bazy, dopisz `?sslmode=require`.
+3. Wklej jako `DATABASE_URL` w `.env`. Nie używaj Direct connection (tylko IPv6, nie działa z Dockera) ani Transaction pooler (port 6543).
+
+Łączymy się bezpośrednio przez PostgreSQL, a nie przez API Supabase (`anon`/`service_role` nie są potrzebne). Front nigdy nie łączy się z bazą, tylko z `backend/`.
+`rag/` tworzy swoje tabele sam przy starcie (`rag/app/schema.sql`) i włącza na nich RLS bez polityk, więc publiczne REST API Supabase ich nie odczyta.
+Bez Supabase (offline, demo bez sieci): zostaw `DATABASE_URL` puste i uruchom lokalny Postgres z `rag/` przez `docker compose --profile local-db`, a backendowi ustaw `DATABASE_URL=postgresql://rag:rag@localhost:5432/rag`.
+
 ## Uruchomienie
 Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
 

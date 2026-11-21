@@ -10,10 +10,15 @@ W `../.env` ustaw `RAG_POSTGRES_PASSWORD` (bez niego compose nie wystartuje) i `
 
 ```
 cd rag
-docker compose --env-file ../.env up -d --build
+docker compose --env-file ../.env up -d --build                      # baza w Supabase (DATABASE_URL w ../.env)
+docker compose --env-file ../.env --profile local-db up -d --build   # lokalny Postgres, DATABASE_URL puste
 ```
 
-Serwis: `http://127.0.0.1:8001` (OpenAPI: `/docs`). Słucha tylko na localhost, a Postgres i Qdrant nie są wystawione na hosta. Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
+Baza: `DATABASE_URL` z `../.env`, wspólna z `backend/` (Supabase, Session pooler, opis w `../README.md`). `RAG_POSTGRES_DSN` nadpisuje ją tylko dla `rag/`. Limit połączeń: `RAG_POSTGRES_POOL_MAX_SIZE` (5).
+
+Lokalnie bez Dockera (Qdrant i ewentualnie Postgres nadal z compose): `uv sync`, potem `uv run uvicorn app.main:app --port 8001`. Ustawienia czyta z `../.env` i `rag/.env` (`DATABASE_URL`, `RAG_QDRANT_URL`, `RAG_MODEL_CACHE_DIR`). Nową paczkę dodajesz przez `uv add <paczka>`.
+
+Serwis: `http://localhost:8001` (OpenAPI: `/docs`). Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
 
 Test dymny na fikcyjnych danych:
 ```
@@ -40,8 +45,8 @@ Testy nie wymagają Dockera ani modeli: czyste funkcje (chunking, stemmer, ekspa
 
 | Element | Rola |
 |---|---|
-| Qdrant | Statyczny tekst fragmentu i wektory: dense (BGE-M3, 1024) + sparse (BM25 z IDF). Payload: `chunk_id`, `source_id`, `text`, `topic_tag`, `source_type`, `published_at` (dwa ostatnie z indeksem do filtrów). |
-| PostgreSQL | `sources` (tytuł, wydawca, link, daty `TIMESTAMPTZ`, licencja, typ) i `document_metadata` (tier, wiarygodność, ochrona, `read_count`, soft delete). Stan zmienny jest tu, nie w Qdrancie. |
+| Qdrant | Statyczny tekst fragmentu i wektory: dense (BGE-M3, 1024) + sparse (BM25 z IDF). Payload: `chunk_id`, `source_id`, `text`, `topic_tag`. |
+| PostgreSQL (Supabase albo lokalny) | `sources` (tytuł, wydawca, link, daty, licencja, typ) i `document_metadata` (tier, wiarygodność, ochrona, `read_count`, soft delete). Stan zmienny jest tu, nie w Qdrancie. |
 | FastEmbed (ONNX, CPU) | BGE-M3 dense, BM25 sparse, `bge-reranker-v2-m3` (int8). Wszystko w kontenerze, bez GPU. |
 | APScheduler | Eviction codziennie o 3:00, optymalizacja segmentów Qdranta o 4:00. |
 
