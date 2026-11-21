@@ -14,6 +14,7 @@ from app import db
 from app.config import settings
 from app.embeddings import EmbeddingModels
 from app.eviction import run_eviction
+from app.factcheck import FactCheckClient
 from app.ingest import ingest_document
 from app.models import (
     DeletionReport,
@@ -25,7 +26,7 @@ from app.models import (
     SearchResponse,
     SourceAuditEntry,
 )
-from app.search import search_passages
+from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.vector_store import VectorStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -50,6 +51,9 @@ async def lifespan(app: FastAPI):
     await store.ensure_collection()
     app.state.store = store
     app.state.models = EmbeddingModels()
+    factcheck = FactCheckClient()
+    app.state.factcheck = factcheck
+    logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_eviction, "cron", hour=settings.eviction_cron_hour, args=[store])
@@ -59,6 +63,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         scheduler.shutdown(wait=False)
+        await factcheck.close()
         await store.close()
         await db.close()
 
@@ -97,9 +102,10 @@ async def health() -> HealthResponse:
 
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> SearchResponse:
-    response = await search_passages(request, app.state.models, app.state.store)
-    if response.results:
-        background_tasks.add_task(db.register_reads, [item.chunk_id for item in response.results])
+    response = await search_passages(request, app.state.models, app.state.store, app.state.factcheck)
+    corpus_chunk_ids = [item.chunk_id for item in response.results if item.source_type != FACTCHECK_SOURCE_TYPE]
+    if corpus_chunk_ids:
+        background_tasks.add_task(db.register_reads, corpus_chunk_ids)
     return response
 
 
