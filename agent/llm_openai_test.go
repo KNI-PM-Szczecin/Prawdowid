@@ -20,12 +20,15 @@ func payloadFields(t *testing.T, baseURL, effort string) map[string]any {
 	return fields
 }
 
-func TestOpenAIPayloadOmitsRejectedFields(t *testing.T) {
+func TestOpenAIPayloadPinsTemperatureWhenReasoningIsOff(t *testing.T) {
 	fields := payloadFields(t, "https://api.openai.com/v1", "")
-	for _, rejected := range []string{"temperature", "max_tokens", "think"} {
+	for _, rejected := range []string{"max_tokens", "think"} {
 		if _, present := fields[rejected]; present {
 			t.Errorf("OpenAI payload must not contain %q", rejected)
 		}
+	}
+	if fields["temperature"] != float64(0) {
+		t.Errorf("temperature = %v, want 0 (accepted with reasoning_effort=none)", fields["temperature"])
 	}
 	if fields["max_completion_tokens"] != float64(openAIMaxCompletionTokens) {
 		t.Errorf("max_completion_tokens = %v", fields["max_completion_tokens"])
@@ -35,9 +38,13 @@ func TestOpenAIPayloadOmitsRejectedFields(t *testing.T) {
 	}
 }
 
-func TestOpenAIReasoningEffortOverride(t *testing.T) {
-	if got := payloadFields(t, "https://api.openai.com/v1/", "low")["reasoning_effort"]; got != "low" {
+func TestOpenAIReasoningEffortOverrideOmitsTemperature(t *testing.T) {
+	fields := payloadFields(t, "https://api.openai.com/v1/", "low")
+	if got := fields["reasoning_effort"]; got != "low" {
 		t.Errorf("reasoning_effort = %v, want low", got)
+	}
+	if _, present := fields["temperature"]; present {
+		t.Error("OpenAI payload with reasoning effort low must not contain temperature")
 	}
 }
 

@@ -1,4 +1,6 @@
 import asyncio
+import json
+from pathlib import Path
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from app.config import settings
@@ -7,11 +9,18 @@ from app.models import CAMPAIGN_CATEGORY, CampaignAlert, IncidentIn, IncidentMat
 from app.vector_store import RawPoint, RetrievedChunk, VectorStore
 
 CATALOG_STATUS_NAME = "incident_catalog"
+SEED_INCIDENTS_PATH = Path(__file__).parent / "data" / "seed_incidents.json"
 SOURCE_LABELS = {"euvsdisinfo": "EUvsDisinfo"}
 CAMPAIGN_MESSAGE = (
     "Podobne twierdzenie pojawiło się w znanej kampanii dezinformacyjnej ({sources}). "
     "To informacja o kontekście, a nie ocena prawdziwości zgłoszenia."
 )
+
+
+def load_seed_incidents() -> list[IncidentIn]:
+    """Small starter catalog (real EUvsDisinfo cases) so scenario I works without a token or a background sync."""
+    payload = json.loads(SEED_INCIDENTS_PATH.read_text(encoding="utf-8"))
+    return [IncidentIn.model_validate(item) for item in payload["incidents"]]
 
 
 def incident_point_id(source: str, incident_id: str) -> UUID:

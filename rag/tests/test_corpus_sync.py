@@ -12,6 +12,7 @@ from app.corpus_sync import (
     fetch_corpus,
     parse_date_code,
     remove_boilerplate,
+    seed_published_at,
     seed_urls,
     sync_corpus,
     to_document,
@@ -77,6 +78,18 @@ def test_to_document_uses_catalog_publisher_and_host_topic():
     assert to_document(PAGES[4], "x").source.publisher == "blog.example.net"
 
 
+def test_to_document_keeps_publication_date_from_the_page():
+    page = Page(
+        "web:1",
+        "https://www.gov.pl/web/rcb/a",
+        "Komunikat",
+        "Treść.",
+        NOW,
+        published_at=datetime(2024, 3, 12, tzinfo=UTC),
+    )
+    assert to_document(page, "Treść.").source.published_at == datetime(2024, 3, 12, tzinfo=UTC)
+
+
 def test_sync_counts_indexed_duplicates_outside_and_continues(fake_ingest, monkeypatch):
     async def fetch_scraped_pages(limit):
         return [
@@ -125,6 +138,11 @@ def test_seed_urls_are_all_in_catalog_domains():
     urls = seed_urls()
     assert len(urls) >= 30
     assert all(resolve_entry(url) is not None for url in urls)
+
+
+def test_seed_published_at_returns_only_pinned_iso_dates():
+    assert seed_published_at("https://www.gov.pl/web/premier/25-lat-temu-polska-przystapila-do-nato") is not None
+    assert seed_published_at("https://example.org/bez-daty") is None
 
 
 def test_invalid_table_name_is_rejected(monkeypatch):

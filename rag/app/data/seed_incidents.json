@@ -1,0 +1,38 @@
+{
+  "note": "Trzy publiczne sprawy EUvsDisinfo jako startowy katalog kampanii (scenariusz I). To kontekst, nigdy dowód ani podstawa werdyktu. Stresszczenia po polsku są tłumaczeniem redakcyjnym; link prowadzi do oryginału, a licencja i źródło są zapisane przy każdej sprawie.",
+  "incidents": [
+    {
+      "incidentId": "ukraine-drone-provocation-poland-2025",
+      "source": "euvsdisinfo",
+      "title": "Ukraina zorganizowała prowokację z rosyjskimi dronami przeciw Polsce",
+      "summary": "Drony, które wleciały w polską przestrzeń powietrzną, miały zostać wysłane przez Ukrainę, aby sprowokować Polskę. Ukraińskie media miały publikować zdjęcia rzekomo rozbitych dronów, a te same maszyny można teoretycznie wykorzystać ponownie po wymianie silnika.",
+      "url": "https://euvsdisinfo.eu/report/ukraine-organised-a-provocation-against-poland-reusing-russian-drones",
+      "publishedAt": "2025-09-10T00:00:00Z",
+      "countries": ["Poland", "Ukraine", "Russia"],
+      "languages": ["pl", "en"],
+      "license": "EUvsDisinfo (EEAS East StratCom Task Force), euvsdisinfo.eu – cytat redakcyjny"
+    },
+    {
+      "incidentId": "nato-mi6-ust-luga-2026",
+      "source": "euvsdisinfo",
+      "title": "NATO i MI6 zorganizowały atak dronów na rosyjski port Ust-Ługa",
+      "summary": "Atak dronów na Ust-Ługę był operacją NATO z brytyjskim wątkiem. Drony nie mogły przelecieć nad Litwą, Łotwą, Estonią i Polską bez ich wiedzy, wrak potwierdza ukraińskie pochodzenie maszyn, a MI6 koordynowało wcześniejsze ataki.",
+      "url": "https://euvsdisinfo.eu/report/nato-and-mi6-staged-the-drone-attack-on-the-russian-ust-luga-port",
+      "publishedAt": "2026-03-26T00:00:00Z",
+      "countries": ["Poland", "Russia", "Baltic states", "Ukraine", "UK"],
+      "languages": ["pl", "en"],
+      "license": "EUvsDisinfo (EEAS East StratCom Task Force), euvsdisinfo.eu – cytat redakcyjny"
+    },
+    {
+      "incidentId": "warsaw-missile-russophobia-2026",
+      "source": "euvsdisinfo",
+      "title": "Warszawa nazwała rosyjski pocisk rosyjskim z powodu rusofobii i dyktatu Brukseli",
+      "summary": "Premier Donald Tusk bez zakończenia śledztwa stwierdził, że pocisk, który spadł w Lubelskiem, był rosyjski. Zdaniem autorów teza świadczy o rusofobii i wykonywaniu poleceń Brukseli, a sprawę powinna wyjaśnić polsko-rosyjska komisja.",
+      "url": "https://euvsdisinfo.eu/report/warsaw-called-crashed-missile-russian-because-of-russophobia-and-a-dictate-from-brussels",
+      "publishedAt": "2026-07-30T00:00:00Z",
+      "countries": ["Poland", "Russia", "EU"],
+      "languages": ["pl", "en"],
+      "license": "EUvsDisinfo (EEAS East StratCom Task Force), euvsdisinfo.eu – cytat redakcyjny"
+    }
+  ]
+}

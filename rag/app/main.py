@@ -21,7 +21,7 @@ from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.fetcher import FetchError, fetch_page
-from app.incidents import incident_point_id, index_incidents
+from app.incidents import incident_point_id, index_incidents, load_seed_incidents
 from app.ingest import DuplicateDocumentError, ingest_document
 from app.models import (
     CorpusFetchRequest,
@@ -44,6 +44,7 @@ from app.models import (
     SourceCatalog,
 )
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
+from app.seed import ensure_seed_corpus
 from app.vector_store import VectorStore
 from app.warmup import warm_up
 
@@ -89,6 +90,22 @@ async def lifespan(app: FastAPI):
 
     # Before the scheduler and before uvicorn accepts requests: the first citizen search must not pay for cold models.
     await warm_up(app.state.models, store)
+
+    if settings.seed_corpus_enabled:
+        seed_report = await ensure_seed_corpus(app.state.models, store)
+        logger.info(
+            "Seed corpus: %d indexed, %d already present, %d duplicates, %d failed",
+            seed_report.indexed,
+            seed_report.already_present,
+            seed_report.skipped_duplicates,
+            seed_report.failed,
+        )
+    if settings.seed_incidents_enabled and await incidents.count() == 0:
+        try:
+            seeded = await index_incidents(load_seed_incidents(), app.state.models, incidents)
+            logger.info("Seed incident catalog: %d entries", seeded)
+        except Exception:
+            logger.exception("Seeding the incident catalog failed; search continues without it")
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_eviction, "cron", hour=settings.eviction_cron_hour, args=[store])

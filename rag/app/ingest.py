@@ -58,10 +58,14 @@ def chunk_text(text: str, max_chars: int, overlap: int) -> list[str]:
     return chunks
 
 
-async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: VectorStore) -> IngestResult:
+async def ingest_document(
+    document: DocumentIn, models: EmbeddingModels, store: VectorStore, allow_near_duplicate: bool = False
+) -> IngestResult:
     """
     Chunks, embeds and indexes one document. Re-ingesting a document_id replaces its previous chunks
     after the new ones are stored, so search never sees a document with zero chunks.
+    `allow_near_duplicate` is reserved for curated seed documents: a dated excerpt must be indexed even when a
+    full, undated copy from the scraper is already present, because only the dated one may serve as evidence.
     """
     source = qualify(document.source)
     text_hash = content_hash(document.text)
@@ -72,9 +76,10 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
 
     texts = chunk_text(document.text, settings.chunk_max_chars, settings.chunk_overlap_chars)
     dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_documents, texts)
-    near_duplicate_of = await store.near_duplicate_document(dense_vectors, source.document_id)
-    if near_duplicate_of is not None:
-        raise DuplicateDocumentError(source.document_id, near_duplicate_of, near=True)
+    if not allow_near_duplicate:
+        near_duplicate_of = await store.near_duplicate_document(dense_vectors, source.document_id)
+        if near_duplicate_of is not None:
+            raise DuplicateDocumentError(source.document_id, near_duplicate_of, near=True)
     chunk_ids = [uuid4() for _ in texts]
 
     await store.upsert(

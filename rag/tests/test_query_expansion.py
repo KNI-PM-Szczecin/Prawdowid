@@ -50,20 +50,24 @@ class FakeAsyncClient:
 
 def configure(monkeypatch, url: str) -> None:
     FakeAsyncClient.calls = []
+    FakeAsyncClient.status_code = 200
+    FakeAsyncClient.content = EXPANSION_ANSWER
+    query_expansion._cache.clear()
     monkeypatch.setattr(query_expansion.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(settings, "expansion_llm_url", url)
     monkeypatch.setattr(settings, "expansion_llm_model", "gpt-6-luna")
     monkeypatch.setattr(settings, "expansion_llm_api_key", "test-key")
+    monkeypatch.setattr(settings, "expansion_llm_reasoning_effort", "none")
 
 
-def test_hosted_openai_omits_temperature_and_sends_completion_limit(monkeypatch):
+def test_hosted_openai_with_reasoning_effort_none_pins_temperature(monkeypatch):
     configure(monkeypatch, OPENAI_URL)
 
     result = asyncio.run(query_expansion.expand("Strefa buforowa działa."))
 
     body = FakeAsyncClient.calls[0]["json"]
     assert result.method == "llm"
-    assert "temperature" not in body
+    assert body["temperature"] == 0.0
     assert "max_tokens" not in body
     assert body["max_completion_tokens"] == settings.expansion_llm_max_completion_tokens
     assert body["reasoning_effort"] == settings.expansion_llm_reasoning_effort
@@ -82,13 +86,25 @@ def test_local_server_still_gets_temperature(monkeypatch):
     assert "reasoning_effort" not in body
 
 
-def test_reasoning_effort_comes_from_settings(monkeypatch):
+def test_hosted_openai_with_unpinned_temperature_uses_rules(monkeypatch):
     configure(monkeypatch, OPENAI_URL)
     monkeypatch.setattr(settings, "expansion_llm_reasoning_effort", "low")
 
-    asyncio.run(query_expansion.expand("Strefa buforowa działa."))
+    result = asyncio.run(query_expansion.expand("Strefa buforowa działa."))
 
-    assert FakeAsyncClient.calls[0]["json"]["reasoning_effort"] == "low"
+    assert result.method == "rules"
+    assert FakeAsyncClient.calls == []
+
+
+def test_repeated_claim_reuses_cached_expansion(monkeypatch):
+    configure(monkeypatch, OPENAI_URL)
+
+    first = asyncio.run(query_expansion.expand("Strefa buforowa działa."))
+    FakeAsyncClient.content = json.dumps({"negative": "inna negacja", "neutral": "inne zapytanie"})
+    second = asyncio.run(query_expansion.expand("Strefa buforowa działa."))
+
+    assert second == first
+    assert len(FakeAsyncClient.calls) == 1
 
 
 def test_model_error_falls_back_to_rules(monkeypatch):
