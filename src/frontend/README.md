@@ -16,6 +16,8 @@ pnpm build      # albo build:mock
 
 Bez działającego backendu `pnpm dev` pokazuje ekran błędu połączenia, nigdy wynik.
 
+Railway: usługa `front` buduje `deploy/front.Dockerfile`. Zmienna `FRONT_MODE=mock` w ustawieniach usługi daje wersję demonstracyjną. Bez tej zmiennej powstaje wersja na żywo, która woła backend.
+
 ## Struktura
 
 - `src/lib/texts.ts`: wszystkie teksty widoczne dla użytkownika.
