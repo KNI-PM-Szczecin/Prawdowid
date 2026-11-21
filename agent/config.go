@@ -22,30 +22,34 @@ const (
 
 // Config is read from the environment by the backend and passed to New; nothing here is secret except LLMAPIKey.
 type Config struct {
-	RagURL         string
-	LLMBaseURL     string
-	LLMAPIKey      string
-	LLMModel       string
-	MaxClaims      int
-	SearchTopK     int
-	VerifyTimeout  time.Duration
-	RagTimeout     time.Duration
-	LLMTimeout     time.Duration
-	ExtractMaxText int
+	RagURL     string
+	LLMBaseURL string
+	LLMAPIKey  string
+	LLMModel   string
+	// LLMReasoningEffort applies only to api.openai.com; empty keeps the provider default ("none").
+	LLMReasoningEffort string
+	MaxClaims          int
+	SearchTopK         int
+	VerifyTimeout      time.Duration
+	RagTimeout         time.Duration
+	LLMTimeout         time.Duration
+	ExtractMaxText     int
 }
 
 // ConfigFromEnv builds the configuration from RAG_URL, LLM_BASE_URL, LLM_API_KEY, LLM_MODEL and AGENT_* variables.
 func ConfigFromEnv() (Config, error) {
 	config := Config{
-		RagURL:         stringFromEnv("RAG_URL", defaultRagURL),
-		LLMBaseURL:     stringFromEnv("LLM_BASE_URL", defaultLLMBaseURL),
-		LLMAPIKey:      os.Getenv("LLM_API_KEY"),
-		LLMModel:       stringFromEnv("LLM_MODEL", defaultLLMModel),
-		VerifyTimeout:  defaultVerifyTimeout,
-		RagTimeout:     defaultRagTimeout,
-		LLMTimeout:     defaultLLMTimeout,
-		SearchTopK:     defaultSearchTopK,
-		ExtractMaxText: defaultExtractMaxText,
+		RagURL:     stringFromEnv("RAG_URL", defaultRagURL),
+		LLMBaseURL: stringFromEnv("LLM_BASE_URL", defaultLLMBaseURL),
+		LLMAPIKey:  os.Getenv("LLM_API_KEY"),
+		LLMModel:   stringFromEnv("LLM_MODEL", defaultLLMModel),
+
+		LLMReasoningEffort: os.Getenv("LLM_REASONING_EFFORT"),
+		VerifyTimeout:      defaultVerifyTimeout,
+		RagTimeout:         defaultRagTimeout,
+		LLMTimeout:         defaultLLMTimeout,
+		SearchTopK:         defaultSearchTopK,
+		ExtractMaxText:     defaultExtractMaxText,
 	}
 	var err error
 	if config.MaxClaims, err = intFromEnv("AGENT_MAX_CLAIMS", defaultMaxClaims); err != nil {
