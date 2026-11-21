@@ -75,6 +75,12 @@ svg {
   outline-offset: 3px;
 }
 
+// Headings and panels focused by script after a view change (tabindex -1) are not reachable with
+// Tab, so the ring would only ever appear after a click. Screen readers still announce them.
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

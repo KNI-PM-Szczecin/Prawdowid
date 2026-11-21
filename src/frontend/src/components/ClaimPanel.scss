@@ -8,10 +8,6 @@
   // Compensates the slide-in offset of the drawer, so scrolling to the panel lands on its top edge.
   scroll-margin-top: 1.5rem;
 
-  &:focus {
-    outline: none;
-  }
-
   > * {
     align-self: stretch;
   }
