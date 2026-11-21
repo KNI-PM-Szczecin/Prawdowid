@@ -49,8 +49,8 @@ def fake_ingest(monkeypatch):
     monkeypatch.setattr(corpus_sync, "ingest_document", ingest_document)
     monkeypatch.setattr(settings, "corpus_boilerplate_min_documents", 3)
     monkeypatch.setattr(settings, "corpus_fetch_delay_seconds", 0)
-    corpus_sync.sync_state.__init__()
-    corpus_sync.fetch_state.__init__()
+    corpus_sync.sync_state.reset(running=False)
+    corpus_sync.fetch_state.reset(running=False)
     return ingested
 
 

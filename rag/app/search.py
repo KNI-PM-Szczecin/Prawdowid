@@ -5,6 +5,7 @@ import logging
 import math
 import time
 from datetime import UTC, datetime
+from uuid import UUID
 
 from app import db
 from app.config import settings
@@ -54,7 +55,7 @@ def _relevance(logit: float) -> float:
 
 
 def _merge_candidates(result_sets: list[list[RetrievedChunk]], pool_size: int) -> list[RetrievedChunk]:
-    best_by_id: dict = {}
+    best_by_id: dict[UUID, RetrievedChunk] = {}
     for results in result_sets:
         for chunk in results:
             current = best_by_id.get(chunk.chunk_id)

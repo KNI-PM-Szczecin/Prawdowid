@@ -62,6 +62,19 @@ class CorpusSyncState:
         skipped = self.skipped_duplicates + self.skipped_excluded + self.skipped_outside_catalog
         return self.indexed + skipped + self.failed
 
+    def reset(self, running: bool) -> None:
+        """Clears counters for a new run; progress fields keep their types for the status endpoints."""
+        self.running = running
+        self.last_finished_at = None
+        self.available = None
+        self.indexed = 0
+        self.already_present = 0
+        self.skipped_duplicates = 0
+        self.skipped_excluded = 0
+        self.skipped_outside_catalog = 0
+        self.failed = 0
+        self.last_error = None
+
 
 sync_state = CorpusSyncState()
 fetch_state = CorpusSyncState()
@@ -203,7 +216,7 @@ async def run_corpus_job(
         logger.warning("%s already running, request ignored", label)
         return state
     async with lock:
-        state.__init__(running=True)
+        state.reset(running=True)
         try:
             pages = await load_pages(state)
             state.available = len(pages)
