@@ -110,10 +110,13 @@ class Settings(BaseSettings):
     search_cache_ttl_seconds: int = 600
     search_cache_max_entries: int = 500
 
-    # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
+    # Optional OpenAI-compatible endpoint (e.g. hosted OpenAI or FastFlowLM) for query expansion; empty = rules only.
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3:0.6b"
     expansion_llm_api_key: str = ""
+    # Sent only to api.openai.com, which rejects temperature on GPT-5/6 models; same defaults as agent/llm.go.
+    expansion_llm_reasoning_effort: str = "none"
+    expansion_llm_max_completion_tokens: int = 800
     # Must fit inside rag's 8 s budget together with retrieval and reranking; on timeout the rules take over.
     expansion_llm_timeout_seconds: float = 3.0
 

@@ -64,7 +64,7 @@ Import z EUvsDisinfo: przy ustawionym `EUVSDISINFO_TOKEN` (token w nagłówku `A
 
 Google Fact Check Tools API: przy ustawionym `FACTCHECK_API_KEY` każde `/search` pyta też na żywo `claims:search` (język `pl`, limit czasu 4 s, cache 1 h z hashem zapytania jako kluczem). Oceny weryfikatorów przechodzą przez ten sam reranker i próg co korpus i wracają jako `Passage` z `sourceType: "factcheck"`. Klucz idzie w nagłówku `X-Goog-Api-Key`, nie w URL. Brak klucza, limit albo awaria Google nie psują wyszukiwania: odpowiedź ma wtedy `externalSources[].status` równe `disabled` lub `error`, a log zawiera tylko kod HTTP, bez treści zgłoszenia. Filtr `sourceTypes` bez `factcheck` w ogóle pomija to API.
 
-Ekspansja zapytań: domyślnie regułowa. Gdy ustawione jest `RAG_EXPANSION_LLM_URL` (np. FastFlowLM: `http://host.docker.internal:52625/v1`), używa modelu. Przy błędzie wraca do reguł i loguje WARNING.
+Ekspansja zapytań: domyślnie regułowa. Gdy ustawione jest `RAG_EXPANSION_LLM_URL` (np. FastFlowLM: `http://host.docker.internal:52625/v1`), używa modelu. Dla hosta `api.openai.com` zapytanie pomija `temperature` (GPT‑6 je odrzuca) i wysyła `max_completion_tokens` oraz `reasoning_effort` z `RAG_EXPANSION_LLM_REASONING_EFFORT` (domyślnie `none`), tak samo jak `agent/llm.go`; inne serwery dostają `temperature: 0`. Przy błędzie wraca do reguł i loguje WARNING.
 
 Prompt injection: przed dopasowaniem tekst jest normalizowany (NFKC, usunięcie znaków niewidocznych, małe litery, bez diakrytyków). Wzorce PL i EN są w `app/context.py`. Wykryty fragment ma flagę `suspected_injection` i trafia do logu, ale nadal jest zwracany jako dane.
 
