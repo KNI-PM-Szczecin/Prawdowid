@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     factcheck_cache_ttl_seconds: int = 3600
     factcheck_cache_max_entries: int = 1000
 
+    # Catalog of known disinformation campaigns (EUvsDisinfo, organizer's incident base), matched locally per search.
+    incident_collection_name: str = "disinfo_incidents"
+    incident_retrieval_limit: int = 10
+    # Stricter than evidence: wrongly tying a claim to a hostile campaign does more harm than a weak citation.
+    incident_min_score: float = 0.7
+    incident_max_matches: int = 3
+    incident_summary_max_chars: int = 400
+
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3.5:9b"

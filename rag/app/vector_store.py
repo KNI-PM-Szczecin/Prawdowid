@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -31,6 +31,15 @@ class RetrievedChunk:
     chunk_id: UUID
     text: str
     fusion_score: float
+    payload: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RawPoint:
+    point_id: UUID
+    dense: list[float]
+    sparse: SparseVector
+    payload: dict
 
 
 def build_filter(source_types: list[str] | None, published_after: datetime | None) -> models.Filter | None:
@@ -44,11 +53,14 @@ def build_filter(source_types: list[str] | None, published_after: datetime | Non
 
 
 class VectorStore:
-    """Qdrant collection with static chunk text, vectors and filter fields; lifecycle state lives in PostgreSQL."""
+    """
+    One Qdrant collection with static text, dense + sparse vectors and payload. Used for the evidence corpus
+    (lifecycle state in PostgreSQL) and, with another collection name, for the disinformation incident catalog.
+    """
 
-    def __init__(self) -> None:
+    def __init__(self, collection_name: str = settings.collection_name) -> None:
         self._client = AsyncQdrantClient(url=settings.qdrant_url)
-        self._collection = settings.collection_name
+        self._collection = collection_name
 
     async def ensure_collection(self) -> None:
         if not await self._client.collection_exists(self._collection):
@@ -67,17 +79,12 @@ class VectorStore:
         )
 
     async def upsert(self, points: list[ChunkPoint]) -> None:
-        await self._client.upsert(
-            self._collection,
-            points=[
-                models.PointStruct(
-                    id=str(point.chunk_id),
-                    vector={
-                        DENSE_VECTOR_NAME: point.dense,
-                        SPARSE_VECTOR_NAME: models.SparseVector(
-                            indices=point.sparse.indices, values=point.sparse.values
-                        ),
-                    },
+        await self.upsert_raw(
+            [
+                RawPoint(
+                    point_id=point.chunk_id,
+                    dense=point.dense,
+                    sparse=point.sparse,
                     payload={
                         "chunk_id": str(point.chunk_id),
                         "source_id": point.source_id,
@@ -88,9 +95,31 @@ class VectorStore:
                     },
                 )
                 for point in points
+            ]
+        )
+
+    async def upsert_raw(self, points: list[RawPoint]) -> None:
+        """Upserts points with a caller-defined payload; the payload must contain the embedded `text`."""
+        await self._client.upsert(
+            self._collection,
+            points=[
+                models.PointStruct(
+                    id=str(point.point_id),
+                    vector={
+                        DENSE_VECTOR_NAME: point.dense,
+                        SPARSE_VECTOR_NAME: models.SparseVector(
+                            indices=point.sparse.indices, values=point.sparse.values
+                        ),
+                    },
+                    payload=point.payload,
+                )
+                for point in points
             ],
             wait=True,
         )
+
+    async def count(self) -> int:
+        return (await self._client.count(self._collection, exact=True)).count
 
     async def hybrid_search(
         self, dense: list[float], sparse: SparseVector, limit: int, payload_filter: models.Filter | None
@@ -111,7 +140,12 @@ class VectorStore:
             limit=limit,
         )
         return [
-            RetrievedChunk(chunk_id=UUID(str(point.id)), text=point.payload["text"], fusion_score=point.score)
+            RetrievedChunk(
+                chunk_id=UUID(str(point.id)),
+                text=point.payload["text"],
+                fusion_score=point.score,
+                payload=point.payload,
+            )
             for point in response.points
         ]
 

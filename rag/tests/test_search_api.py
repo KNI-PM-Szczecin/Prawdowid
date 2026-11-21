@@ -39,6 +39,9 @@ class FakeStore:
             raise self._failure
         return self._chunks
 
+    async def count(self):
+        return len(self._chunks)
+
 
 class FakeFactCheck:
     def __init__(self, result: FactCheckResult):
@@ -71,6 +74,28 @@ UNRELATED_REVIEW = FactCheckReview(
     review_date=datetime(2025, 1, 1, tzinfo=UTC),
 )
 FACTCHECK_LOGIT = 6.0
+CAMPAIGN_LOGIT = 8.0
+WEAK_CAMPAIGN_LOGIT = 2.0
+
+
+def _incident(text: str, incident_id: str) -> RetrievedChunk:
+    return RetrievedChunk(
+        chunk_id=uuid4(),
+        text=text,
+        fusion_score=0.8,
+        payload={
+            "incident_id": incident_id,
+            "source": "euvsdisinfo",
+            "title": text,
+            "summary": "Twierdzenie rozpowszechniane w kampanii.",
+            "url": f"https://euvsdisinfo.eu/report/{incident_id}",
+            "published_at": "2024-05-01T00:00:00+00:00",
+        },
+    )
+
+
+CAMPAIGN_INCIDENT = _incident("Poseł X poparł ustawę Y na polecenie obcego państwa.", "12345")
+WEAK_INCIDENT = _incident("Zachód planuje wojnę.", "67890")
 
 
 def _metadata_row(chunk_id):
@@ -113,10 +138,13 @@ def client(monkeypatch):
             irrelevant.text: IRRELEVANT_LOGIT,
             FACTCHECK_REVIEW.rerank_text: FACTCHECK_LOGIT,
             UNRELATED_REVIEW.rerank_text: IRRELEVANT_LOGIT,
+            CAMPAIGN_INCIDENT.text: CAMPAIGN_LOGIT,
+            WEAK_INCIDENT.text: WEAK_CAMPAIGN_LOGIT,
         }
     )
     app.state.store = FakeStore([relevant, irrelevant])
     app.state.factcheck = FakeFactCheck(FactCheckResult(status="disabled", reviews=[]))
+    app.state.incidents = FakeStore([])
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -171,7 +199,7 @@ def test_factcheck_reviews_are_reranked_with_corpus(client):
     assert factcheck["url"] == FACTCHECK_REVIEW.url
     assert factcheck["publisher"] == "Weryfikator A"
     assert "Fałsz" in factcheck["passage"]
-    assert body["externalSources"] == [{"name": "google_factcheck", "status": "ok", "results": 2}]
+    assert {"name": "google_factcheck", "status": "ok", "results": 2} in body["externalSources"]
 
 
 def test_factcheck_failure_does_not_fail_search(client):
@@ -195,3 +223,39 @@ def test_published_after_filters_factcheck_reviews(client):
     app.state.factcheck = FakeFactCheck(FactCheckResult(status="ok", reviews=[FACTCHECK_REVIEW]))
     body = client.post("/search", json={**QUERY, "filters": {"publishedAfter": "2026-11-01"}}).json()
     assert all(item["sourceType"] != "factcheck" for item in body["results"])
+
+
+def test_campaign_match_adds_category_outside_results_and_context(client):
+    app.state.incidents = FakeStore([CAMPAIGN_INCIDENT, WEAK_INCIDENT])
+    body = client.post("/search", json=QUERY).json()
+    alert = body["campaignAlert"]
+    assert alert["category"] == "possible_disinformation_campaign"
+    assert "kampanii dezinformacyjnej (EUvsDisinfo)" in alert["message"]
+    assert [match["incidentId"] for match in alert["matches"]] == ["12345"]
+    assert alert["matches"][0]["score"] >= settings.incident_min_score
+    assert all("euvsdisinfo" not in item["url"] for item in body["results"])
+    assert "euvsdisinfo" not in body["contextXml"]
+    assert {"name": "incident_catalog", "status": "ok", "results": 1} in body["externalSources"]
+
+
+def test_no_alert_for_weak_match_or_empty_catalog(client):
+    app.state.incidents = FakeStore([WEAK_INCIDENT])
+    assert client.post("/search", json=QUERY).json()["campaignAlert"] is None
+    app.state.incidents = FakeStore([])
+    body = client.post("/search", json=QUERY).json()
+    assert body["campaignAlert"] is None
+    assert {"name": "incident_catalog", "status": "disabled", "results": 0} in body["externalSources"]
+
+
+def test_incident_endpoints_require_admin_token(client, monkeypatch):
+    monkeypatch.setattr(settings, "admin_token", ADMIN_TOKEN)
+    incident = {
+        "incidentId": "1",
+        "source": "euvsdisinfo",
+        "title": "t",
+        "summary": "s",
+        "url": "https://euvsdisinfo.eu/report/1",
+    }
+    assert client.post("/incidents", json={"incidents": [incident]}).status_code == 401
+    assert client.delete("/incidents/euvsdisinfo/1").status_code == 401
+    assert client.get("/incidents").json() == {"catalogSize": 0}

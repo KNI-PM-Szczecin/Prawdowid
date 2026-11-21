@@ -9,7 +9,8 @@ from app.config import settings
 from app.context import build_context_xml, contains_instructions
 from app.embeddings import EmbeddingModels
 from app.factcheck import FACTCHECK_RELIABILITY, FACTCHECK_TIER, FactCheckClient, FactCheckResult, FactCheckReview
-from app.models import Passage, SearchFilters, SearchRequest, SearchResponse
+from app.incidents import CATALOG_STATUS_NAME, build_campaign_alert
+from app.models import ExternalSourceStatus, Passage, SearchFilters, SearchRequest, SearchResponse
 from app.query_expansion import expand
 from app.vector_store import RetrievedChunk, VectorStore, build_filter
 
@@ -99,13 +100,18 @@ async def _skipped_factcheck() -> FactCheckResult:
 
 
 async def search_passages(
-    request: SearchRequest, models: EmbeddingModels, store: VectorStore, factcheck: FactCheckClient
+    request: SearchRequest,
+    models: EmbeddingModels,
+    store: VectorStore,
+    factcheck: FactCheckClient,
+    incidents: VectorStore,
 ) -> SearchResponse:
     """
-    Full retrieval pipeline: query expansion -> parallel hybrid search in the corpus and live Google Fact Check
-    -> one cross-encoder rerank over both -> metadata join.
+    Full retrieval pipeline: query expansion -> parallel hybrid search in the corpus, the incident catalog and
+    live Google Fact Check -> one cross-encoder rerank over all candidates -> metadata join.
 
     Returns at most request.top_k passages above rerank_min_score; an empty list means no relevant evidence.
+    Incident catalog matches never enter `results` or `context_xml`: they only build `campaign_alert` (context).
     A failing or disabled fact-check source never fails the search, it is reported in external_sources.
     Read counters are not updated here, the caller schedules db.register_reads for the returned corpus chunks.
     """
@@ -121,24 +127,29 @@ async def search_passages(
     queries = await expand(request.query)
     query_texts = [queries.original, queries.negative, queries.neutral]
     dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_queries, query_texts)
-    result_sets = await asyncio.gather(
+    *result_sets, incident_hits, catalog_size = await asyncio.gather(
         *(
             store.hybrid_search(dense, sparse, settings.retrieval_limit_per_query, payload_filter)
             for dense, sparse in zip(dense_vectors, sparse_vectors, strict=True)
-        )
+        ),
+        incidents.hybrid_search(dense_vectors[0], sparse_vectors[0], settings.incident_retrieval_limit, None),
+        incidents.count(),
     )
     factcheck_result = await factcheck_task
     reviews = [review for review in factcheck_result.reviews if _within_date_filter(review, filters)]
     candidates: list[Candidate] = [*_merge_candidates(list(result_sets), settings.candidate_pool_size), *reviews]
 
     passages: list[Passage] = []
-    if candidates:
+    campaign_alert = None
+    if candidates or incident_hits:
         rerank_texts = [
             candidate.rerank_text if isinstance(candidate, FactCheckReview) else candidate.text
-            for candidate in candidates
+            for candidate in [*candidates, *incident_hits]
         ]
         logits = await asyncio.to_thread(models.rerank, queries.original, rerank_texts)
-        scored = [(candidate, _relevance(logit)) for candidate, logit in zip(candidates, logits, strict=True)]
+        relevances = [_relevance(logit) for logit in logits]
+        scored = list(zip(candidates, relevances[: len(candidates)], strict=True))
+        campaign_alert = build_campaign_alert(list(zip(incident_hits, relevances[len(candidates) :], strict=True)))
         ranked = sorted(
             (pair for pair in scored if pair[1] >= settings.rerank_min_score),
             key=lambda pair: pair[1],
@@ -158,13 +169,19 @@ async def search_passages(
 
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     logger.info(
-        "search done in %d ms: expansion=%s candidates=%d results=%d factcheck=%s/%d",
+        "search done in %d ms: expansion=%s candidates=%d results=%d factcheck=%s/%d campaign_matches=%d",
         elapsed_ms,
         queries.method,
         len(candidates),
         len(passages),
         factcheck_result.status,
         len(reviews),
+        len(campaign_alert.matches) if campaign_alert else 0,
+    )
+    catalog_status = ExternalSourceStatus(
+        name=CATALOG_STATUS_NAME,
+        status="ok" if catalog_size else "disabled",
+        results=len(campaign_alert.matches) if campaign_alert else 0,
     )
     return SearchResponse(
         results=passages,
@@ -172,5 +189,6 @@ async def search_passages(
         context_xml=build_context_xml(passages),
         expanded_queries=queries,
         elapsed_ms=elapsed_ms,
-        external_sources=[factcheck_result.as_status()],
+        external_sources=[factcheck_result.as_status(), catalog_status],
+        campaign_alert=campaign_alert,
     )

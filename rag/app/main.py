@@ -15,11 +15,15 @@ from app.config import settings
 from app.embeddings import EmbeddingModels
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
+from app.incidents import incident_point_id, index_incidents
 from app.ingest import ingest_document
 from app.models import (
     DeletionReport,
     EvictionReport,
     HealthResponse,
+    IncidentCatalogSummary,
+    IncidentIngestRequest,
+    IncidentIngestResult,
     IngestRequest,
     IngestResult,
     SearchRequest,
@@ -51,6 +55,10 @@ async def lifespan(app: FastAPI):
     await store.ensure_collection()
     app.state.store = store
     app.state.models = EmbeddingModels()
+    incidents = VectorStore(settings.incident_collection_name)
+    await incidents.ensure_collection()
+    app.state.incidents = incidents
+    logger.info("Disinformation incident catalog: %d entries", await incidents.count())
     factcheck = FactCheckClient()
     app.state.factcheck = factcheck
     logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
@@ -64,6 +72,7 @@ async def lifespan(app: FastAPI):
     finally:
         scheduler.shutdown(wait=False)
         await factcheck.close()
+        await incidents.close()
         await store.close()
         await db.close()
 
@@ -102,7 +111,9 @@ async def health() -> HealthResponse:
 
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> SearchResponse:
-    response = await search_passages(request, app.state.models, app.state.store, app.state.factcheck)
+    response = await search_passages(
+        request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+    )
     corpus_chunk_ids = [item.chunk_id for item in response.results if item.source_type != FACTCHECK_SOURCE_TYPE]
     if corpus_chunk_ids:
         background_tasks.add_task(db.register_reads, corpus_chunk_ids)
@@ -130,6 +141,24 @@ async def delete_document(document_id: str) -> DeletionReport:
     await db.mark_chunks_deleted(chunk_ids)
     logger.info("document %s deleted on request (%d chunks)", document_id, len(chunk_ids))
     return DeletionReport(document_id=document_id, chunks_deleted=len(chunk_ids))
+
+
+@app.post("/incidents", response_model=IncidentIngestResult, dependencies=AdminOnly)
+async def ingest_incidents(request: IncidentIngestRequest) -> IncidentIngestResult:
+    indexed = await index_incidents(request.incidents, app.state.models, app.state.incidents)
+    return IncidentIngestResult(indexed=indexed, catalog_size=await app.state.incidents.count())
+
+
+@app.get("/incidents", response_model=IncidentCatalogSummary)
+async def incident_catalog() -> IncidentCatalogSummary:
+    return IncidentCatalogSummary(catalog_size=await app.state.incidents.count())
+
+
+@app.delete("/incidents/{source}/{incident_id}", response_model=IncidentCatalogSummary, dependencies=AdminOnly)
+async def delete_incident(source: str, incident_id: str) -> IncidentCatalogSummary:
+    await app.state.incidents.delete([incident_point_id(source, incident_id)])
+    logger.info("incident %s/%s deleted on request", source, incident_id)
+    return IncidentCatalogSummary(catalog_size=await app.state.incidents.count())
 
 
 @app.post("/admin/eviction", response_model=EvictionReport, dependencies=AdminOnly)

@@ -1,0 +1,26 @@
+{
+  "incidents": [
+    {
+      "incidentId": "smoke-001",
+      "source": "smoke",
+      "title": "Zielone dachy to plan obcego państwa (incydent fikcyjny do testów)",
+      "summary": "Ustawa o zielonych dachach została napisana na zlecenie obcego państwa, żeby osłabić polską gospodarkę.",
+      "url": "https://example.org/fikcyjny-incydent/smoke-001",
+      "publishedAt": "2026-03-10",
+      "countries": ["PL"],
+      "languages": ["pl"],
+      "license": "CC0 (dane testowe)"
+    },
+    {
+      "incidentId": "smoke-002",
+      "source": "smoke",
+      "title": "Fikcyjna kampania o wodzie w kranach (incydent fikcyjny do testów)",
+      "summary": "Woda w polskich kranach jest celowo zatruwana przez władze miast.",
+      "url": "https://example.org/fikcyjny-incydent/smoke-002",
+      "publishedAt": "2026-04-02",
+      "countries": ["PL"],
+      "languages": ["pl"],
+      "license": "CC0 (dane testowe)"
+    }
+  ]
+}
