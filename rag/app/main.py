@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 import asyncpg
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -15,21 +16,23 @@ from app.ingest import ingest_document
 from app.models import (
     DeletionReport,
     EvictionReport,
+    HealthResponse,
     IngestRequest,
     IngestResult,
     SearchRequest,
     SearchResponse,
     SourceAuditEntry,
 )
-from app.search import search_evidence
+from app.search import search_passages
 from app.vector_store import VectorStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-TECHNICAL_ERROR_STATUS = "technical_error"
-TECHNICAL_ERROR_MESSAGE = "Wyszukiwanie źródeł jest chwilowo niedostępne. Spróbuj ponownie za chwilę."
+INDEX_UNAVAILABLE_CODE = "index_unavailable"
+INDEX_UNAVAILABLE_MESSAGE = "Wyszukiwanie źródeł jest chwilowo niedostępne. Spróbuj ponownie za chwilę."
+DOCUMENT_NOT_FOUND_MESSAGE = "Nie znaleziono aktywnego dokumentu o tym identyfikatorze."
 HTTP_SERVICE_UNAVAILABLE = 503
 HTTP_NOT_FOUND = 404
 
@@ -65,20 +68,20 @@ async def storage_error_handler(request: Request, error: Exception) -> JSONRespo
     logger.error("Storage failure on %s", request.url.path, exc_info=error)
     return JSONResponse(
         status_code=HTTP_SERVICE_UNAVAILABLE,
-        content={"status": TECHNICAL_ERROR_STATUS, "message": TECHNICAL_ERROR_MESSAGE},
+        content={"error": {"code": INDEX_UNAVAILABLE_CODE, "message": INDEX_UNAVAILABLE_MESSAGE}},
     )
 
 
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/health", response_model=HealthResponse)
+async def health() -> HealthResponse:
+    return HealthResponse(status="ok", corpus_version=await db.corpus_version())
 
 
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> SearchResponse:
-    response = await search_evidence(request.claim, request.top_k, app.state.models, app.state.store)
-    if response.evidence:
-        background_tasks.add_task(db.register_reads, [item.chunk_id for item in response.evidence])
+    response = await search_passages(request, app.state.models, app.state.store)
+    if response.results:
+        background_tasks.add_task(db.register_reads, [item.chunk_id for item in response.results])
     return response
 
 
@@ -89,18 +92,18 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
 
 @app.get("/sources", response_model=list[SourceAuditEntry])
 async def sources() -> list[SourceAuditEntry]:
-    return [SourceAuditEntry(**dict(row)) for row in await db.list_sources()]
+    return [SourceAuditEntry(**dict(row), domain=urlparse(row["url"]).hostname or "") for row in await db.list_sources()]
 
 
-@app.delete("/sources/{source_id}", response_model=DeletionReport)
-async def delete_source(source_id: str) -> DeletionReport:
-    chunk_ids = await db.active_chunk_ids_for_source(source_id)
+@app.delete("/sources/{document_id}", response_model=DeletionReport)
+async def delete_document(document_id: str) -> DeletionReport:
+    chunk_ids = await db.active_chunk_ids_for_document(document_id)
     if not chunk_ids:
-        raise HTTPException(status_code=HTTP_NOT_FOUND, detail="Nie znaleziono aktywnego źródła o tym identyfikatorze.")
+        raise HTTPException(status_code=HTTP_NOT_FOUND, detail=DOCUMENT_NOT_FOUND_MESSAGE)
     await app.state.store.delete(chunk_ids)
     await db.mark_chunks_deleted(chunk_ids)
-    logger.info("source %s deleted on request (%d chunks)", source_id, len(chunk_ids))
-    return DeletionReport(source_id=source_id, chunks_deleted=len(chunk_ids))
+    logger.info("document %s deleted on request (%d chunks)", document_id, len(chunk_ids))
+    return DeletionReport(document_id=document_id, chunks_deleted=len(chunk_ids))
 
 
 @app.post("/admin/eviction", response_model=EvictionReport)

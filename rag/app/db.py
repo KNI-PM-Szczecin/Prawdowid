@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 from pathlib import Path
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from app.models import SourceIn
 logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+EMPTY_CORPUS_VERSION = "empty"
 
 _pool: asyncpg.Pool | None = None
 
@@ -36,15 +38,15 @@ async def upsert_source_with_chunks(source: SourceIn, chunk_ids: list[UUID]) -> 
     async with pool().acquire() as connection, connection.transaction():
         await connection.execute(
             """
-            INSERT INTO sources (source_id, title, publisher, url, published_at, retrieved_at, license, source_type)
+            INSERT INTO sources (document_id, title, publisher, url, published_at, fetched_at, license, source_type)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (source_id) DO UPDATE SET
+            ON CONFLICT (document_id) DO UPDATE SET
                 title = EXCLUDED.title, publisher = EXCLUDED.publisher, url = EXCLUDED.url,
-                published_at = EXCLUDED.published_at, retrieved_at = EXCLUDED.retrieved_at,
+                published_at = EXCLUDED.published_at, fetched_at = EXCLUDED.fetched_at,
                 license = EXCLUDED.license, source_type = EXCLUDED.source_type
             """,
-            source.source_id, source.title, source.publisher, str(source.url),
-            source.published_at, source.retrieved_at, source.license, source.source_type,
+            source.document_id, source.title, source.publisher, str(source.url),
+            source.published_at, source.fetched_at, source.license, source.source_type,
         )
         await connection.executemany(
             """
@@ -52,15 +54,15 @@ async def upsert_source_with_chunks(source: SourceIn, chunk_ids: list[UUID]) -> 
             VALUES ($1, $2, $3, $4, $5, NOW() + make_interval(days => $6))
             """,
             [
-                (chunk_id, source.source_id, source.topic_tag, source.tier, source.reliability, settings.protection_days)
+                (chunk_id, source.document_id, source.topic_tag, source.tier, source.reliability, settings.protection_days)
                 for chunk_id in chunk_ids
             ],
         )
 
 
-async def active_chunk_ids_for_source(source_id: str) -> list[UUID]:
+async def active_chunk_ids_for_document(document_id: str) -> list[UUID]:
     rows = await pool().fetch(
-        "SELECT chunk_id FROM document_metadata WHERE source_id = $1 AND NOT is_deleted", source_id
+        "SELECT chunk_id FROM document_metadata WHERE source_id = $1 AND NOT is_deleted", document_id
     )
     return [row["chunk_id"] for row in rows]
 
@@ -68,14 +70,26 @@ async def active_chunk_ids_for_source(source_id: str) -> list[UUID]:
 async def list_sources() -> list[asyncpg.Record]:
     return await pool().fetch(
         """
-        SELECT s.*, MIN(m.tier) AS tier, MIN(m.reliability) AS reliability,
-               COUNT(m.chunk_id) FILTER (WHERE NOT m.is_deleted) AS active_chunks
+        SELECT s.*, COUNT(m.chunk_id) FILTER (WHERE NOT m.is_deleted) AS active_chunks
         FROM sources s
-        LEFT JOIN document_metadata m ON m.source_id = s.source_id
-        GROUP BY s.source_id
-        ORDER BY s.source_id
+        LEFT JOIN document_metadata m ON m.source_id = s.document_id
+        GROUP BY s.document_id
+        ORDER BY s.document_id
         """
     )
+
+
+async def corpus_version() -> str:
+    """Changes whenever chunks are added or removed; lets agent/ tie a verdict to a corpus snapshot."""
+    row = await pool().fetchrow(
+        """
+        SELECT COUNT(*) FILTER (WHERE NOT is_deleted) AS active, COUNT(*) AS total, MAX(added_at) AS last_added
+        FROM document_metadata
+        """
+    )
+    if row["last_added"] is None:
+        return EMPTY_CORPUS_VERSION
+    return f"{row['last_added']:%Y%m%dT%H%M%S}-{row['active']}-{row['total']}"
 
 
 async def mark_chunks_deleted(chunk_ids: list[UUID]) -> None:
@@ -84,16 +98,20 @@ async def mark_chunks_deleted(chunk_ids: list[UUID]) -> None:
     )
 
 
-async def fetch_evidence_metadata(chunk_ids: list[UUID]) -> dict[UUID, asyncpg.Record]:
+async def fetch_passage_metadata(
+    chunk_ids: list[UUID], source_types: list[str] | None, published_after: date | None
+) -> dict[UUID, asyncpg.Record]:
     rows = await pool().fetch(
         """
-        SELECT m.chunk_id, m.tier, m.reliability, m.topic_tag,
-               s.source_id, s.title, s.publisher, s.url, s.published_at, s.retrieved_at, s.license, s.source_type
+        SELECT m.chunk_id, m.tier, m.reliability,
+               s.document_id, s.title, s.publisher, s.url, s.published_at, s.fetched_at, s.license, s.source_type
         FROM document_metadata m
-        JOIN sources s ON s.source_id = m.source_id
+        JOIN sources s ON s.document_id = m.source_id
         WHERE m.chunk_id = ANY($1::uuid[]) AND NOT m.is_deleted
+          AND ($2::text[] IS NULL OR s.source_type = ANY($2::text[]))
+          AND ($3::date IS NULL OR s.published_at > $3::date)
         """,
-        chunk_ids,
+        chunk_ids, source_types, published_after,
     )
     return {row["chunk_id"]: row for row in rows}
 

@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     candidate_pool_size: int = 30
     rerank_top_k: int = 5
     rerank_top_k_max: int = 7
-    # BGE reranker returns raw logits; below 0 the pair is judged irrelevant, so it is not evidence.
-    rerank_min_score: float = 0.0
+    # Sigmoid of the BGE reranker logit; below 0.5 (logit < 0) the pair is judged irrelevant, so it is not evidence.
+    rerank_min_score: float = 0.5
+    # Divides the logit before the sigmoid so strong matches (logit 5..10) stay distinguishable instead of all ~1.0.
+    rerank_score_temperature: float = 4.0
 
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""

@@ -4,12 +4,14 @@ Python (FastAPI). Korpus źródeł, indeksowanie i wyszukiwanie z metadanymi. Os
 
 ## Uruchomienie
 
-Wymaga tylko Dockera.
+Wymaga tylko Dockera. Zależności są w `pyproject.toml` i `uv.lock`, a obraz instaluje je przez `uv sync --frozen`.
 
 ```
 cd rag
 docker compose --env-file ../.env up -d --build
 ```
+
+Lokalnie bez Dockera (Postgres i Qdrant nadal z compose): `uv sync`, potem `uv run uvicorn app.main:app --port 8001` z `RAG_POSTGRES_DSN`, `RAG_QDRANT_URL` i `RAG_MODEL_CACHE_DIR` w `.env`. Nową paczkę dodajesz przez `uv add <paczka>`.
 
 Serwis: `http://localhost:8001` (OpenAPI: `/docs`). Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
 
@@ -28,7 +30,9 @@ Polskie znaki w `curl -d '...'` w Git Bash na Windows psują kodowanie, więc ci
 | FastEmbed (ONNX, CPU) | BGE-M3 dense, BM25 sparse, `bge-reranker-v2-m3` (int8). Wszystko w kontenerze, bez GPU. |
 | APScheduler | Eviction codziennie o 3:00, optymalizacja segmentów Qdranta o 4:00. |
 
-Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30) → pula 30 unikalnych → reranking cross-encoderem względem oryginału → odcięcie `score < 0` → top 5 (max 7) → złączenie z metadanymi z Postgresa → blok `<dostepne_zrodla>` → w tle `read_count + 1`.
+Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30) → pula 30 unikalnych → reranking cross-encoderem względem oryginału → `score = sigmoid(logit / 4)` w skali 0..1, odcięcie poniżej 0,5 → filtry `sourceTypes` i `publishedAfter` → top 5 (max 7) → złączenie z metadanymi z Postgresa → blok `<dostepne_zrodla>` → w tle `read_count + 1`.
+
+Pola API są w camelCase zgodnie z `../CONTRACT.md` (sekcja 3). Poza kontraktem odpowiedź ma dodatkowo `contextXml`, `expandedQueries`, `elapsedMs`, a każdy `Passage` ma też `chunkId`, `tier` i `reliability`.
 
 Ekspansja zapytań: domyślnie regułowa. Gdy ustawione jest `RAG_EXPANSION_LLM_URL` (np. FastFlowLM: `http://host.docker.internal:52625/v1`), używa modelu. Przy błędzie wraca do reguł i loguje WARNING.
 
@@ -38,7 +42,7 @@ Korpus domyślnie po polsku (`RAG_CORPUS_LANGUAGE=pl`). BM25 z FastEmbed nie ma 
 
 ## Zasilanie korpusu
 
-`POST /ingest` z listą `{ source: {...}, text }` (pola w `app/models.py`: `SourceIn`). Ponowne wysłanie tego samego `source_id` podmienia fragmenty. Tier 1 nigdy nie jest usuwany przez eviction. Nowe fragmenty mają ochronę przez `RAG_PROTECTION_DAYS` (7).
+`POST /ingest` z listą `{ source: {...}, text }` (pola w `app/models.py`: `SourceIn`, przykład w `tests/smoke_documents.json`). `sourceType`: `official`, `secondary`, `factcheck`, `incident`. `reliability`: `high`, `medium`, `low`. Ponowne wysłanie tego samego `documentId` podmienia fragmenty. `DELETE /sources/{documentId}` usuwa dokument z indeksu (procedura usunięcia). Tier 1 nigdy nie jest usuwany przez eviction. Nowe fragmenty mają ochronę przez `RAG_PROTECTION_DAYS` (7).
 
 ## Eviction
 

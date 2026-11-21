@@ -44,11 +44,11 @@ def chunk_text(text: str, max_chars: int, overlap: int) -> list[str]:
 
 async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: VectorStore) -> IngestResult:
     """
-    Chunks, embeds and indexes one document. Re-ingesting a source_id replaces its previous chunks
-    after the new ones are stored, so search never sees a source with zero chunks.
+    Chunks, embeds and indexes one document. Re-ingesting a document_id replaces its previous chunks
+    after the new ones are stored, so search never sees a document with zero chunks.
     """
     source = document.source
-    previous_ids = await db.active_chunk_ids_for_source(source.source_id)
+    previous_ids = await db.active_chunk_ids_for_document(source.document_id)
 
     texts = chunk_text(document.text, settings.chunk_max_chars, settings.chunk_overlap_chars)
     dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_documents, texts)
@@ -57,7 +57,7 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
     await store.upsert(
         [
             ChunkPoint(
-                chunk_id=chunk_id, source_id=source.source_id, text=text,
+                chunk_id=chunk_id, source_id=source.document_id, text=text,
                 topic_tag=source.topic_tag, dense=dense, sparse=sparse,
             )
             for chunk_id, text, dense, sparse in zip(chunk_ids, texts, dense_vectors, sparse_vectors)
@@ -69,4 +69,6 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
         await store.delete(previous_ids)
         await db.mark_chunks_deleted(previous_ids)
 
-    return IngestResult(source_id=source.source_id, chunks_indexed=len(chunk_ids), chunks_replaced=len(previous_ids))
+    return IngestResult(
+        document_id=source.document_id, chunks_indexed=len(chunk_ids), chunks_replaced=len(previous_ids)
+    )
