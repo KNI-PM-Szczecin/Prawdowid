@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from app import db, search
 from app.config import settings
 from app.embeddings import SparseVector
 from app.euvsdisinfo import EuvsDisinfoClient
@@ -135,6 +135,7 @@ def client(monkeypatch):
     monkeypatch.setattr(db, "corpus_version", corpus_version)
     monkeypatch.setattr(db, "register_reads", register_reads)
     monkeypatch.setattr(settings, "expansion_llm_url", "")
+    search._cache.clear()
     app.state.models = FakeModels(
         {
             relevant.text: RELEVANT_LOGIT,
@@ -246,6 +247,7 @@ def test_no_alert_for_weak_match_or_empty_catalog(client):
     app.state.incidents = FakeStore([WEAK_INCIDENT])
     assert client.post("/search", json=QUERY).json()["campaignAlert"] is None
     app.state.incidents = FakeStore([])
+    search._cache.clear()
     body = client.post("/search", json=QUERY).json()
     assert body["campaignAlert"] is None
     assert {"name": "incident_catalog", "status": "disabled", "results": 0} in body["externalSources"]
@@ -289,3 +291,19 @@ def test_health_reports_each_dependency_and_degrades_to_503(client):
     assert response.json()["status"] == "degraded"
     assert response.json()["qdrant"] == "unavailable"
     assert response.json()["database"] == "ok"
+
+
+def test_same_query_is_served_from_cache_until_corpus_changes(client, monkeypatch):
+    first = client.post("/search", json=QUERY).json()
+    assert len(first["results"]) == 1
+    app.state.store = FakeStore([])
+    second = client.post("/search", json=QUERY).json()
+    assert second["results"] == first["results"]
+
+    async def changed_corpus_version():
+        return "corpus-v2"
+
+    monkeypatch.setattr(db, "corpus_version", changed_corpus_version)
+    third = client.post("/search", json=QUERY).json()
+    assert third["results"] == []
+    assert third["corpusVersion"] == "corpus-v2"
