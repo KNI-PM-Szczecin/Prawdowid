@@ -150,8 +150,9 @@ Zasady:
 Pozostałe endpointy:
 - `GET /health` → `{ "status": "ok", "corpusVersion": "..." }`
 - `GET /sources` → lista źródeł korpusu do audytu (`documentId`, `title`, `publisher`, `domain`, `url`, `sourceType`, `license`, `publishedAt`, `fetchedAt`, `activeChunks`).
-- `GET /incidents` → `{ "catalogSize": 0 }` (audyt katalogu kampanii).
-- `POST /ingest`, `DELETE /sources/{documentId}`, `POST /incidents`, `DELETE /incidents/{source}/{incidentId}`, `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` (`401` bez tokena, `403` gdy token nie jest skonfigurowany). Wywołuje je tylko skrypt zasilania korpusu, nie `agent/`.
+- `GET /incidents` → `{ "catalogSize": 0, "euvsdisinfo": { "enabled", "running", "lastFinishedAt", "lastIndexed", "lastSkipped", "lastError", "available" } }` (audyt katalogu kampanii i stan importu z EUvsDisinfo).
+- `POST /admin/incidents/sync?maxCases=1000` → `202` i stan jak wyżej; uruchamia w tle import najnowszych spraw z serwera MCP EUvsDisinfo do katalogu (`403`, gdy brak `EUVSDISINFO_TOKEN`). Ten sam import działa automatycznie raz na dobę.
+- `POST /ingest`, `DELETE /sources/{documentId}`, `POST /incidents`, `DELETE /incidents/{source}/{incidentId}`, `POST /admin/incidents/sync`, `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` (`401` bez tokena, `403` gdy token nie jest skonfigurowany). Wywołuje je tylko skrypt zasilania korpusu, nie `agent/`.
 
 ## 4. Reguła wstrzymania się od oceny (`agent/`)
 
