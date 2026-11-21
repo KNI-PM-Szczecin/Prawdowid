@@ -95,6 +95,55 @@ class Passage(ApiModel):
     reliability: Reliability
 
 
+INCIDENT_BATCH_MAX = 500
+CAMPAIGN_CATEGORY = "possible_disinformation_campaign"
+
+
+class IncidentIn(ApiModel):
+    """One known disinformation case, e.g. an EUvsDisinfo database entry or a record from the organizer's base."""
+
+    incident_id: str = Field(min_length=1, max_length=255)
+    source: str = Field(min_length=1, max_length=100, description="Catalog name, e.g. euvsdisinfo")
+    title: str = Field(min_length=1)
+    summary: str = Field(min_length=1, max_length=DOCUMENT_MAX_CHARS, description="The disinformation claim")
+    url: HttpUrl
+    published_at: Timestamp | None = None
+    countries: list[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
+    license: str | None = None
+
+
+class IncidentIngestRequest(ApiModel):
+    incidents: list[IncidentIn] = Field(min_length=1, max_length=INCIDENT_BATCH_MAX)
+
+
+class IncidentIngestResult(ApiModel):
+    indexed: int
+    catalog_size: int
+
+
+class IncidentCatalogSummary(ApiModel):
+    catalog_size: int
+
+
+class IncidentMatch(ApiModel):
+    incident_id: str
+    source: str
+    title: str
+    summary: str
+    url: str
+    published_at: Timestamp | None
+    score: float
+
+
+class CampaignAlert(ApiModel):
+    """Context only: never evidence and never a basis for a verdict (brief scenario I, AGENTS.md §4)."""
+
+    category: Literal["possible_disinformation_campaign"]
+    message: str
+    matches: list[IncidentMatch]
+
+
 class ExternalSourceStatus(ApiModel):
     name: str
     status: Literal["ok", "disabled", "skipped", "error"]
@@ -108,6 +157,7 @@ class SearchResponse(ApiModel):
     expanded_queries: ExpandedQueries
     elapsed_ms: int
     external_sources: list[ExternalSourceStatus]
+    campaign_alert: CampaignAlert | None = None
 
 
 class SourceAuditEntry(ApiModel):
