@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { toneClass, verdictTone } from "../lib/presentation";
 import { texts } from "../lib/texts";
 import type { CheckResult } from "../lib/types";
@@ -31,8 +31,30 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
     panelScrollRef.current?.scrollTo({ top: 0 });
   }, [selectedClaimId]);
 
+  // Opening or closing the drawer reflows the main column, so the clicked claim would jump up or down.
+  // Its position on screen is recorded before the change and the page is scrolled by the difference after.
+  const scrollAnchorRef = useRef<{ element: HTMLElement; top: number } | null>(null);
+
+  const anchorTo = (element: HTMLElement | null) => {
+    scrollAnchorRef.current = element ? { element, top: element.getBoundingClientRect().top } : null;
+  };
+
+  useLayoutEffect(() => {
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+    scrollAnchorRef.current = null;
+    const shift = anchor.element.getBoundingClientRect().top - anchor.top;
+    if (shift !== 0) window.scrollBy({ top: shift });
+  }, [selectedClaimId]);
+
+  const selectClaim = (claimId: string, trigger: HTMLElement) => {
+    anchorTo(trigger);
+    setSelectedClaimId(claimId);
+  };
+
   const closePanel = () => {
     const claimId = selectedClaimId;
+    anchorTo(window.document.querySelector<HTMLElement>(`[data-claim-trigger="${claimId}"]`));
     setSelectedClaimId(null);
     window.requestAnimationFrame(() => {
       const trigger = window.document.querySelector<HTMLElement>(`[data-claim-trigger="${claimId}"]`);
@@ -61,10 +83,10 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
           text={document?.text ?? submittedInput}
           claims={result.claims}
           selectedClaimId={selectedClaimId}
-          onSelect={setSelectedClaimId}
+          onSelect={selectClaim}
         />
 
-        <ClaimList claims={result.claims} selectedClaimId={selectedClaimId} onSelect={setSelectedClaimId} />
+        <ClaimList claims={result.claims} selectedClaimId={selectedClaimId} onSelect={selectClaim} />
 
         <section aria-labelledby="limitations-title">
           <h2 id="limitations-title" class="section-title">
