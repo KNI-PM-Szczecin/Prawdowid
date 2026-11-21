@@ -243,7 +243,6 @@ func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage, pro
 
 // decide applies CONTRACT.md §4: confirmed/false need strong evidence with matching roles; a cited fact-check whose
 // rating differs from the model's verdict makes the claim an abstention; otherwise weak evidence also abstains.
-
 func decide(claimID, proposed string, modelMissing *string, sources []SourceRef, ev evidence, dropped int, ruling factcheckRuling) decision {
 	result := decision{verdict: proposed, missing: modelMissing, consistent: true}
 	if ruling.conflicts && !ruling.agrees {
