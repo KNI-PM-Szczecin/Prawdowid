@@ -1,0 +1,65 @@
+@use "../styles/mixins" as *;
+
+.header {
+  border-bottom: 1px solid var(--line);
+  background: var(--page);
+
+  &__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: 1.25rem 1rem;
+
+    @include from-sm {
+      padding-inline: 2rem;
+    }
+  }
+
+  &__brand {
+    color: var(--ink);
+    font-size: $text-2xl;
+    font-weight: $weight-semibold;
+    text-decoration: none;
+  }
+
+  &__nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+
+    @include from-sm {
+      gap: 2rem;
+    }
+  }
+
+  &__link {
+    color: var(--ink);
+    font-size: $text-lg;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  &__accessibility {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: $border solid var(--ink);
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    font-size: $text-lg;
+
+    @include hover {
+      background: var(--neutral-soft);
+    }
+  }
+
+  &__accessibility-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}

@@ -1,0 +1,14 @@
+@use "../styles/mixins" as *;
+
+.verdict-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: $border solid var(--tone-line);
+  border-radius: $radius-pill;
+  background: var(--tone-soft);
+  color: var(--ink);
+  padding: 0.25rem 0.75rem;
+  font-size: $text-lg;
+  font-weight: $weight-medium;
+}

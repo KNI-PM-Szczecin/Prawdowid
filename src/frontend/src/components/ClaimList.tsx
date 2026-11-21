@@ -1,5 +1,6 @@
 import { texts } from "../lib/texts";
 import type { Claim } from "../lib/types";
+import "./ClaimList.scss";
 import { VerdictChip } from "./VerdictChip";
 
 interface ClaimListProps {
@@ -11,16 +12,16 @@ interface ClaimListProps {
 // Keyboard and screen-reader path to every claim, also when span is null or highlights are hard to see.
 export function ClaimList({ claims, selectedClaimId, onSelect }: ClaimListProps) {
   return (
-    <section aria-labelledby="claims-title">
-      <h2 id="claims-title" class="text-2xl font-semibold">
+    <section aria-labelledby="claims-title" class="claim-list">
+      <h2 id="claims-title" class="section-title">
         {texts.claims.listTitle(claims.length)}
       </h2>
       {claims.length === 0 ? (
-        <p class="mt-2 text-lg">{texts.claims.noClaims}</p>
+        <p class="claim-list__hint">{texts.claims.noClaims}</p>
       ) : (
         <>
-          <p class="mt-1 text-lg">{texts.claims.listHint}</p>
-          <ul class="mt-4 space-y-3">
+          <p class="claim-list__hint">{texts.claims.listHint}</p>
+          <ul class="claim-list__items">
             {claims.map((claim) => (
               <li key={claim.id}>
                 <button
@@ -29,11 +30,11 @@ export function ClaimList({ claims, selectedClaimId, onSelect }: ClaimListProps)
                   data-claim-trigger={claim.id}
                   aria-expanded={claim.id === selectedClaimId}
                   aria-controls="claim-panel"
-                  class={`flex w-full flex-col items-start gap-2 rounded-xl border-2 p-4 text-left hover:border-ink ${claim.id === selectedClaimId ? "border-ink" : "border-line"}`}
+                  class={`claim-list__item ${claim.id === selectedClaimId ? "claim-list__item--selected" : ""}`}
                 >
                   <VerdictChip claim={claim} />
-                  <span class="text-lg">{claim.text}</span>
-                  <span class="text-base font-semibold underline underline-offset-4">{texts.claims.open}</span>
+                  <span class="claim-list__text">{claim.text}</span>
+                  <span class="claim-list__more">{texts.claims.open}</span>
                 </button>
               </li>
             ))}

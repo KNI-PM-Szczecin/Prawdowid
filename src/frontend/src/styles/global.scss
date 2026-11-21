@@ -1,0 +1,207 @@
+@use "sass:list";
+@use "tokens";
+@use "mixins" as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Prompt", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+dl,
+dd,
+blockquote,
+fieldset {
+  margin: 0;
+}
+
+ul,
+ol,
+fieldset,
+legend {
+  padding: 0;
+}
+
+fieldset {
+  border: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+svg {
+  display: block;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  @extend .sr-only;
+
+  &:focus {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 50;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0.5rem 1rem;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    border-radius: $radius-sm;
+    background: var(--ink);
+    color: var(--page);
+  }
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: $radius-md;
+  padding: 0.75rem 1.5rem;
+  font-size: $text-lg;
+  font-weight: $weight-semibold;
+
+  &--primary {
+    background: var(--ink);
+    color: var(--page);
+
+    @include hover {
+      opacity: 0.9;
+    }
+  }
+
+  &--secondary {
+    border: $border solid var(--ink);
+
+    @include hover {
+      background: var(--neutral-soft);
+    }
+  }
+
+  &--large {
+    padding: 1rem 1.5rem;
+    font-size: $text-xl;
+  }
+}
+
+.icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.section-title {
+  font-size: $text-2xl;
+  font-weight: $weight-semibold;
+}
+
+.icon-button {
+  flex-shrink: 0;
+  border: $border solid var(--ink);
+  border-radius: $radius-sm;
+  padding: 0.5rem;
+
+  @include hover {
+    background: var(--neutral-soft);
+  }
+}
+
+.app {
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--ink);
+}
+
+.demo-banner {
+  border-bottom: $border solid var(--warning-line);
+  background: var(--warning-soft);
+  padding: 0.75rem 1rem;
+  text-align: center;
+  font-size: $text-lg;
+  font-weight: $weight-semibold;
+}
+
+// Soft background glow from the Figma design, tinted by the summary level; off in high-contrast modes.
+$page-glow: (
+  high: (#e9fedb, #f1fde8),
+  mixed: (#fffbd6, #fffce3),
+  low: (#ffe6e6, #fff0f0),
+);
+
+.page-glow {
+  background-repeat: no-repeat;
+}
+
+@each $level, $colors in $page-glow {
+  :root[data-contrast="default"] .page-glow[data-tone="#{$level}"] {
+    background-image:
+      radial-gradient(ellipse 60% 50% at 90% 10%, list.nth($colors, 1), transparent),
+      radial-gradient(ellipse 40% 50% at 0% 60%, list.nth($colors, 2), transparent);
+  }
+}
+
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

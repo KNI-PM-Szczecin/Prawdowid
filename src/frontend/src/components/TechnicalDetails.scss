@@ -1,0 +1,36 @@
+@use "../styles/mixins" as *;
+
+.technical-details {
+  border: $border solid var(--line);
+  border-radius: $radius-md;
+  padding: 1rem;
+
+  &__summary {
+    cursor: pointer;
+    font-size: $text-lg;
+    font-weight: $weight-semibold;
+  }
+
+  &__list {
+    display: grid;
+    gap: 0.25rem 1.5rem;
+    margin-top: 0.75rem;
+    font-size: $text-base;
+
+    @include from-sm {
+      grid-template-columns: auto 1fr;
+    }
+  }
+
+  &__row {
+    display: contents;
+
+    dt {
+      font-weight: $weight-semibold;
+    }
+
+    dd {
+      word-break: break-all;
+    }
+  }
+}

@@ -4,7 +4,7 @@ FROM node:24-alpine AS build
 ARG FRONT_MODE=production
 RUN npm install --global pnpm@12
 WORKDIR /app
-COPY src/frontend/package.json src/frontend/pnpm-lock.yaml ./
+COPY src/frontend/package.json src/frontend/pnpm-lock.yaml src/frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY src/frontend ./
 RUN if [ "$FRONT_MODE" = "mock" ]; then pnpm build:mock; else pnpm build; fi

@@ -4,10 +4,12 @@ interface IconProps {
   class?: string;
 }
 
-function SvgIcon({ class: className = "h-6 w-6", children }: IconProps & { children: ComponentChildren }) {
+function SvgIcon({ class: className = "icon", children }: IconProps & { children: ComponentChildren }) {
   return (
     <svg
       class={className}
+      width="24"
+      height="24"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
