@@ -12,13 +12,13 @@
 |---|---|---|
 | Nagłówek i pełny tekst artykułu | tytuł i treść sprawdzanego dokumentu (dla URL: pobrana treść) | nie → `document` **[NOWE]** |
 | Podświetlony fragment w tekście (stan normal / hover), klik otwiera panel boczny | pozycja twierdzenia w tekście | nie → `claims[].span` **[NOWE]** |
-| Box „81% / 50% / 12% Pewności prawdy” (zielony / żółty / czerwony) | zbiorcza ocena całego zgłoszenia | nie → `summary` **[NOWE]**, zob. §6 ryzyko |
-| Chipy: „Świeży”, „Brak oficjalnej informacji”, „Źródło z niską/wysoką reputacją”, „Oficjalna informacja” | etykiety wyliczone z przesłanek; „reputacja” zastąpiona neutralnym „źródło w katalogu / spoza katalogu” (domena URL vs `GET /sources`) | częściowo (`warnings`) → `badges` **[NOWE]** |
+| Box zbiorczy (Figma v2: „Tekst prawdopodobnie prawdziwy” / „Brak pewnego wyniku prawdy” / „Tekst prawdopodobnie jest dezinformacją”, zielony / żółty / czerwony, z pierścieniem) | zbiorcza ocena całego zgłoszenia: `summary.level` → etykieta, `summary.score` → pierścień | nie → `summary` **[NOWE]**, zob. §6 |
+| Chipy (Figma v2: „Świeży”, „Archiwalny”, „Oficjalna informacja”, „Brak oficjalnej informacji”; „reputacja” została tylko na starym ekranie Sidebar) | etykiety wyliczone z przesłanek; „reputacja” zastąpiona neutralnym „źródło w katalogu / spoza katalogu” (domena URL vs `GET /sources`) | częściowo (`warnings`) → `badges` **[NOWE]** |
 | Czarny box „Ten tekst może być częścią kampanii dezinformacyjnej” + „Więcej informacji” | alert kampanii z linkami do spraw, na poziomie całego tekstu | częściowo (`warnings[].type = incident_match` bez linków) → `campaignAlert` **[NOWE]** |
 | Panel boczny: nagłówek = fragment, badge „Fakt”, wyjaśnienie, „Źródła:” | `claims[].text`, `verdict`, `justification`, `sources` | tak |
-| Panel „Sprzeczne źródła” z opisem i kartami źródeł | informacja o rozbieżności + źródła z obu stron | częściowo (`missing`, `role`) → `claims[].conflict` **[NOWE]** |
+| Panel „Sprzeczne źródła” (Figma v2: ikona ostrzeżenia, karty z tytułem, wydawcą, datą i linkiem) | informacja o rozbieżności + źródła z obu stron (`title`, `publisher`, `publishedAt`, `url`, `quote`) | częściowo (`missing`, `role`) → `claims[].conflict` **[NOWE]** |
 | Ustawienia dostępności (kontrast, rozmiar tekstu, animacje) | nic, tylko front (`localStorage`) | — |
-| „Strona główna” (formularz wejścia) | brak ekranu w Figmie; woła `POST /api/check` | tak |
+| Strona główna (Figma v2 „Landing”: jedno pole „Wklej link do artykułu bądź tekst…”, notka o AI) | front sam rozpoznaje `inputType` (`http://`/`https://` → `url`), woła `POST /api/check` | tak |
 
 ## 2. Lista endpointów
 
@@ -419,13 +419,16 @@ Uwaga do `span`: Go liczy w bajtach, JS w jednostkach UTF-16. Proponujemy code p
 | `insufficient_evidence` | Brak wystarczających dowodów; „Sprzeczne źródła”, gdy `conflict != null`; „Ustalono częściowo”, gdy `sources` niepuste | szary / żółty |
 | `not_verifiable` | Nie da się sprawdzić (opinia, przewidywanie) | szary |
 
-Rzeczy do decyzji z osobą od designu:
+Rzeczy do decyzji z osobą od designu (stan po Figmie v2, `Untitled (2).zip`):
 
-1. **„X% Pewności prawdy” to ryzyko punktowe.** Brief mówi, że system nie jest „sędzią prawdy”, a siła oceny ma wynikać z jawnych przesłanek. Procent sugeruje precyzję, której nie mamy, a wstrzymanie się (brak dowodów) nie może wyglądać jak „50% prawdy”. Propozycja: `summary.score` liczony **deterministycznie w backendzie** z werdyktów i `evidenceStrength` według jawnego wzoru (opisanego w README), nigdy przez model; przy samych wstrzymaniach `score: null` i osobny stan „Brak wystarczających dowodów”. Do rozważenia zmiana nazwy na „Siła potwierdzenia”.
-2. **„Sprzeczne źródła” ma zielony ptaszek** w Figmie. Powinien mieć neutralną ikonę, bo to nie jest potwierdzenie.
-3. **Chip „Źródło z niską reputacją”** dotyczy strony, z której pochodzi tekst. Nie mamy podstawy, by oceniać „reputację”; możemy tylko neutralnie powiedzieć, czy domena jest w naszym katalogu źródeł (`input_source_in_catalog` / `input_source_outside_catalog`). Proponowane etykiety: „Źródło z naszego katalogu” / „Źródło spoza naszego katalogu”. Nie może ruszać werdyktu ani procentu.
-4. **Brakuje ekranów:** strona główna z polem wejścia, stan ładowania (do 25 s), błąd techniczny, `needs_clarification`, wynik bez dowodów. Brakuje też w widoku wyniku: siły podstawy (`evidenceStrength` + `strengthReasons`), dat źródeł, cytatów i sekcji ograniczeń (`limitations`). `AGENTS.md` wymaga, żeby wynik zawsze je pokazywał.
-5. Lista „Źródła:” w Figmie pokazuje same domeny. Kontrakt wymaga tytułu, wydawcy, daty i linku, najlepiej z cytatem.
+1. **Procent prawdy** — v2 zastąpiła „81% Pewności prawdy” etykietami („Tekst prawdopodobnie prawdziwy” / „Brak pewnego wyniku prawdy” / „Tekst prawdopodobnie jest dezinformacją”), co zgadza się z `summary.level`. Zostaje pierścień z wypełnieniem (ok. 80 / 50 / 15%): przy `score: null` (same wstrzymania) pierścień ma być pusty albo ukryty, nie „50%”. Opisy wciąż mówią „duży / niski wynik prawdy”; propozycja: „mocna / słaba podstawa”. `summary.score` liczony **deterministycznie w backendzie**, nigdy przez model. Stare ekrany Sidebar nadal mają „81%” — do ujednolicenia.
+2. **„Dezinformacja” w czerwonym boksie** — werdykt z briefu to „fałszywe”; „dezinformacja” zakłada intencję, której system nie bada. Propozycja: „Tekst prawdopodobnie fałszywy”. Żółty opis miesza brak dowodów z „częściowo prawdziwe, częściowo fałszywe” (to `misleading`); to dwa różne stany.
+3. **Czarny box kampanii** — nadal stwierdza, że tekst „zawiera nieprawdziwe informacje powiązane z… kampaniami”. Dopasowanie do katalogu to kontekst, nie werdykt (brief, scenariusz I). Treść ma być warunkowa: „Treść jest podobna do znanej sprawy dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.” (dokładnie `campaignAlert.message` z `rag/`).
+4. **„Sprzeczne źródła”** — v2 naprawiła ikonę (ostrzeżenie zamiast ptaszka) i karty źródeł (tytuł, wydawca, data, link). Brakuje cytatu (`quote`) i roli (`supports` / `refutes`), żeby obywatel widział, która strona co mówi.
+5. **Chip reputacji** — w v2 zniknął z ekranów pełnych, został na Sidebar. Zostaje zasada: tylko neutralne „Źródło z naszego katalogu / spoza naszego katalogu” (`input_source_in_catalog` / `input_source_outside_catalog`), bez wpływu na werdykt.
+6. **Ekrany** — v2 dodała stronę główną (Landing) i chip „Archiwalny”. Nadal brakuje: stanu ładowania (do 25 s), błędu technicznego, `needs_clarification`, wyniku bez dowodów i odpowiedzi częściowej. Brief: awaria i niejasne pytanie muszą wyglądać **inaczej** niż werdykt. Na Landing notka „Zawsze weryfikuj wszystkie informacje” jest dobra; tekst „Wyniki wygenerowane przez Sztuczną Inteligencję” lepiej zamienić na „Odpowiedź opiera się na źródłach z naszego katalogu; sprawdź je sam”, bo brief każe pokazywać podstawy, nie model.
+7. **Panel „Fakt”** — lista „Źródła:” to nadal same domeny (`google.com`). Kontrakt wymaga tytułu, wydawcy, daty i linku, najlepiej z cytatem; brakuje siły podstawy (`evidenceStrength` + `strengthReasons`) i ograniczeń (`limitations`), które `AGENTS.md` każe pokazywać zawsze.
+8. **Opis zielonego boksu** „znaczna większość źródeł podaje tą samą informację” — brief zakazuje oceniania po popularności; dozwolona przesłanka to „liczba niezależnych potwierdzeń”. Propozycja: „potwierdzają to niezależne źródła”.
 
 ## 7. Pytania otwarte
 
