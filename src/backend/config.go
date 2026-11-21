@@ -15,6 +15,7 @@ const (
 	defaultRateLimit        = 20
 	defaultRetentionDays    = 30
 	defaultArchivalDays     = 365
+	defaultRagURL           = "http://localhost:8001"
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -31,6 +32,8 @@ type Config struct {
 	RetentionDays int
 	// ArchivalDays is the age of the newest source after which material is flagged as archival.
 	ArchivalDays int
+	// RagURL is the rag service address, the same variable the agent reads.
+	RagURL string
 }
 
 func loadConfig() (Config, error) {
@@ -71,6 +74,7 @@ func loadConfig() (Config, error) {
 		RateLimitPerMinute: rateLimit,
 		RetentionDays:      retentionDays,
 		ArchivalDays:       archivalDays,
+		RagURL:             stringFromEnv("RAG_URL", defaultRagURL),
 	}, nil
 }
 

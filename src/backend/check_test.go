@@ -244,3 +244,28 @@ func TestCheckResponseIncludesSummaryAndBadges(t *testing.T) {
 		t.Fatalf("agent fields must stay at the top level: %v", raw)
 	}
 }
+
+func TestCheckURLInputGetsCatalogBadge(t *testing.T) {
+	rag := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(`{"entries":[{"domains":["gov.pl"]}]}`))
+	}))
+	defer rag.Close()
+	handlers, _ := newTestHandlers(okVerify, 10)
+	handlers.catalog = newSourceCatalog(rag.URL, time.Second)
+
+	recorder := postCheck(handlers, `{"input":"https://www.gov.pl/web/zdrowie","inputType":"url"}`)
+	var response struct {
+		Badges []string `json:"badges"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Badges) != 1 || response.Badges[0] != badgeInputSourceInCatalog {
+		t.Fatalf("badges %v, want the in-catalog badge", response.Badges)
+	}
+
+	text := postCheck(handlers, `{"input":"Polska jest w UE","inputType":"text"}`)
+	if strings.Contains(text.Body.String(), "input_source") {
+		t.Fatalf("text input must not get a catalog badge: %s", text.Body.String())
+	}
+}

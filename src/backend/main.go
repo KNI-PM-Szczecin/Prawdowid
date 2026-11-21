@@ -68,6 +68,7 @@ func run(logger *slog.Logger) error {
 		limiter:       newRateLimiter(config.RateLimitPerMinute, rateLimitWindow),
 		now:           time.Now,
 		archivalAfter: time.Duration(config.ArchivalDays) * hoursPerDay * time.Hour,
+		catalog:       newSourceCatalog(config.RagURL, catalogFetchTimeout),
 	}
 
 	demo := newChannelHandler(checks, demoAdapter{})

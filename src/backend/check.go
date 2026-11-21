@@ -54,6 +54,8 @@ type checkHandlers struct {
 	now       func() time.Time
 	// archivalAfter is the age of the newest source after which the archival_material badge is shown.
 	archivalAfter time.Duration
+	// catalog is optional: without it the input_source_* badges are simply not shown.
+	catalog *sourceCatalog
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
@@ -78,7 +80,27 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 	}
 
 	result, statusCode := h.runCheck(request.Context(), requestID, webChannel, body.Input, body.InputType)
-	writeJSON(h.logger, writer, statusCode, h.withSummary(result))
+	response := h.withSummary(result)
+	if body.InputType == agent.InputTypeURL && result.Status == agent.StatusOK {
+		response.Badges = h.addCatalogBadge(request.Context(), response.Badges, body.Input)
+	}
+	writeJSON(h.logger, writer, statusCode, response)
+}
+
+// addCatalogBadge appends the neutral input_source_* badge; when the catalog is unavailable no badge is added.
+func (h *checkHandlers) addCatalogBadge(ctx context.Context, badges []string, rawURL string) []string {
+	if h.catalog == nil {
+		return badges
+	}
+	badge, found, err := h.catalog.badgeForURL(ctx, strings.TrimSpace(rawURL))
+	if err != nil {
+		h.logger.Warn("source catalog unavailable, badge skipped", "error", err)
+		return badges
+	}
+	if !found {
+		return badges
+	}
+	return append(badges, badge)
 }
 
 // checkResponse is the web answer: the agent result plus the deterministic fields from CONTRACT.md section 1a.
