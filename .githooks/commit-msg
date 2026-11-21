@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Odrzuca commity z podpisem agenta (Co-Authored-By, Generated with). Aktywacja: git config core.hooksPath .githooks
+if grep -qiE '^(co-authored-by:|.*generated with)' "$1"; then
+  echo "Commit odrzucony: usuń Co-Authored-By / Generated with z wiadomości (patrz AGENTS.md)." >&2
+  exit 1
+fi
