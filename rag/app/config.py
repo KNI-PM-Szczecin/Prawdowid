@@ -66,6 +66,19 @@ class Settings(BaseSettings):
     incident_max_matches: int = 3
     incident_summary_max_chars: int = 400
 
+    # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
+    euvsdisinfo_token: str = Field(
+        default="", validation_alias=AliasChoices("RAG_EUVSDISINFO_TOKEN", "EUVSDISINFO_TOKEN")
+    )
+    euvsdisinfo_url: str = "https://mcp.euvsd.info/mcp"
+    euvsdisinfo_page_size: int = 100
+    euvsdisinfo_timeout_seconds: float = 60.0
+    # Cases are newest first; CPU embedding of the full 19k+ register takes long, so syncs are bounded.
+    euvsdisinfo_sync_default_cases: int = 1000
+    euvsdisinfo_sync_max_cases: int = 25000
+    euvsdisinfo_daily_sync_cases: int = 200
+    euvsdisinfo_sync_cron_hour: int = 2
+
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3.5:9b"
