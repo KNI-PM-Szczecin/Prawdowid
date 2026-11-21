@@ -184,9 +184,15 @@ class SourceAuditEntry(ApiModel):
     active_chunks: int
 
 
+DependencyStatus = Literal["ok", "unavailable"]
+
+
 class HealthResponse(ApiModel):
-    status: Literal["ok"]
-    corpus_version: str
+    status: Literal["ok", "degraded"]
+    corpus_version: str | None
+    database: DependencyStatus
+    qdrant: DependencyStatus
+    incident_catalog: DependencyStatus
 
 
 class DeletionReport(ApiModel):

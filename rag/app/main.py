@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 import asyncpg
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
@@ -119,9 +119,26 @@ async def require_admin(x_admin_token: Annotated[str | None, Header()] = None) -
 AdminOnly = [Depends(require_admin)]
 
 
-@app.get("/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
-    return HealthResponse(status="ok", corpus_version=await db.corpus_version())
+async def _dependency_status(probe) -> tuple[str, object]:
+    try:
+        return "ok", await probe
+    except Exception as error:
+        logger.warning("Health probe failed: %s", type(error).__name__)
+        return "unavailable", None
+
+
+@app.get("/health", response_model=HealthResponse, responses={HTTP_SERVICE_UNAVAILABLE: {"model": HealthResponse}})
+async def health(response: Response) -> HealthResponse:
+    """Checks every dependency a search needs; 503 + degraded lets backend and compose see a half-dead rag."""
+    database, corpus_version = await _dependency_status(db.corpus_version())
+    qdrant, _ = await _dependency_status(app.state.store.count())
+    catalog, _ = await _dependency_status(app.state.incidents.count())
+    status = "ok" if database == qdrant == catalog == "ok" else "degraded"
+    if status == "degraded":
+        response.status_code = HTTP_SERVICE_UNAVAILABLE
+    return HealthResponse(
+        status=status, corpus_version=corpus_version, database=database, qdrant=qdrant, incident_catalog=catalog
+    )
 
 
 @app.post("/search", response_model=SearchResponse)

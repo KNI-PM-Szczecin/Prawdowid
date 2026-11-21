@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 
 from fastembed import SparseTextEmbedding, TextEmbedding
@@ -30,7 +31,8 @@ class EmbeddingModels:
             model_file=BGE_M3_ONNX_FILE,
             additional_files=[BGE_M3_ONNX_WEIGHTS],
         )
-        self._dense = TextEmbedding(settings.dense_model, cache_dir=settings.model_cache_dir)
+        threads = settings.model_threads or os.cpu_count()
+        self._dense = TextEmbedding(settings.dense_model, cache_dir=settings.model_cache_dir, threads=threads)
         language = load_profile(settings.corpus_language)
         self._sparse = SparseTextEmbedding(
             settings.sparse_model,
@@ -38,7 +40,7 @@ class EmbeddingModels:
             stemmer=language.stemmer,
             stopwords=language.stopwords,
         )
-        self._reranker = TextCrossEncoder(settings.reranker_model, cache_dir=settings.model_cache_dir)
+        self._reranker = TextCrossEncoder(settings.reranker_model, cache_dir=settings.model_cache_dir, threads=threads)
 
     def embed_documents(self, texts: list[str]) -> tuple[list[list[float]], list[SparseVector]]:
         dense = [vector.tolist() for vector in self._dense.embed(texts)]
