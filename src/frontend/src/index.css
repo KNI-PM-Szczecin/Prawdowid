@@ -1,3 +1,138 @@
-h1 {
-  color: red;
+@import "tailwindcss";
+@import "@fontsource/prompt/400.css";
+@import "@fontsource/prompt/500.css";
+@import "@fontsource/prompt/600.css";
+
+/* Colour tokens. Contrast modes from the accessibility panel swap them on <html data-contrast>. */
+:root {
+  --page: #ffffff;
+  --ink: #111111;
+  --ink-soft: #3a3a3a;
+  --line: #8c8c8c;
+  --link: #0b4fc2;
+  --positive-soft: #defccc;
+  --positive-line: #8ccc6a;
+  --positive-strong: #1c7a30;
+  --negative-soft: #ffd3d3;
+  --negative-line: #e08f8f;
+  --negative-strong: #b3261e;
+  --warning-soft: #fff6b5;
+  --warning-line: #d9b700;
+  --warning-strong: #845c00;
+  --neutral-soft: #eceef2;
+  --neutral-line: #9aa1ab;
+  --neutral-strong: #374050;
+  --alert: #000000;
+  --alert-ink: #ffffff;
+  --alert-line: #000000;
+  --alert-ring: #555555;
+}
+
+:root[data-contrast="high-light"] {
+  --ink-soft: #000000;
+  --line: #000000;
+  --link: #00007a;
+  --positive-soft: #ffffff;
+  --positive-line: #000000;
+  --positive-strong: #005a1a;
+  --negative-soft: #ffffff;
+  --negative-line: #000000;
+  --negative-strong: #8a0000;
+  --warning-soft: #ffffff;
+  --warning-line: #000000;
+  --warning-strong: #5c3d00;
+  --neutral-soft: #ffffff;
+  --neutral-line: #000000;
+  --neutral-strong: #000000;
+  --alert-ring: #000000;
+}
+
+:root[data-contrast="high-dark"] {
+  --page: #000000;
+  --ink: #ffffff;
+  --ink-soft: #ffffff;
+  --line: #ffffff;
+  --link: #ffe14d;
+  --positive-soft: #000000;
+  --positive-line: #ffffff;
+  --positive-strong: #8dff9e;
+  --negative-soft: #000000;
+  --negative-line: #ffffff;
+  --negative-strong: #ffa3a3;
+  --warning-soft: #000000;
+  --warning-line: #ffe14d;
+  --warning-strong: #ffe14d;
+  --neutral-soft: #000000;
+  --neutral-line: #ffffff;
+  --neutral-strong: #ffffff;
+  --alert: #000000;
+  --alert-ink: #ffffff;
+  --alert-line: #ffffff;
+  --alert-ring: #ffffff;
+}
+
+@theme inline {
+  --font-sans: "Prompt", system-ui, sans-serif;
+  --color-page: var(--page);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-link: var(--link);
+  --color-positive-soft: var(--positive-soft);
+  --color-positive-line: var(--positive-line);
+  --color-positive-strong: var(--positive-strong);
+  --color-negative-soft: var(--negative-soft);
+  --color-negative-line: var(--negative-line);
+  --color-negative-strong: var(--negative-strong);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-line: var(--warning-line);
+  --color-warning-strong: var(--warning-strong);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-line: var(--neutral-line);
+  --color-neutral-strong: var(--neutral-strong);
+  --color-alert: var(--alert);
+  --color-alert-ink: var(--alert-ink);
+  --color-alert-line: var(--alert-line);
+  --color-alert-ring: var(--alert-ring);
+}
+
+@layer base {
+  body {
+    background: var(--page);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 3px;
+  }
+}
+
+/* Soft background glow from the Figma design, tinted by the summary level; off in high-contrast modes. */
+.page-glow {
+  background-repeat: no-repeat;
+}
+
+:root[data-contrast="default"] .page-glow[data-tone="high"] {
+  background-image: radial-gradient(ellipse 60% 50% at 90% 10%, #e9fedb, transparent),
+    radial-gradient(ellipse 40% 50% at 0% 60%, #f1fde8, transparent);
+}
+
+:root[data-contrast="default"] .page-glow[data-tone="mixed"] {
+  background-image: radial-gradient(ellipse 60% 50% at 90% 10%, #fffbd6, transparent),
+    radial-gradient(ellipse 40% 50% at 0% 60%, #fffce3, transparent);
+}
+
+:root[data-contrast="default"] .page-glow[data-tone="low"] {
+  background-image: radial-gradient(ellipse 60% 50% at 90% 10%, #ffe6e6, transparent),
+    radial-gradient(ellipse 40% 50% at 0% 60%, #fff0f0, transparent);
+}
+
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
