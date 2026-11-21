@@ -12,21 +12,26 @@ const (
 	missingNoSources    = "Nie znaleziono publikacji na ten temat w dostępnych źródłach."
 	missingWeakEvidence = "Źródła nie wystarczają, by potwierdzić lub obalić to twierdzenie: " +
 		"potrzebne jest źródło urzędowe, ocena weryfikatora faktów albo dwa niezależne źródła wtórne."
-	missingNoValidQuote = "Model nie wskazał dosłownego cytatu ze źródła, który odnosiłby się do tego twierdzenia."
-	missingDiscrepancy  = "Źródła podają rozbieżne dane i nie da się ustalić, które są właściwe."
+	missingNoValidQuote      = "Model nie wskazał dosłownego cytatu ze źródła, który odnosiłby się do tego twierdzenia."
+	missingDiscrepancy       = "Źródła podają rozbieżne dane i nie da się ustalić, które są właściwe."
+	missingFactcheckMismatch = "Nie ustalono, czy weryfikator faktów oceniał dokładnie to twierdzenie, " +
+		"czy inne, podobne. Sprawdź jego publikację w źródłach."
 
 	limitationFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów (usługa niedostępna); " +
 		"wynik opiera się tylko na korpusie źródeł."
-	limitationCatalogEmpty  = "Katalog znanych kampanii dezinformacyjnych jest pusty; dopasowanie nie było możliwe."
-	limitationClaimsSkipped = "Sprawdzono %d najważniejsze twierdzenia z około %d w tekście."
-	limitationPageTruncated = "Strona była bardzo długa; sprawdzono jej początek."
-	limitationFactcheckRule = "Werdykt dla twierdzenia %s oparto na ocenie weryfikatora faktów (%s), " +
-		"która różniła się od wstępnej oceny modelu."
+	limitationCatalogEmpty      = "Katalog znanych kampanii dezinformacyjnych jest pusty; dopasowanie nie było możliwe."
+	limitationClaimsSkipped     = "Sprawdzono %d najważniejsze twierdzenia z około %d w tekście."
+	limitationPageTruncated     = "Strona była bardzo długa; sprawdzono jej początek."
+	limitationFactcheckMismatch = "Dla twierdzenia %s ocena weryfikatora faktów (%s) różniła się od wniosku ze źródeł. " +
+		"Weryfikator mógł oceniać inne, podobne twierdzenie, dlatego wstrzymujemy się od oceny."
 	limitationModelFallback = "Dla twierdzenia %s model nie zwrócił poprawnej odpowiedzi; " +
 		"podano wstrzymanie się od oceny."
 
 	warningInjection  = "Jedno ze źródeł zawierało polecenia skierowane do systemu; zostały zignorowane."
 	warningSuspicious = "Model zgłosił, że treść źródeł zawierała polecenia; zostały zignorowane."
+
+	limitationInputInstructions = "Zgłoszenie zawierało polecenia skierowane do systemu. " +
+		"Potraktowaliśmy je jako zwykły tekst i nie zmieniły zasad sprawdzania."
 
 	reasonOfficial           = "źródło urzędowe"
 	reasonFactcheck          = "ocena weryfikatora faktów (%s)"

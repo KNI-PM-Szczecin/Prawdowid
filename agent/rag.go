@@ -24,6 +24,8 @@ const (
 	externalSourceIncidentCatal = "incident_catalog"
 	externalStatusError         = "error"
 	externalStatusDisabled      = "disabled"
+	// What rag/ renders for an empty result list; used when an older rag sends no contextXml at all.
+	emptyContextXML = "<dostepne_zrodla>\n\n</dostepne_zrodla>"
 )
 
 // Passage is one evidence fragment from rag/ (CONTRACT.md §3).
