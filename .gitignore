@@ -16,3 +16,6 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 rag/data/
+bin/
+*.exe
+/backend/backend

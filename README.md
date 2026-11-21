@@ -5,25 +5,26 @@ Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje si�
 
 ## Struktura
 - `spec/` — brief zadania, regulamin, wymagania (przeczytaj najpierw)
-- `src/` — Next.js (interfejs WWW, frontend)
+- `src/` — React + Vite (interfejs WWW, frontend)
 - `front/` — nieużywany, frontend jest w `src/`
-- `backend/` — Node.js (API, kanały)
-- `agent/` — logika weryfikacji
+- `backend/` — Go (API, kanały)
+- `agent/` — Go (logika weryfikacji)
 - `rag/` — korpus i wyszukiwanie źródeł
 
 Zasady pracy dla ludzi i agentów AI: `AGENTS.md`. Kontrakty między modułami: `CONTRACT.md`.
 
 ## Wymagania
-Narzędzia do zainstalowania przed startem: Git, Node.js i `pnpm` (`src/`, `backend/`, `agent/`), Python 3.12 i `uv` (`rag/`).
+Narzędzia do zainstalowania przed startem: Git, Go (`backend/`, `agent/`), Node.js i `pnpm` (`src/`), Python 3.12 i `uv` (`rag/`).
 
 ArchLinux:
 ```
-sudo pacman -S nodejs pnpm python uv
+sudo pacman -S go nodejs pnpm python uv
 ```
 
 Windows (PowerShell):
 ```
 winget install Git.Git
+winget install GoLang.Go
 winget install OpenJS.NodeJS.LTS
 winget install pnpm.pnpm
 winget install Python.Python.3.12
