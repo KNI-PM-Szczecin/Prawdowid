@@ -245,7 +245,8 @@
     "scenario": "A",
     "input": "Czy we Włoszech ostatnio odbywał się strajk generalny?",
     "expected": {
-      "verdict": "insufficient_evidence"
+      "verdict": "insufficient_evidence",
+      "sourcesRequired": true
     },
     "requires": "corpus:live_sources",
     "evidenceNeeded": "Komunikat Odyseusza (MSZ) albo inne wiarygodne źródło o zapowiedzi strajku generalnego we Włoszech. Brak potwierdzenia, czy strajk się odbył.",
@@ -260,7 +261,7 @@
     },
     "requires": "corpus:factcheck",
     "evidenceNeeded": "Ocena weryfikatora faktów (Demagog) dla tej wypowiedzi, odnaleziona przez Google Fact Check API.",
-    "note": "Rozbieżność wyjaśnialna (CONTRACT.md §4): jedna liczba to przybliżenie z wypowiedzi, druga konkretna pozycja z roku 2023. Werdykt weryfikatora to częściowa prawda, więc oczekujemy misleading z wyjaśnieniem i obu źródłami, nie insufficient_evidence."
+    "note": "Rozbieżność wyjaśnialna (CONTRACT.md §4): jedna liczba to przybliżenie z wypowiedzi, druga konkretna pozycja z roku 2023. Werdykt weryfikatora to częściowa prawda, więc oczekujemy misleading z wyjaśnieniem i obu źródłami, nie insufficient_evidence. Uwaga: ta reguła jest w PR #23 (CONTRACT.md §4); do jego merge'u obowiązujący kontrakt dałby insufficient_evidence."
   },
   {
     "id": "D07",
@@ -300,6 +301,6 @@
       "status": "technical_error"
     },
     "requires": "fault:factcheck_down",
-    "note": "Przykład J mentora: przy awarii Google API system ujawnia ograniczenie i nie twierdzi, że takiej publikacji nie ma. Uruchom rag z błędnym FACTCHECK_API_KEY. Do potwierdzenia z Dominikiem: gdy korpus coś zwróci, wystarczy ujawnione ograniczenie w limitations."
+    "note": "Przykład J mentora: przy awarii Google API system ujawnia ograniczenie i nie twierdzi, że takiej publikacji nie ma. Uruchom rag z błędnym FACTCHECK_API_KEY (rag/app/factcheck.py: błąd HTTP daje externalSources[google_factcheck].status = error, rag nie zwraca 503). Potwierdzone (Dominik): technical_error wydaje agent, bo dla pytania o weryfikatorów to jedyne źródło; gdy korpus coś zwróci, wystarczy status ok z ograniczeniem w limitations (docs/api.md, przykład J)."
   }
 ]
