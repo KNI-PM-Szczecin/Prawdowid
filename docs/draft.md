@@ -5,7 +5,8 @@
 Podstawa (MVP) jest w `spec/requirements.md`. Poniżej źródła i integracje ustalone z mentorem MSZ (Piotr Sosnowski). Statusy: [ZAIMPLEMENTOWANE] działa w repo, [ZAPLANOWANE] jest w planie.
 
 ### Źródła korpusu
-- [ZAPLANOWANE] **Domeny rządowe i urzędowe** z listy mentora (RCB, ostrzeżenia gov.pl, GIS, KG PSP, MSWiA, MSZ, policja, CERT Polska, IMGW, GDDKiA, ULC i in.). To przykłady, nie wszystkie muszą trafić do korpusu. Zasilanie przez skrypt ingest w `rag/` (odpowiada Dominik). Typ źródła: `official`.
+- [ZAIMPLEMENTOWANE] **Katalog zaufanych źródeł** w `rag/app/data/sources_catalog.json` (`GET /sources/catalog`): domeny z listy mentora (RCB, ostrzeżenia gov.pl, GIS, KG PSP, MSWiA, MSZ, policja, CERT Polska, IMGW, GDDKiA, ULC), źródła pierwotne z briefu (ISAP, Dziennik Ustaw, dane.gov.pl, EUR-Lex), weryfikatorzy faktów (Demagog, AFP Sprawdzam, Konkret24, Fakenews.pl, PAP FakeHunter), PAP, EDMO, NASK, EUvsDisinfo. Każdy wpis ma typ, tier, wiarygodność i uzasadnienie; plik ma reguły kwalifikacji, postępowania ze źródłem spoza katalogu i wykluczania. Katalog nadaje metadane przy wgrywaniu i nigdy nie decyduje o werdykcie.
+- [ZAPLANOWANE] **Pełna lista mentora** do katalogu (w repo są tylko przykłady z jego wiadomości) i **skrypt zasilania korpusu** dokumentami z tych domen (odpowiada Dominik). Typ źródła: `official`.
 - [ZAIMPLEMENTOWANE] **Google Fact Check Tools API** jako baza weryfikatorów faktów (typ źródła: `factcheck`). Klient jest w `rag/` (odpowiada Dominik): zapytanie idzie na żywo, równolegle z korpusem, a wyniki przechodzą przez ten sam reranker i próg trafności. Brak klucza lub awaria API nie psuje wyszukiwania (status w `externalSources`). Klucz w `.env` (`FACTCHECK_API_KEY`), nigdy w repo, wysyłany w nagłówku, nie w URL.
 - [ZAPLANOWANE] Fact Check API, część zespołu (Vanessa): założenie klucza, test na polskich zapytaniach, opis limitów i kosztów do dokumentacji. Dokumentacja Google nie podaje limitów ani cennika, a API jest w wersji `v1alpha1`.
 - Uwaga: Google Fact Check pokazuje, czy weryfikatorzy już sprawdzali twierdzenie i z jaką oceną. Nie mówi, czy coś jest częścią wrogiej kampanii; do tego służy EUvsDisinfo poniżej.
@@ -117,7 +118,8 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 - [ZAIMPLEMENTOWANE] Korpus zasilany wyłącznie przez `POST /ingest`, nie automatycznie z sieci. Każdy dokument ma tier, typ i licencję. `GET /sources` pokazuje pełną listę do audytu, a `DELETE /sources/{id}` usuwa podejrzany dokument.
 - [ZAIMPLEMENTOWANE] Token administracyjny (`X-Admin-Token`) na `POST /ingest`, `DELETE /sources/{id}` i `POST /admin/eviction`. Serwis słucha tylko na `127.0.0.1`, a baza i indeks nie są wystawione na hosta, więc nikt z sieci nie doda sfabrykowanego źródła.
 - [ZAIMPLEMENTOWANE] Wyszukiwanie hybrydowe (wektory i BM25) oraz reranker oceniają trafność fragmentu, a nie liczbę jego kopii. Kara za temat przekraczający 30% bazy ogranicza dominację jednego wątku.
-- [ZAPLANOWANE] Prompt `agent/` odrzuca informację z Tier 3, gdy przeczy jej Tier 1. Deduplikacja niemal identycznych tekstów przy wgrywaniu.
+- [ZAIMPLEMENTOWANE] Katalog zaufanych źródeł decyduje o tier i wiarygodności przy wgrywaniu; dokument spoza katalogu wymaga jawnych metadanych i jest oznaczony w audycie. Dokładne kopie treści pod innym identyfikatorem są odrzucane (`409`).
+- [ZAPLANOWANE] Prompt `agent/` odrzuca informację z Tier 3, gdy przeczy jej Tier 1. Wykrywanie niemal identycznych tekstów (parafraz) przy wgrywaniu.
 
 ### Dostępność
 **Opis:** zależność zewnętrzna (model językowy, baza wektorowa, limit API) przestaje działać, a system zamiast jawnego błędu zwraca pozorną odpowiedź albo się zawiesza.

@@ -74,6 +74,10 @@ Korpus domyślnie po polsku (`RAG_CORPUS_LANGUAGE=pl`). BM25 z FastEmbed nie ma 
 
 ## Zasilanie korpusu
 
+Katalog zaufanych źródeł jest w `app/data/sources_catalog.json` (`GET /sources/catalog`): wydawca, domeny, typ, tier, wiarygodność i uzasadnienie kwalifikacji, plus reguły dla typów, źródeł spoza katalogu i wykluczania. Dopasowanie po domenie URL (najdłuższa pasująca domena wygrywa, więc `isap.sejm.gov.pl` ma własny wpis mimo ogólnego `gov.pl`). Przy `POST /ingest` dla domeny z katalogu `sourceType`, `tier` i `reliability` można pominąć; dla domeny spoza katalogu trzeba je podać jawnie (inaczej `422`), a dokument jest w audycie oznaczony `inCatalog: false`. Obecność w katalogu nigdy nie wpływa na werdykt, tylko na metadane i neutralną informację o statusie źródła. Nowe źródło to nowy wpis w pliku, bez zmian w kodzie.
+
+Duplikaty: rag liczy skrót znormalizowanej treści (`content_hash`) i odrzuca `409` dokument o tej samej treści co inny aktywny dokument. Ponowne wgranie pod tym samym `documentId` nadal podmienia fragmenty. Niemal identyczne teksty (parafrazy) nie są wykrywane.
+
 `POST /ingest` z listą `{ source: {...}, text }` (pola w `app/models.py`: `SourceIn`, przykład w `tests/smoke_documents.json`). `sourceType`: `official`, `secondary`, `factcheck`, `incident`. `reliability`: `high`, `medium`, `low`. Ponowne wysłanie tego samego `documentId` podmienia fragmenty. `DELETE /sources/{documentId}` usuwa dokument z indeksu (procedura usunięcia). Tier 1 nigdy nie jest usuwany przez eviction. Nowe fragmenty mają ochronę przez `RAG_PROTECTION_DAYS` (7).
 
 ## Eviction
