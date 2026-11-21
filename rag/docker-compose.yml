@@ -12,6 +12,9 @@ services:
       # Only the local-db profile uses it; the postgres image refuses to start with an empty password.
       POSTGRES_PASSWORD: ${RAG_POSTGRES_PASSWORD:-}
       POSTGRES_DB: rag
+    # Localhost only, so backend/ run with go run can use the same offline database.
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
