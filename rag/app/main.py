@@ -13,7 +13,7 @@ from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedR
 from app import db
 from app.catalog import SourceOutsideCatalogError, load_catalog, resolve_entry
 from app.config import settings
-from app.corpus_sync import sync_corpus
+from app.corpus_sync import fetch_corpus, fetch_state, seed_urls, sync_corpus
 from app.corpus_sync import sync_state as corpus_sync_state
 from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
@@ -22,6 +22,7 @@ from app.factcheck import FactCheckClient
 from app.incidents import incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, ingest_document
 from app.models import (
+    CorpusFetchRequest,
     CorpusSyncStatus,
     DeletionReport,
     EuvsDisinfoSyncStatus,
@@ -267,17 +268,37 @@ async def delete_incident(source: str, incident_id: str) -> IncidentCatalogSumma
     return IncidentCatalogSummary(catalog_size=await app.state.incidents.count())
 
 
-def _corpus_sync_status() -> CorpusSyncStatus:
+def _corpus_status(state) -> CorpusSyncStatus:
     return CorpusSyncStatus(
-        running=corpus_sync_state.running,
-        last_finished_at=corpus_sync_state.last_finished_at,
-        available=corpus_sync_state.available,
-        indexed=corpus_sync_state.indexed,
-        skipped_duplicates=corpus_sync_state.skipped_duplicates,
-        skipped_outside_catalog=corpus_sync_state.skipped_outside_catalog,
-        failed=corpus_sync_state.failed,
-        last_error=corpus_sync_state.last_error,
+        running=state.running,
+        last_finished_at=state.last_finished_at,
+        available=state.available,
+        indexed=state.indexed,
+        skipped_duplicates=state.skipped_duplicates,
+        skipped_outside_catalog=state.skipped_outside_catalog,
+        failed=state.failed,
+        last_error=state.last_error,
     )
+
+
+def _corpus_sync_status() -> CorpusSyncStatus:
+    return _corpus_status(corpus_sync_state)
+
+
+@app.get("/corpus/fetch", response_model=CorpusSyncStatus)
+async def corpus_fetch_status() -> CorpusSyncStatus:
+    return _corpus_status(fetch_state)
+
+
+@app.post("/admin/corpus/fetch", response_model=CorpusSyncStatus, status_code=HTTP_ACCEPTED, dependencies=AdminOnly)
+async def start_corpus_fetch(
+    background_tasks: BackgroundTasks, request: CorpusFetchRequest | None = None
+) -> CorpusSyncStatus:
+    """Fetches public pages (given URLs, or the seed list from catalog domains) into the corpus in the background."""
+    urls = [str(url) for url in request.urls] if request and request.urls else seed_urls()
+    if not fetch_state.running:
+        background_tasks.add_task(fetch_corpus, urls, app.state.models, app.state.store)
+    return _corpus_status(fetch_state)
 
 
 @app.get("/corpus/sync", response_model=CorpusSyncStatus)
