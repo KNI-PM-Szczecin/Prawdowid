@@ -39,6 +39,8 @@ Testy nie wymagają Dockera ani modeli: czyste funkcje (chunking, stemmer, ekspa
 
 Kontrakt daje rag 8 s na wywołanie. Reranker (cross-encoder na CPU) jest najdroższy i rośnie liniowo z długością tekstu, dlatego fragmenty mają 450 znaków, pula kandydatów 12, fact-checków jest maks. 10, a z katalogu kampanii rerankowanych jest 5 spraw po pierwszych 400 znakach. Metadane z Postgresa są pobierane równolegle z rerankingiem. Zmierzone na korpusie 104 stron (1504 fragmenty) i katalogu 201 spraw: mediana 3,3 s, przed strojeniem 6,0 s. To samo zapytanie (z filtrami i `topK`) w ciągu 10 min i przy tej samej wersji korpusu wraca z pamięci podręcznej w RAM, więc powtórzenia i drugi kanał dostają identyczną odpowiedź bez kosztu rerankera. Ekspansja przez LLM ma limit 3 s, Qdrant i Postgres po 5 s. `GET /health` sprawdza bazę, Qdrant i katalog incydentów i zwraca `503 degraded`, gdy któreś nie odpowiada; kontenery mają `restart: unless-stopped`.
 
+Rozgrzewka: przy starcie, przed przyjęciem pierwszego żądania (`app/warmup.py`), rag wykonuje pełną ścieżkę wyszukiwania na tekście spoza korpusu — trzy zapytania do modeli, trzy wyszukiwania hybrydowe w Qdrancie i rerank całej puli kandydatów. Zimny start po deployu kosztował 12,6 s i przekraczał limit `agent/`, więc pierwsze zapytanie kończyło się `technical_error`; po rozgrzewce ten koszt jest płacony przed otwarciem portu, a nie w żądaniu obywatela. Błąd rozgrzewki jest logowany i nie blokuje startu.
+
 ## Bezpieczeństwo
 
 - `POST /ingest`, `DELETE /sources/{documentId}` i `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` równego `RAG_ADMIN_TOKEN`. Bez tokena zwracają 401, a gdy token nie jest skonfigurowany, 403.
