@@ -35,6 +35,7 @@ services:
       RAG_EXPANSION_LLM_URL: ${RAG_EXPANSION_LLM_URL:-}
       RAG_EXPANSION_LLM_MODEL: ${RAG_EXPANSION_LLM_MODEL:-qwen3.5:9b}
       RAG_EXPANSION_LLM_API_KEY: ${RAG_EXPANSION_LLM_API_KEY:-}
+      FACTCHECK_API_KEY: ${FACTCHECK_API_KEY:-}
     volumes:
       - model_cache:/models
     depends_on:

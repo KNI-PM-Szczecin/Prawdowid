@@ -54,6 +54,8 @@ Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) �
 
 Pola API są w camelCase zgodnie z `../CONTRACT.md` (sekcja 3). Daty są znacznikami czasu ISO 8601; wartość bez strefy jest traktowana jako UTC. Poza kontraktem odpowiedź ma dodatkowo `contextXml`, `expandedQueries`, `elapsedMs`, a każdy `Passage` ma też `chunkId`, `tier` i `reliability`.
 
+Google Fact Check Tools API: przy ustawionym `FACTCHECK_API_KEY` każde `/search` pyta też na żywo `claims:search` (język `pl`, limit czasu 4 s, cache 1 h z hashem zapytania jako kluczem). Oceny weryfikatorów przechodzą przez ten sam reranker i próg co korpus i wracają jako `Passage` z `sourceType: "factcheck"`. Klucz idzie w nagłówku `X-Goog-Api-Key`, nie w URL. Brak klucza, limit albo awaria Google nie psują wyszukiwania: odpowiedź ma wtedy `externalSources[].status` równe `disabled` lub `error`, a log zawiera tylko kod HTTP, bez treści zgłoszenia. Filtr `sourceTypes` bez `factcheck` w ogóle pomija to API.
+
 Ekspansja zapytań: domyślnie regułowa. Gdy ustawione jest `RAG_EXPANSION_LLM_URL` (np. FastFlowLM: `http://host.docker.internal:52625/v1`), używa modelu. Przy błędzie wraca do reguł i loguje WARNING.
 
 Prompt injection: przed dopasowaniem tekst jest normalizowany (NFKC, usunięcie znaków niewidocznych, małe litery, bez diakrytyków). Wzorce PL i EN są w `app/context.py`. Wykryty fragment ma flagę `suspected_injection` i trafia do logu, ale nadal jest zwracany jako dane.

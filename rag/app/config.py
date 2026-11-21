@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     # Divides the logit before the sigmoid so strong matches (logit 5..10) stay distinguishable instead of all ~1.0.
     rerank_score_temperature: float = 4.0
 
+    # Google Fact Check Tools API, queried live in /search; empty key = source disabled, corpus search still works.
+    factcheck_api_key: str = Field(
+        default="", validation_alias=AliasChoices("RAG_FACTCHECK_API_KEY", "FACTCHECK_API_KEY")
+    )
+    factcheck_url: str = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
+    factcheck_language: str = "pl"
+    factcheck_page_size: int = 10
+    factcheck_max_reviews: int = 15
+    # Kept well under rag's own 8 s budget in CONTRACT.md §2, so a slow Google never sinks the whole search.
+    factcheck_timeout_seconds: float = 4.0
+    # Same query within the TTL reuses the answer: fewer paid calls and the same result for repeated checks.
+    factcheck_cache_ttl_seconds: int = 3600
+    factcheck_cache_max_entries: int = 1000
+
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3.5:9b"

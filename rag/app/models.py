@@ -95,12 +95,19 @@ class Passage(ApiModel):
     reliability: Reliability
 
 
+class ExternalSourceStatus(ApiModel):
+    name: str
+    status: Literal["ok", "disabled", "skipped", "error"]
+    results: int
+
+
 class SearchResponse(ApiModel):
     results: list[Passage]
     corpus_version: str
     context_xml: str
     expanded_queries: ExpandedQueries
     elapsed_ms: int
+    external_sources: list[ExternalSourceStatus]
 
 
 class SourceAuditEntry(ApiModel):
