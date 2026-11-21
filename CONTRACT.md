@@ -65,9 +65,11 @@ Odpowiedź (`CheckResult`):
 - `message`: wymagane, gdy `status !== "ok"`. `claims` jest wtedy pustą listą.
 - `meta` służy do logu i panelu deweloperskiego, front może je ignorować.
 
+Walidacja wejścia: nieznany `inputType`, pusty albo za długi `input` daje `200` ze statusem `needs_clarification` (bez wołania `agent/` i bez zapisu). Limit żądań: `CHECK_RATE_LIMIT_PER_MINUTE` na adres klienta (domyślnie 20).
+
 **Kody HTTP.** Jedna reguła: `200` dla `ok`, `needs_clarification` i `out_of_scope` (status jest w ciele). `503` tylko dla `technical_error`. `429` przy przekroczeniu limitu żądań (ciało: `technical_error` z komunikatem o limicie). `400` tylko dla ciała, które nie jest poprawnym JSON-em. Każde ciało ma kształt `CheckResult`.
 
-`DELETE /api/checks/{requestId}` usuwa zapisany przebieg i dane z pamięci podręcznej (wymóg „usunięcia sesji demo”). Backend maskuje oczywiste dane osobowe (e-mail, telefon, PESEL) w `input` **przed** zapisem przebiegu.
+`DELETE /api/checks/{requestId}` usuwa zapisany przebieg i dane z pamięci podręcznej (wymóg „usunięcia sesji demo”). Odpowiedź: `204` po usunięciu, `404` gdy takiego przebiegu nie ma, `400` dla identyfikatora, który nie jest UUID v4 (ciało błędu ma kształt `CheckResult` ze statusem `technical_error`). Przebiegi starsze niż `CHECK_RETENTION_DAYS` (domyślnie 30) backend usuwa sam. Backend maskuje oczywiste dane osobowe (e-mail, telefon, PESEL) w `input` **przed** zapisem przebiegu.
 
 ### 1a. Rozszerzenia pod projekt UI (Figma) — PROPOZYCJA, do akceptacji
 

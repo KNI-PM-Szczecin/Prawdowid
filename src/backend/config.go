@@ -12,6 +12,8 @@ import (
 const (
 	defaultPort             = "3001"
 	defaultDatabaseMaxConns = 5
+	defaultRateLimit        = 20
+	defaultRetentionDays    = 30
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -22,6 +24,10 @@ type Config struct {
 	Port             string
 	DatabaseURL      string
 	DatabaseMaxConns int32
+	// RateLimitPerMinute is the number of checks one client address may start per minute.
+	RateLimitPerMinute int
+	// RetentionDays is how long stored check runs are kept before they are deleted.
+	RetentionDays int
 }
 
 func loadConfig() (Config, error) {
@@ -41,10 +47,21 @@ func loadConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	rateLimit, err := intFromEnv("CHECK_RATE_LIMIT_PER_MINUTE", defaultRateLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	retentionDays, err := intFromEnv("CHECK_RETENTION_DAYS", defaultRetentionDays)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		Port:             stringFromEnv("PORT", defaultPort),
-		DatabaseURL:      databaseURL,
-		DatabaseMaxConns: int32(maxConns),
+		Port:               stringFromEnv("PORT", defaultPort),
+		DatabaseURL:        databaseURL,
+		DatabaseMaxConns:   int32(maxConns),
+		RateLimitPerMinute: rateLimit,
+		RetentionDays:      retentionDays,
 	}, nil
 }
 

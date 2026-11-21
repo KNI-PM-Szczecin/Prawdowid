@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,11 +13,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"prawdowid/agent"
 )
 
 const (
 	readHeaderTimeout = 10 * time.Second
 	shutdownTimeout   = 10 * time.Second
+	rateLimitWindow   = time.Minute
+	purgeInterval     = time.Hour
+	hoursPerDay       = 24
 )
 
 func main() {
@@ -43,8 +49,30 @@ func run(logger *slog.Logger) error {
 	defer pool.Close()
 	logger.Info("database connected", "maxConns", config.DatabaseMaxConns)
 
+	verifier, err := agent.NewFromEnv(logger)
+	if err != nil {
+		return fmt.Errorf("create agent: %w", err)
+	}
+	store, err := newRunStore(ctx, pool)
+	if err != nil {
+		return err
+	}
+	retention := time.Duration(config.RetentionDays) * hoursPerDay * time.Hour
+	go purgeLoop(ctx, logger, store, retention)
+
+	checks := &checkHandlers{
+		logger:    logger,
+		verify:    verifier.Verify,
+		saveRun:   store.save,
+		deleteRun: store.delete,
+		limiter:   newRateLimiter(config.RateLimitPerMinute, rateLimitWindow),
+		now:       time.Now,
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler(logger, pool))
+	mux.HandleFunc("POST /api/check", checks.check)
+	mux.HandleFunc("DELETE /api/checks/{requestId}", checks.deleteCheck)
 
 	server := &http.Server{
 		Addr:              ":" + config.Port,
@@ -94,5 +122,24 @@ func writeJSON(logger *slog.Logger, writer http.ResponseWriter, statusCode int, 
 	writer.WriteHeader(statusCode)
 	if err := json.NewEncoder(writer).Encode(body); err != nil {
 		logger.Error("write response failed", "error", err)
+	}
+}
+
+// purgeLoop deletes stored runs older than the retention period until ctx is cancelled.
+func purgeLoop(ctx context.Context, logger *slog.Logger, store *runStore, retention time.Duration) {
+	ticker := time.NewTicker(purgeInterval)
+	defer ticker.Stop()
+	for {
+		removed, err := store.purgeOlderThan(ctx, retention)
+		if err != nil {
+			logger.Error("purge check runs failed", "error", err)
+		} else if removed > 0 {
+			logger.Info("purged old check runs", "removed", removed)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 	}
 }
