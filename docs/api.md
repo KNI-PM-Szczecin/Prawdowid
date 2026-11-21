@@ -31,7 +31,7 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `backend/config.go`). W
 | `DELETE /api/checks/{requestId}` | usunięcie sesji demo (wymóg prywatności) | MVP |
 | `GET /health` | stan backendu i bazy (już działa) | jest |
 | `GET /api/sources` **[NOWE]** | lista źródeł korpusu do audytu (proxy do `rag/ GET /sources`) | MVP (wymóg „lista źródeł dostępna do audytu”) |
-| `POST /api/channels/discord/interactions` **[NOWE]** | drugi kanał (Discord) przez Interactions Endpoint (webhook), decyzja zespołu | MVP |
+| bot Discord (Gateway), bez endpointu HTTP | drugi kanał: proces backendu łączy się z Discordem i woła `agent.Verify` bezpośrednio, decyzja zespołu | MVP |
 | `GET /api/admin/checks` **[NOWE]** | log sprawdzeń + eksport CSV/JSON | po podstawie (funkcja premiowana) |
 | `POST /api/admin/cases`, `GET /api/admin/cases` **[NOWE]** | pętla moderatora | po podstawie (funkcja premiowana) |
 
@@ -318,9 +318,15 @@ Proxy do `rag/ GET /sources`, bez zmian kształtu (tylko odczyt, bez tokena):
 }
 ```
 
-### `POST /api/channels/discord/interactions` [NOWE, decyzja: webhook]
+### Drugi kanał: bot Discord (Gateway) [NOWE, decyzja: bot]
 
-Discord działa przez Interactions Endpoint (webhook, komenda `/sprawdz`). Decyzja zespołu. Zwykły „incoming webhook” Discorda tylko wysyła wiadomości na kanał i nie odbiera zgłoszeń, więc go nie używamy. Backend weryfikuje podpis Ed25519 (`X-Signature-Ed25519`, `X-Signature-Timestamp`) **przed** wywołaniem `agent.Verify`, zły podpis → `401`. Ponieważ sprawdzenie trwa dłużej niż 3 s, odpowiedź to najpierw „deferred”, potem follow-up przez webhook Discorda. Do demo Discord potrzebuje publicznego adresu HTTPS (tunel do `localhost`). Plan B na brak sieci lub kont: adapter demonstracyjny z tą samą ścieżką `agent.Verify` (brief dopuszcza adapter, gdy organizator nie zapewnia kont).
+Drugi kanał to **bot na Discordzie** (połączenie wychodzące przez Gateway), nie webhook i nie Interactions Endpoint. Decyzja zespołu, odpowiedzialny Paweł. Konsekwencje:
+- **Nie ma endpointu HTTP** dla kanału i nie trzeba publicznego adresu ani tunelu. Bot działa w procesie `backend/` i woła `agent.Verify` bezpośrednio (`ChannelAdapter` z `CONTRACT.md`).
+- Token bota w `.env` (`DISCORD_BOT_TOKEN`), nigdy w repo. Bot musi być zaproszony na serwer demo.
+- Proponowany sposób użycia: wiadomość w wydzielonym kanale (np. `#prawdowid`) albo wzmianka bota. Odczyt treści wiadomości wymaga włączenia w Discord Developer Portal opcji **Message Content Intent**. Alternatywa bez tej opcji: komenda `/sprawdz`, ale wtedy trzeba w ciągu 3 s potwierdzić odebranie (odpowiedź „deferred”) i dopiero potem wysłać wynik.
+- Odpowiedź w jednej wiadomości do 2000 znaków (limit Discorda). Dłuższe wyniki skracamy i dajemy link do pełnego widoku. Podczas sprawdzania bot pokazuje „pisze…”.
+- Z kanału wolno zmienić tylko pole `Channel` i format odpowiedzi. Ten sam `Input` daje ten sam wynik co WWW (scenariusz G).
+- Plan B na brak sieci lub kont: adapter demonstracyjny z tą samą ścieżką `agent.Verify` (brief dopuszcza adapter, gdy organizator nie zapewnia kont).
 
 Odpowiedź w kanale (`ToReply`), przykład:
 
@@ -433,7 +439,7 @@ Rzeczy do decyzji z osobą od designu (stan po Figmie v2, `Untitled (2).zip`):
 ## 7. Pytania otwarte
 
 - `400` dla złego JSON-a: jaki `status` w ciele? Propozycja: `technical_error` z komunikatem „Nieprawidłowe zapytanie”. Za długi lub pusty `input` → `200` + `needs_clarification`.
-- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Rozstrzygnięte: Interactions Endpoint (webhook). Zostaje adres HTTPS do demo (tunel) i adapter demonstracyjny jako plan B.
+- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Rozstrzygnięte: bot przez Gateway. Zostaje wybór sposobu użycia (kanał z Message Content Intent czy `/sprawdz`) i adapter demonstracyjny jako plan B.
 - Czy `document.text` zapisujemy w bazie (potrzebne do `GET /api/checks/{id}`), skoro to pełna treść cudzego artykułu? Propozycja: dla URL przechowujemy tylko zamaskowany fragment do 5000 znaków z retencją 24 h, opisaną w README.
 - CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go.
 - Limit żądań: proponujemy 10 żądań na minutę na IP dla `POST /api/check`, wartość w `.env`.
