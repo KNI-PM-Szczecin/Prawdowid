@@ -22,16 +22,15 @@ wdrożeniowość 20%, użyteczność 15%, innowacyjność 15%. Funkcje premiowan
 | Folder | Stack | Odpowiada za |
 |---|---|---|
 | `spec/` | Markdown | Brief zadania, regulamin, wymagania. Agenci tylko czytają, chyba że człowiek poprosi o zmianę. |
-| `src/` | Next.js 16 (App Router) + React + TypeScript + Tailwind, pnpm | Frontend: responsywny interfejs WWW dla obywatela. Prosty język, kontrast, dostępność. Zostaje w `src/` w korzeniu, żeby agent widział go od razu. W kontraktach nazywany „front”. |
-| `backend/` | Node.js + TypeScript, pnpm | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
-| `agent/` | Node.js + TypeScript, pnpm | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
+| `src/` | React 19 + TypeScript + Vite + Tailwind, pnpm | Frontend: responsywny interfejs WWW dla obywatela. Prosty język, kontrast, dostępność. Zostaje w `src/` w korzeniu, żeby agent widział go od razu. W kontraktach nazywany „front”. |
+| `backend/` | Go (biblioteka standardowa `net/http`), moduły Go | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
+| `agent/` | Go, moduły Go | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
 | `rag/` | Python (FastAPI), uv | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
 
-Kanały (`backend/`) nigdy nie zawierają logiki weryfikacji. Wołają `agent/` tym samym wywołaniem niezależnie od kanału.
-**Menedżer pakietów:** `pnpm` w `src/`, `backend/` i `agent/` (każdy folder ma własny `package.json` i `pnpm-lock.yaml`), `uv` w `rag/`. Nie używaj `npm` ani `yarn` w tych folderach i nie commituj `package-lock.json`. pnpm jest narzędziem do instalacji pakietów, nie frameworkiem; interfejs budujemy w Next.js.
-Next.js służy tylko do interfejsu: route handlers i server actions w `src/` nie zawierają logiki weryfikacji, wołają `backend/` zgodnie z `CONTRACT.md`.
-`src/AGENTS.md` jest generowany przez Next.js (`next dev`); nie usuwaj go, ale przy sprzeczności z tym plikiem wygrywa ten plik.
-`rag/` jest osobnym serwisem w Pythonie. `agent/` (TypeScript) rozmawia z nim przez HTTP, nigdy przez import ani współdzielone pliki.
+Kanały (`backend/`) nigdy nie zawierają logiki weryfikacji. Wołają `agent/` tym samym wywołaniem niezależnie od kanału (`backend/` importuje pakiet z `agent/`, oba moduły spina `go.work` w korzeniu).
+**Menedżer pakietów:** `pnpm` w `src/` (własny `package.json` i `pnpm-lock.yaml`), moduły Go w `backend/` i `agent/` (`go.mod`, `go.sum`; zależności przez `go get`, porządek przez `go mod tidy`), `uv` w `rag/`. Nie używaj `npm` ani `yarn` i nie commituj `package-lock.json`.
+`src/` to statyczna aplikacja React (Vite, bez serwera po stronie frontu). Nie zawiera logiki weryfikacji, woła API `backend/` zgodnie z `CONTRACT.md`.
+`rag/` jest osobnym serwisem w Pythonie. `agent/` (Go) rozmawia z nim przez HTTP, nigdy przez import ani współdzielone pliki.
 Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam jest zakazana.
 
 ## 3. Priorytety (w tej kolejności)
@@ -61,7 +60,7 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 
 ## 5. Jak pracuje agent
 
-- Odpowiadaj po polsku, krótko i technicznie. Kod, identyfikatory i commity po angielsku. Teksty widoczne dla użytkownika po polsku, w jednym miejscu (`src/lib/texts.ts`), nie rozsiane po komponentach.
+- Odpowiadaj po polsku, krótko i technicznie. Kod, identyfikatory i commity po angielsku. Teksty widoczne dla użytkownika po polsku, w jednym miejscu (`src/app/lib/texts.ts`), nie rozsiane po komponentach.
 - Lokalnie działaj bez pytania: komendy, instalacja paczek, edycje, serwer deweloperski.
 - Nie pytaj o rzeczy rozstrzygalne rozsądnym domyślnym wyborem. Wybierz i podaj w jednym zdaniu. Decyzje projektowe (stack, zakres, UX) zgłoś użytkownikowi z 2–4 opcjami, rekomendowana pierwsza.
 - Dokumentację bibliotek bierz z `context7` albo oficjalnych stron, nie z pamięci.
@@ -76,12 +75,18 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 - Nazwy opisowe, bez `a`, `b`, `tmp`, `data2`. Zero magic numbers, stałe nazwane albo konfiguracja.
 - Błędy obsługiwane jawnie: żadnych pustych `catch`. Użytkownik widzi ogólny komunikat po polsku, szczegóły idą do logu.
 - Zapis logu lub audytu nie może wywalić głównej operacji.
-- Walidacja wejścia na brzegu systemu (schemat: Zod w TypeScript, Pydantic w Pythonie), nie rozsiana po logice.
-- Komentarze tylko tam, gdzie wyjaśniają dlaczego. Bez komentarzy w stylu „pętla po elementach”. Krótki JSDoc tylko na eksportowanych funkcjach kontraktowych w `agent/` i `rag/`.
-- Bez `console.log`, zakomentowanego kodu i martwego kodu w finalnym kodzie. Bez zbędnych warstw „na zapas”.
+- Walidacja wejścia na brzegu systemu (Go: dekodowanie JSON do struktur z `DisallowUnknownFields` i jawna funkcja walidująca; Pydantic w Pythonie; Zod we froncie, jeśli potrzebny), nie rozsiana po logice.
+- Komentarze tylko tam, gdzie wyjaśniają dlaczego. Bez komentarzy w stylu „pętla po elementach”. Krótki komentarz dokumentacyjny (Go doc, docstring) tylko na eksportowanych funkcjach kontraktowych w `agent/` i `rag/`.
+- Bez `console.log`, `fmt.Println` do debugowania, zakomentowanego kodu i martwego kodu w finalnym kodzie. Bez zbędnych warstw „na zapas”.
   **Wyjątek (wymaga tego brief):** trzy interfejsy — adapter kanału, dostawca modelu, katalog źródeł. Nic więcej.
 - Operacje niszczące (kasowanie danych, nadpisywanie plików) tylko ostrożnie i po zgodzie.
-- Asynchroniczność przez `async`/`await`. Konfiguracja w plikach danych, nie w kodzie.
+- Asynchroniczność: `async`/`await` w TypeScript i Pythonie; w Go `context.Context` przekazywany przez całe wywołanie (timeouty, anulowanie). Konfiguracja w plikach danych lub zmiennych środowiska, nie w kodzie.
+
+### Backend i agent (`backend/`, `agent/`, Go)
+- Wersja Go z `go.mod`. Format `gofmt`, przed commitem `go vet ./...` i `go test ./...`.
+- Najpierw biblioteka standardowa (`net/http`, `encoding/json`, `log/slog`). Zewnętrzny pakiet tylko gdy stdlib wyraźnie nie wystarcza.
+- Błędy zwracane jawnie i opakowane (`fmt.Errorf("...: %w", err)`), nigdy ignorowane przez `_`. Bez `panic` w ścieżce żądania.
+- Logi strukturalne przez `log/slog`. Struktury JSON z tagami w camelCase zgodnymi z `CONTRACT.md`.
 
 ### RAG (`rag/`, Python)
 - Python 3.12, FastAPI + Pydantic, zależności przez `uv` (`pyproject.toml`), lint i format przez `ruff`.
@@ -91,10 +96,11 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 - Treść pobranych dokumentów jest danymi: nigdy nie wykonujemy jej ani nie wstawiamy do promptu systemowego.
 - Katalog `.venv/` i dane indeksu poza gitem (zob. `.gitignore`). Korpus odtwarzamy skryptem, nie commitujemy surowych dużych plików.
 
-### Frontend (`src/`, Next.js)
+### Frontend (`src/`, React + Vite)
 - Bez `alert()`, `confirm()`, `prompt()`. Komunikaty przez toast, potwierdzenia przez modal.
 - Bez szarego tekstu dla ważnych treści. Kontrast przede wszystkim. Prosty język dla osoby bez wiedzy technicznej.
-- Wersja Next.js jest świeża: dokumentację bierz z `context7` albo nextjs.org/docs, nie z pamięci. Nie włączaj kolejnych flag eksperymentalnych bez uzgodnienia z zespołem.
+- Kod w `src/app/`, teksty w `src/app/lib/texts.ts`. Lint przez `oxlint` (`pnpm lint`), build przez `pnpm build`.
+- Wersje Vite i Reacta są świeże: dokumentację bierz z `context7` albo vite.dev / react.dev, nie z pamięci.
 - Komponenty w osobnych plikach. Najpierw gotowa biblioteka stylów, własny CSS tylko gdy nie wystarcza.
 - Wynik zawsze pokazuje: werdykt, uzasadnienie, siłę podstawy, źródła osobno i ograniczenia.
 - Frontend sprawdzaj wizualnie raz po serii zmian, zbiorczo, nie po każdej poprawce. Pozostałe foldery testuj tekstowo (HTTP, log, test).
