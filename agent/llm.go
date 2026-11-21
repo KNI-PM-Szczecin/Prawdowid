@@ -60,12 +60,14 @@ func (p *OpenAICompatibleProvider) WithReasoningEffort(effort string) *OpenAICom
 	return p
 }
 
-// isOpenAI reports whether the provider talks to the hosted OpenAI API, which rejects
+// isHostedOpenAI reports whether the address belongs to the hosted OpenAI API, which rejects
 // temperature, max_tokens and unknown fields such as think on GPT-5/6 models.
-func (p *OpenAICompatibleProvider) isOpenAI() bool {
-	parsed, err := url.Parse(p.baseURL)
+func isHostedOpenAI(baseURL string) bool {
+	parsed, err := url.Parse(baseURL)
 	return err == nil && strings.EqualFold(parsed.Hostname(), openAIHost)
 }
+
+func (p *OpenAICompatibleProvider) isOpenAI() bool { return isHostedOpenAI(p.baseURL) }
 
 // NewOpenAICompatibleProvider builds a provider; apiKey may be empty for local servers.
 func NewOpenAICompatibleProvider(baseURL, apiKey, model string, timeout time.Duration) *OpenAICompatibleProvider {

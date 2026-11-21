@@ -26,6 +26,10 @@ Model: dowolny serwer zgodny z OpenAI `/v1/chat/completions` (FastFlowLM, Ollama
 
 Budżet: 25 s na `Verify`, 8 s na wywołanie `rag/`, 10 s na wywołanie modelu, temperatura 0, myślenie Qwen3 wyłączone.
 
+## Koszt
+
+`meta.estimatedCostUsd` liczy się z tokenów zwróconych przez dostawcę (`usage.prompt_tokens` i `usage.completion_tokens`) przez wszystkie wywołania w jednym sprawdzeniu: ekstrakcję twierdzeń i ocenę każdego twierdzenia, razem z ponowieniem po błędnym JSON. Ceny to USD za 1M tokenów w `LLM_PRICE_INPUT_PER_M` i `LLM_PRICE_OUTPUT_PER_M`, domyślnie 0,10/0,50 dla `gpt-6-luna` (lista OpenAI). Dla serwera spoza `api.openai.com` obie ceny są zerowane, bo lokalny model nic nie kosztuje. Tokeny z pamięci podręcznej OpenAI nie są rozróżniane, więc koszt jest szacunkiem górnym.
+
 ## Testy
 
 ```
