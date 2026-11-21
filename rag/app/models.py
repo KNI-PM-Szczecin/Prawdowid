@@ -1,9 +1,11 @@
-from datetime import date
-from typing import Literal
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, HttpUrl
 from pydantic.alias_generators import to_camel
+
+from app.config import settings
 
 Tier = Literal[1, 2, 3]
 Reliability = Literal["high", "medium", "low"]
@@ -13,6 +15,14 @@ PassageFlag = Literal["suspected_injection"]
 QUERY_MAX_CHARS = 5000
 DOCUMENT_MAX_CHARS = 500_000
 INGEST_BATCH_MAX_DOCUMENTS = 200
+
+
+def _assume_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+# Accepts ISO 8601 date or timestamp; a value without an offset is taken as UTC.
+Timestamp = Annotated[datetime, AfterValidator(_assume_utc)]
 
 
 class ApiModel(BaseModel):
@@ -26,8 +36,8 @@ class SourceIn(ApiModel):
     title: str = Field(min_length=1)
     publisher: str = Field(min_length=1)
     url: HttpUrl
-    published_at: date | None = None
-    fetched_at: date
+    published_at: Timestamp | None = None
+    fetched_at: Timestamp
     license: str | None = None
     source_type: SourceType
     tier: Tier = 2
@@ -52,12 +62,12 @@ class IngestResult(ApiModel):
 
 class SearchFilters(ApiModel):
     source_types: list[SourceType] | None = None
-    published_after: date | None = None
+    published_after: Timestamp | None = None
 
 
 class SearchRequest(ApiModel):
     query: str = Field(min_length=3, max_length=QUERY_MAX_CHARS)
-    top_k: int | None = Field(default=None, ge=1)
+    top_k: int = Field(default=settings.rerank_top_k, ge=1, le=settings.rerank_top_k_max)
     filters: SearchFilters | None = None
 
 
@@ -72,8 +82,8 @@ class Passage(ApiModel):
     document_id: str
     title: str
     publisher: str
-    published_at: date | None
-    fetched_at: date
+    published_at: Timestamp | None
+    fetched_at: Timestamp
     url: str
     license: str | None
     source_type: SourceType
@@ -101,8 +111,8 @@ class SourceAuditEntry(ApiModel):
     url: str
     source_type: SourceType
     license: str | None
-    published_at: date | None
-    fetched_at: date
+    published_at: Timestamp | None
+    fetched_at: Timestamp
     active_chunks: int
 
 
