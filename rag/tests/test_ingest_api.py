@@ -111,6 +111,20 @@ def test_paraphrased_copy_is_rejected_409_with_near_message(client):
     assert "parafraza" in response.json()["detail"] and "gov-1" in response.json()["detail"]
 
 
+def test_old_chunks_hidden_even_when_index_delete_fails(client):
+    """PG is the source of truth: a failing Qdrant delete may never bring the old text back into results."""
+    first = client.post("/ingest", json={"documents": [DOCUMENT]}, headers=HEADERS)
+    assert first.status_code == 200
+    app.state.store.delete = _failing_delete
+    replaced = client.post("/ingest", json={"documents": [DOCUMENT]}, headers=HEADERS)
+    assert replaced.status_code == 200
+    assert replaced.json()[0]["chunksReplaced"] == 1
+
+
+async def _failing_delete(chunk_ids):
+    raise OSError("qdrant unreachable")
+
+
 def test_external_sources_describe_data_sent_and_state(client):
     from app.euvsdisinfo import EuvsDisinfoClient
     from app.factcheck import FactCheckClient

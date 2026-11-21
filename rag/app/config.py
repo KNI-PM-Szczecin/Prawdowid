@@ -33,14 +33,15 @@ class Settings(BaseSettings):
     # Profile from app/languages/<code>.json (stemmer + stopwords) for BM25; FastEmbed has no Polish stemmer.
     corpus_language: str = "pl"
 
-    # Cross-encoder cost grows with text length (10 x 1200 chars = 4.7 s on 8 threads); 600 keeps rerank in budget.
+    # Cross-encoder cost grows with text length; 450-char chunks keep the ~12-candidate rerank in budget.
     chunk_max_chars: int = 450
     chunk_overlap_chars: int = 75
     # ONNX threads for embeddings and the reranker; 0 = all CPU cores.
     model_threads: int = 0
 
     retrieval_limit_per_query: int = 30
-    # Rerank budget: 15 chunks x 600 chars + 10 fact-checks + 10 incidents is about 5 s on CPU (contract: rag max 8 s).
+    # Rerank budget: 12 chunks x 450 chars + 10 fact-checks + 10 incident variants is about 5 s on CPU
+    # (contract: rag max 12 s).
     candidate_pool_size: int = 12
     rerank_top_k: int = 5
     # Small models (Qwen3 0.6B on FastFlowLM) lose recall in long prompts; more than 7 passages drowns the rules.
@@ -63,7 +64,7 @@ class Settings(BaseSettings):
     factcheck_language: str = "pl"
     factcheck_page_size: int = 10
     factcheck_max_reviews: int = 10
-    # Kept well under rag's own 8 s budget in CONTRACT.md §2, so a slow Google never sinks the whole search.
+    # Kept well under rag's own 12 s budget in CONTRACT.md §2, so a slow Google never sinks the whole search.
     factcheck_timeout_seconds: float = 4.0
     # Same query within the TTL reuses the answer: fewer paid calls and the same result for repeated checks.
     factcheck_cache_ttl_seconds: int = 3600
@@ -101,6 +102,8 @@ class Settings(BaseSettings):
     corpus_fetch_user_agent: str = "Prawdowid/0.1 (hackathon demo fact-checking corpus)"
     # POST /fetch for agent/: text returned for claim extraction, the page itself is not stored.
     fetch_max_text_chars: int = 20_000
+    # Under agent/'s 12 s budget for the whole rag call; the corpus fetch below runs in the background.
+    fetch_timeout_seconds: float = 10.0
     # Curated demo documents (app/data/seed_documents.json) fill facts the demo needs; missing ids are indexed at start.
     seed_corpus_enabled: bool = True
 

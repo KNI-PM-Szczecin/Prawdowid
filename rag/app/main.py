@@ -224,7 +224,9 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
 async def fetch_url(request: FetchRequest) -> FetchResponse:
     """Page text for agent/ when the user submits a URL; nothing is stored, the same parser as for the corpus."""
     try:
-        async with httpx.AsyncClient(timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=True) as client:
+        # fetch_timeout_seconds, not the corpus one: agent/ gives rag 12 s, so a 15 s page would be a
+        # guaranteed technical_error on agent's side before this endpoint ever answered.
+        async with httpx.AsyncClient(timeout=settings.fetch_timeout_seconds, follow_redirects=True) as client:
             page = await fetch_page(client, str(request.url))
     except FetchError as error:
         raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=FETCH_FAILED_MESSAGE.format(reason=error)) from error
