@@ -14,7 +14,7 @@ WHITESPACE = re.compile(r"\s+")
 
 def _split_long(text: str, max_chars: int, overlap: int) -> list[str]:
     step = max_chars - overlap
-    return [text[start:start + max_chars] for start in range(0, max(len(text) - overlap, 1), step)]
+    return [text[start : start + max_chars] for start in range(0, max(len(text) - overlap, 1), step)]
 
 
 def chunk_text(text: str, max_chars: int, overlap: int) -> list[str]:
@@ -57,10 +57,16 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
     await store.upsert(
         [
             ChunkPoint(
-                chunk_id=chunk_id, source_id=source.document_id, text=text,
-                topic_tag=source.topic_tag, dense=dense, sparse=sparse,
+                chunk_id=chunk_id,
+                source_id=source.document_id,
+                text=text,
+                topic_tag=source.topic_tag,
+                source_type=source.source_type,
+                published_at=source.published_at,
+                dense=dense,
+                sparse=sparse,
             )
-            for chunk_id, text, dense, sparse in zip(chunk_ids, texts, dense_vectors, sparse_vectors)
+            for chunk_id, text, dense, sparse in zip(chunk_ids, texts, dense_vectors, sparse_vectors, strict=True)
         ]
     )
     await db.upsert_source_with_chunks(source, chunk_ids)

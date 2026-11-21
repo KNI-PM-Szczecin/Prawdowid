@@ -3,8 +3,8 @@ CREATE TABLE IF NOT EXISTS sources (
     title TEXT NOT NULL,
     publisher TEXT NOT NULL,
     url TEXT NOT NULL,
-    published_at DATE,
-    fetched_at DATE NOT NULL,
+    published_at TIMESTAMPTZ,
+    fetched_at TIMESTAMPTZ NOT NULL,
     license TEXT,
     source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('official', 'secondary', 'factcheck', 'incident'))
 );
@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS document_metadata (
     topic_tag VARCHAR(100) NOT NULL,
     tier INT NOT NULL DEFAULT 2 CHECK (tier IN (1, 2, 3)),
     reliability VARCHAR(50) NOT NULL CHECK (reliability IN ('high', 'medium', 'low')),
-    added_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    protected_until TIMESTAMP,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    protected_until TIMESTAMPTZ,
     read_count INT NOT NULL DEFAULT 0,
-    last_accessed_at TIMESTAMP,
+    last_accessed_at TIMESTAMPTZ,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 

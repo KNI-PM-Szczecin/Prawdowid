@@ -1,10 +1,12 @@
 import logging
+import secrets
 from contextlib import asynccontextmanager
+from typing import Annotated
 from urllib.parse import urlparse
 
 import asyncpg
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
@@ -33,8 +35,12 @@ logger = logging.getLogger(__name__)
 INDEX_UNAVAILABLE_CODE = "index_unavailable"
 INDEX_UNAVAILABLE_MESSAGE = "Wyszukiwanie źródeł jest chwilowo niedostępne. Spróbuj ponownie za chwilę."
 DOCUMENT_NOT_FOUND_MESSAGE = "Nie znaleziono aktywnego dokumentu o tym identyfikatorze."
+ADMIN_DISABLED_MESSAGE = "Operacje administracyjne są wyłączone: brak RAG_ADMIN_TOKEN."
+ADMIN_UNAUTHORIZED_MESSAGE = "Brak lub błędny token administracyjny."
 HTTP_SERVICE_UNAVAILABLE = 503
 HTTP_NOT_FOUND = 404
+HTTP_UNAUTHORIZED = 401
+HTTP_FORBIDDEN = 403
 
 
 @asynccontextmanager
@@ -64,12 +70,24 @@ app = FastAPI(title="Prawdowid RAG", lifespan=lifespan)
 @app.exception_handler(UnexpectedResponse)
 @app.exception_handler(ResponseHandlingException)
 @app.exception_handler(OSError)
-async def storage_error_handler(request: Request, error: Exception) -> JSONResponse:
-    logger.error("Storage failure on %s", request.url.path, exc_info=error)
+@app.exception_handler(Exception)
+async def index_error_handler(request: Request, error: Exception) -> JSONResponse:
+    """Any failure behind the API is reported as the contract's index_unavailable, never as an empty result."""
+    logger.error("Request failed on %s", request.url.path, exc_info=error)
     return JSONResponse(
         status_code=HTTP_SERVICE_UNAVAILABLE,
         content={"error": {"code": INDEX_UNAVAILABLE_CODE, "message": INDEX_UNAVAILABLE_MESSAGE}},
     )
+
+
+async def require_admin(x_admin_token: Annotated[str | None, Header()] = None) -> None:
+    if not settings.admin_token:
+        raise HTTPException(status_code=HTTP_FORBIDDEN, detail=ADMIN_DISABLED_MESSAGE)
+    if x_admin_token is None or not secrets.compare_digest(x_admin_token, settings.admin_token):
+        raise HTTPException(status_code=HTTP_UNAUTHORIZED, detail=ADMIN_UNAUTHORIZED_MESSAGE)
+
+
+AdminOnly = [Depends(require_admin)]
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -85,17 +103,19 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
     return response
 
 
-@app.post("/ingest", response_model=list[IngestResult])
+@app.post("/ingest", response_model=list[IngestResult], dependencies=AdminOnly)
 async def ingest(request: IngestRequest) -> list[IngestResult]:
     return [await ingest_document(document, app.state.models, app.state.store) for document in request.documents]
 
 
 @app.get("/sources", response_model=list[SourceAuditEntry])
 async def sources() -> list[SourceAuditEntry]:
-    return [SourceAuditEntry(**dict(row), domain=urlparse(row["url"]).hostname or "") for row in await db.list_sources()]
+    return [
+        SourceAuditEntry(**dict(row), domain=urlparse(row["url"]).hostname or "") for row in await db.list_sources()
+    ]
 
 
-@app.delete("/sources/{document_id}", response_model=DeletionReport)
+@app.delete("/sources/{document_id}", response_model=DeletionReport, dependencies=AdminOnly)
 async def delete_document(document_id: str) -> DeletionReport:
     chunk_ids = await db.active_chunk_ids_for_document(document_id)
     if not chunk_ids:
@@ -106,6 +126,6 @@ async def delete_document(document_id: str) -> DeletionReport:
     return DeletionReport(document_id=document_id, chunks_deleted=len(chunk_ids))
 
 
-@app.post("/admin/eviction", response_model=EvictionReport)
+@app.post("/admin/eviction", response_model=EvictionReport, dependencies=AdminOnly)
 async def eviction() -> EvictionReport:
     return await run_eviction(app.state.store)
