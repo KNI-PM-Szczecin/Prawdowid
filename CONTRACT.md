@@ -71,21 +71,21 @@ Odpowiedź (`CheckResult`):
 
 ### 1a. Rozszerzenia pod projekt UI (Figma) — PROPOZYCJA, do akceptacji
 
-Status: propozycja z gałęzi `docs/api-proposal` (przykłady i mapowanie na ekrany w `docs/api.md`). Do czasu akceptacji wszystkie pola poniżej są **opcjonalne**: front działa bez nich, backend może ich nie zwracać. Żadne z nich nie zmienia werdyktu ani `evidenceStrength`.
+Status: propozycja (przykłady, mapowanie na ekrany Figma v3 i plan backendu w `docs/api.md`). Do czasu akceptacji wszystkie pola poniżej są **opcjonalne**: front działa bez nich, backend może ich nie zwracać. Żadne z nich nie zmienia werdyktu ani `evidenceStrength`. Stan: `document` (dla URL) i `campaignAlert` zwraca już `agent/` (PR #46); `document` dla tekstu, `summary` i `badges` liczy backend; `span` i `conflict` czekają na decyzję właściciela `agent/` (do tego czasu `null`).
 
 ```json
 {
   "document": { "title": "tytuł albo null", "text": "zamaskowany tekst zgłoszenia lub pobranej strony", "url": null, "publisher": null, "fetchedAt": null },
-  "summary": { "level": "high", "score": 81, "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym 1 źródło urzędowe"] },
-  "badges": ["official_source_present", "fresh_material", "input_source_outside_catalog"],
+  "summary": { "level": "high", "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym 1 źródło urzędowe"] },
+  "badges": ["official_source_present", "fresh_material"],
   "campaignAlert": null,
   "claims": [{ "span": { "start": 101, "end": 134 }, "conflict": null }]
 }
 ```
 
 - `document`: to, co front pokazuje jako tekst z podświetleniami. Dla `inputType: url` treść pobranej strony przycięta do limitu `input`. `claims[].span` wskazuje twierdzenie w `document.text` w **code points** (runy w Go, `Array.from(text)` w JS), `end` wyłączny; `null`, gdy twierdzenie jest parafrazą.
-- `summary`: zbiorcza ocena całego zgłoszenia liczona **deterministycznie w backendzie** z werdyktów i `evidenceStrength`, nigdy przez model. `level`: `high`, `mixed`, `low`, `unknown`. Gdy żadne twierdzenie nie ma `confirmed`, `false` ani `misleading` → `level: "unknown"`, `score: null` (wstrzymanie się nie jest „50% prawdy”). `reasons` to jawne przesłanki po polsku.
-- `badges`: etykiety wyliczone z jawnych przesłanek, nigdy z opinii modelu: `fresh_material` / `archival_material` z `publishedAt` źródeł (próg wieku w konfiguracji), `official_source_present` / `official_source_absent` z `sourceType` użytych źródeł, `input_source_in_catalog` / `input_source_outside_catalog` z dopasowania domeny zgłoszonego URL do `GET /sources` z `rag/` (tylko dla `inputType: url`). To neutralna informacja o statusie źródła, nie ocena jego „reputacji”.
+- `summary`: zbiorcza ocena całego zgłoszenia liczona **deterministycznie w backendzie** z werdyktów, nigdy przez model. `level`: `high` (wszystkie rozstrzygnięte twierdzenia `confirmed`), `low` (wszystkie `false`), `mixed` (mieszanka albo `misleading`), `unknown` (żadne twierdzenie nie ma `confirmed`, `false` ani `misleading`; wstrzymanie się nie jest „50% prawdy”). Bez procentu: pole `score` usunięte, UI v3 pokazuje ikonę i etykietę. `reasons` to jawne przesłanki po polsku. Przy statusie innym niż `ok` → `null`.
+- `badges`: etykiety wyliczone z jawnych przesłanek, nigdy z opinii modelu: `fresh_material` / `archival_material` z najnowszego `publishedAt` użytych źródeł (próg wieku w konfiguracji, brak dat → bez chipa), `official_source_present` / `official_source_absent` z `sourceType` użytych źródeł. Odłożone, bo UI v3 ich nie pokazuje: `input_source_in_catalog` / `input_source_outside_catalog` z dopasowania domeny zgłoszonego URL do `GET /sources/catalog` (tylko dla `inputType: url`); to neutralna informacja o statusie źródła, nie ocena jego „reputacji”.
 - `campaignAlert`: alert na poziomie całej odpowiedzi, przepisany z `campaignAlert` z `rag/` (§3) bez `score`; `warnings[].type: incident_match` przy twierdzeniu zostaje. Kontekst, nie dowód.
 - `claims[].conflict`: `{ "summary": "opis rozbieżności po polsku" }`, gdy źródła mają role `supports` i `refutes` i rozbieżności nie da się wyjaśnić (§4); wtedy werdykt to `insufficient_evidence`. Przy rozbieżności wyjaśnialnej `conflict` jest `null`, a wyjaśnienie idzie do `justification`.
 

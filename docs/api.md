@@ -2,7 +2,9 @@
 
 > **Status: propozycja, wersja wstępna.** Ten dokument ma być aktualizowany w trakcie budowy API przez osobę, która implementuje dany endpoint. Gdy kod i ten plik się rozjadą, poprawiamy plik w tym samym PR.
 >
-> Źródłem prawdy jest `CONTRACT.md`. Elementy oznaczone **[NOWE]** wynikają z projektu w Figmie i są wpisane do `CONTRACT.md` §1a jako propozycja do akceptacji (do tego czasu są opcjonalne). Reguły werdyktów (ocena weryfikatora faktów, rozbieżność wyjaśnialna, wydarzenia bieżące, awaria źródła zewnętrznego) są w `CONTRACT.md` §4 po PR #23 i w `spec/mentor-test-scenarios.md`.
+> Źródłem prawdy jest `CONTRACT.md`. Elementy oznaczone **[NOWE]** wynikają z projektu w Figmie i są wpisane do `CONTRACT.md` §1a jako propozycja do akceptacji (do tego czasu są opcjonalne). Reguły werdyktów (ocena weryfikatora faktów, rozbieżność wyjaśnialna, wydarzenia bieżące, awaria źródła zewnętrznego) są w `CONTRACT.md` §4 i w `spec/mentor-test-scenarios.md`.
+>
+> Stan projektu UI: **Figma v3** (`Untitled (1).zip`, 21.11, 20:06). Kod: API w `src/backend/`, logika w `agent/` (`agent.NewFromEnv`, `Verify`, od PR #46), źródła w `rag/`. Plan implementacji backendu krok po kroku jest w §8, dostępność w §6a.
 >
 > Wszystkie dane w przykładach są fikcyjne (adresy `przyklad.*`, wymyślone cytaty).
 
@@ -10,19 +12,19 @@
 
 | Ekran / element | Potrzebne dane z API | Jest w kontrakcie? |
 |---|---|---|
-| Nagłówek i pełny tekst artykułu | tytuł i treść sprawdzanego dokumentu (dla URL: pobrana treść) | nie → `document` **[NOWE]** |
-| Podświetlony fragment w tekście (stan normal / hover), klik otwiera panel boczny | pozycja twierdzenia w tekście | nie → `claims[].span` **[NOWE]** |
-| Box zbiorczy (Figma v2: „Tekst prawdopodobnie prawdziwy” / „Brak pewnego wyniku prawdy” / „Tekst prawdopodobnie jest dezinformacją”, zielony / żółty / czerwony, z pierścieniem) | zbiorcza ocena całego zgłoszenia: `summary.level` → etykieta, `summary.score` → pierścień | nie → `summary` **[NOWE]**, zob. §6 |
-| Chipy (Figma v2: „Świeży”, „Archiwalny”, „Oficjalna informacja”, „Brak oficjalnej informacji”; „reputacja” została tylko na starym ekranie Sidebar) | etykiety wyliczone z przesłanek; „reputacja” zastąpiona neutralnym „źródło w katalogu / spoza katalogu” (domena URL vs `GET /sources`) | częściowo (`warnings`) → `badges` **[NOWE]** |
-| Czarny box „Ten tekst może być częścią kampanii dezinformacyjnej” + „Więcej informacji” | alert kampanii z linkami do spraw, na poziomie całego tekstu | częściowo (`warnings[].type = incident_match` bez linków) → `campaignAlert` **[NOWE]** |
-| Panel boczny: nagłówek = fragment, badge „Fakt”, wyjaśnienie, „Źródła:” | `claims[].text`, `verdict`, `justification`, `sources` | tak |
-| Panel „Sprzeczne źródła” (Figma v2: ikona ostrzeżenia, karty z tytułem, wydawcą, datą i linkiem) | informacja o rozbieżności + źródła z obu stron (`title`, `publisher`, `publishedAt`, `url`, `quote`) | częściowo (`missing`, `role`) → `claims[].conflict` **[NOWE]** |
-| Ustawienia dostępności (kontrast, rozmiar tekstu, animacje) | nic, tylko front (`localStorage`) | — |
-| Strona główna (Figma v2 „Landing”: jedno pole „Wklej link do artykułu bądź tekst…”, notka o AI) | front sam rozpoznaje `inputType` (`http://`/`https://` → `url`), woła `POST /api/check` | tak |
+| Nagłówek i pełny tekst artykułu | `document` (tytuł, treść, adres). Dla URL zwraca go `agent/`; dla tekstu **backend** wpisuje `{ "title": null, "text": <zamaskowany input> }` | `CONTRACT.md` §1a, `agent/` już zwraca |
+| Podświetlony fragment w tekście (stan normal / hover), klik otwiera panel boczny | pozycja twierdzenia w tekście: `claims[].span` | §1a, **`agent/` jeszcze nie zwraca** → `span: null`, front pokazuje listę twierdzeń pod tekstem |
+| Box zbiorczy (v3: ikona ✓ / ⚠ / ✕ w pełnym kole, etykieta, opis; pierścień z „81%” został tylko na starym ekranie Sidebar) | `summary.level` → ikona, etykieta i opis. Pole `score` **usunięte z propozycji**, UI nie pokazuje procentu | §1a, **liczy backend** (reguły w §8) |
+| Chipy (v3: „Świeży” / „Archiwalny”, „Oficjalna informacja” / „Brak oficjalnej informacji”) | `badges` z czterema wartościami. Chipy katalogu (`input_source_*`) odłożone, UI ich nie pokazuje | §1a, **liczy backend** (reguły w §8) |
+| Czarny box „Ten tekst może być częścią kampanii dezinformacyjnej” + „Więcej informacji” | `campaignAlert` (komunikat + linki do spraw), na poziomie całego tekstu | §1a, `agent/` już zwraca |
+| Panel boczny: nagłówek = fragment, badge „Fakt”, wyjaśnienie, „Źródła:” | `claims[].text`, `verdict`, `justification`, `evidenceStrength`, `strengthReasons`, `sources` | tak |
+| Panel „Sprzeczne źródła” (ikona ostrzeżenia, karty z tytułem, wydawcą, datą i linkiem) | `claims[].conflict` + źródła z obu stron (`role`: `supports` / `refutes`, `quote`) | §1a, **`agent/` jeszcze nie zwraca** → front do czasu wnioskuje z ról źródeł |
+| Panel ustawień dostępności (v3, zrzut wzorcowy: kontrast domyślny / wysoki jasny / wysoki ciemny, rozmiar tekstu 100–200%, „ogranicz animacje”, „przywróć domyślne”) | nic z API; front, `localStorage` + `prefers-contrast` / `prefers-reduced-motion`, zob. §6a | — |
+| Strona główna („Landing”: jedno pole „Wklej link do artykułu bądź tekst…”, notka o AI) | front sam rozpoznaje `inputType` (`http://`/`https://` → `url`), woła `POST /api/check` | tak |
 
 ## 2. Lista endpointów
 
-Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `backend/config.go`). Wszystkie odpowiedzi to JSON (`Content-Type: application/json`), pola w camelCase, daty ISO 8601 UTC.
+Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `src/backend/config.go`). Wszystkie odpowiedzi to JSON (`Content-Type: application/json`), pola w camelCase, daty ISO 8601 UTC.
 
 | Metoda i ścieżka | Po co | Priorytet |
 |---|---|---|
@@ -84,10 +86,9 @@ Każde ciało ma kształt `CheckResult`.
   },
   "summary": {
     "level": "high",
-    "score": 81,
     "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym 1 źródło urzędowe"]
   },
-  "badges": ["official_source_present", "fresh_material", "input_source_in_catalog"],
+  "badges": ["official_source_present", "fresh_material"],
   "campaignAlert": null,
   "claims": [
     {
@@ -133,8 +134,8 @@ Tylko pola, które się różnią od przykładu A:
 
 ```json
 {
-  "summary": { "level": "low", "score": 12, "reasons": ["1 z 1 twierdzeń obalone przez źródło urzędowe"] },
-  "badges": ["fresh_material", "official_source_absent", "input_source_outside_catalog"],
+  "summary": { "level": "low", "reasons": ["1 z 1 twierdzeń obalone", "w tym 1 źródło urzędowe"] },
+  "badges": ["fresh_material", "official_source_present"],
   "campaignAlert": {
     "category": "possible_disinformation_campaign",
     "message": "Treść jest podobna do znanych przypadków dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.",
@@ -167,11 +168,11 @@ Tylko pola, które się różnią od przykładu A:
 }
 ```
 
-`campaignAlert` i chip `input_source_outside_catalog` **nigdy nie wpływają** na `verdict`, `summary` ani `evidenceStrength` (zakaz z briefu, scenariusz I). Front pokazuje je obok, jako kontekst.
+`campaignAlert` **nigdy nie wpływa** na `verdict`, `summary` ani `evidenceStrength` (zakaz z briefu, scenariusz I). Front pokazuje go obok, jako kontekst, z tekstem dokładnie z `message`.
 
 ### Przykład C — sprzeczne źródła (panel „Sprzeczne źródła”)
 
-Dwa warianty (`CONTRACT.md` §4 po PR #23, scenariusz C mentora):
+Dwa warianty (`CONTRACT.md` §4, scenariusz C mentora):
 
 **C1, rozbieżność wyjaśnialna** (700 mln zł to przybliżenie z wypowiedzi, 650 mln zł to konkretna pozycja z 2023 r.): werdykt z oceny weryfikatora, oba źródła pokazane, wyjaśnienie w `justification`, `conflict: null`. W `justification` mówimy, kto ocenił („według Demagoga”).
 
@@ -234,7 +235,7 @@ Dwa warianty (`CONTRACT.md` §4 po PR #23, scenariusz C mentora):
 }
 ```
 
-Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "score": null, ... }`, a nie 50%.
+Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "reasons": ["1 z 1 twierdzeń bez wystarczających dowodów"] }`. Front pokazuje wtedy ikonę „?” i etykietę „Nie udało się ocenić”, nigdy „50% prawdy”.
 
 **Odpowiedź częściowa** (wydarzenie bieżące, scenariusz A mentora „strajk we Włoszech”, przypadek A13): też `insufficient_evidence`, ale z **niepustym** `sources` (to, co ustalono: zapowiedź strajku) i `missing` mówiącym wprost, czego nie wiadomo („Nie mam informacji, czy strajk się odbył”). Nie piszemy, że zdarzenie się nie odbyło.
 
@@ -326,7 +327,7 @@ Drugi kanał to **bot na Discordzie** (połączenie wychodzące przez Gateway), 
 - Proponowany sposób użycia: wiadomość w wydzielonym kanale (np. `#prawdowid`) albo wzmianka bota. Odczyt treści wiadomości wymaga włączenia w Discord Developer Portal opcji **Message Content Intent**. Alternatywa bez tej opcji: komenda `/sprawdz`, ale wtedy trzeba w ciągu 3 s potwierdzić odebranie (odpowiedź „deferred”) i dopiero potem wysłać wynik.
 - Odpowiedź w jednej wiadomości do 2000 znaków (limit Discorda). Dłuższe wyniki skracamy i dajemy link do pełnego widoku. Podczas sprawdzania bot pokazuje „pisze…”.
 - Z kanału wolno zmienić tylko pole `Channel` i format odpowiedzi. Ten sam `Input` daje ten sam wynik co WWW (scenariusz G).
-- **Decyzje Pawła (21.11):** (1) bot czyta wiadomości **w kanale lub w wiadomości prywatnej (DM)**, nie przez `/sprawdz`; (2) **tylko stdlib Go**, to ma być MVP; (3) `agent.Verify` jeszcze nie istnieje, więc kanał powstaje na **mocku** zwracającym `CheckResult`.
+- **Decyzje Pawła (21.11):** (1) bot czyta wiadomości **w kanale lub w wiadomości prywatnej (DM)**, nie przez `/sprawdz`; (2) **tylko stdlib Go**, to ma być MVP; (3) ~~`agent.Verify` jeszcze nie istnieje, więc kanał powstaje na mocku~~ — od PR #46 istnieje (`agent.NewFromEnv(logger)` i `verifier.Verify(ctx, req)`, zob. `agent/README.md`), mock niepotrzebny.
 - **Uwaga techniczna (do potwierdzenia przez Pawła):** stdlib Go **nie ma klienta WebSocket**, a Gateway Discorda go wymaga. Przy samej stdlib realny MVP to odpytywanie REST (`GET /channels/{id}/messages` co 1–2 s dla jednego, wskazanego kanału, odpowiedź przez `POST /channels/{id}/messages`, z uwzględnieniem limitów Discorda). DM są tą drogą trudniejsze, bo bot nie ma prostego sposobu na wylistowanie cudzych DM; wtedy kanał jest drogą podstawową, a DM dopiero przy małej zależności od biblioteki WebSocket. Zmiana na bibliotekę wymaga wpisu w PR (`AGENTS.md`: najpierw stdlib).
 - **Kolejność i serwer (decyzja Vanessy, 21.11):** bot Discord jest **ostatnią rzeczą, jaką implementujemy**, po działającym end-to-end (agent, backend, front). Działa na **testowym serwerze** Discorda zakładanym przez nas (jedyny kanał np. `#sprawdz`). Uwaga: brief wymaga **dwóch kanałów albo jednego kanału i adaptera demonstracyjnego** jako warunku podstawowego (bez tego funkcje premiowane nie są punktowane). Jeśli bot nie będzie gotowy, **adapter demonstracyjny musi być gotowy wcześniej**, bo to on spełnia ten warunek. Dla jury potrzebny jest link zaproszenia na serwer w README (token bota nigdy w repo).
 - Plan B na brak sieci lub kont: adapter demonstracyjny z tą samą ścieżką `agent.Verify` (brief dopuszcza adapter, gdy organizator nie zapewnia kont).
@@ -375,16 +376,15 @@ interface CheckedDocument {           // [NOWE]
   fetchedAt: string | null;
 }
 
-interface Summary {                   // [NOWE]
+interface Summary {                   // [NOWE] liczy backend, reguły w §8
   level: "high" | "mixed" | "low" | "unknown";
-  score: number | null;               // 0–100, null gdy same wstrzymania
-  reasons: string[];
+  reasons: string[];                  // jawne przesłanki po polsku, np. "2 z 3 twierdzeń potwierdzone"
 }
 
 type Badge =                          // [NOWE] etykiety po polsku w texts.ts; wyliczane z przesłanek, nie przez model
   | "fresh_material" | "archival_material"
-  | "official_source_present" | "official_source_absent"
-  | "input_source_in_catalog" | "input_source_outside_catalog"; // tylko dla inputType: url
+  | "official_source_present" | "official_source_absent";
+// Odłożone (UI v3 ich nie pokazuje): "input_source_in_catalog" | "input_source_outside_catalog" dla inputType: url.
 
 interface Claim {
   id: string;
@@ -428,21 +428,88 @@ Uwaga do `span`: Go liczy w bajtach, JS w jednostkach UTF-16. Proponujemy code p
 | `insufficient_evidence` | Brak wystarczających dowodów; „Sprzeczne źródła”, gdy `conflict != null`; „Ustalono częściowo”, gdy `sources` niepuste | szary / żółty |
 | `not_verifiable` | Nie da się sprawdzić (opinia, przewidywanie) | szary |
 
-Rzeczy do decyzji z osobą od designu (stan po Figmie v2, `Untitled (2).zip`):
+Stan po Figmie v3 (`Untitled (1).zip`, 21.11, 20:06). **Rozwiązane względem v2:** pełne ekrany mają ikonę statusu w pełnym kole zamiast pierścienia z procentem (więc `summary.score` wypada z propozycji); zielony opis nie mówi już o „większości źródeł” (popularność); chipy mają cztery jasne stany (świeży / archiwalny, oficjalna informacja / brak); chip reputacji zniknął. **Do decyzji z osobą od designu:**
 
-1. **Procent prawdy** — v2 zastąpiła „81% Pewności prawdy” etykietami („Tekst prawdopodobnie prawdziwy” / „Brak pewnego wyniku prawdy” / „Tekst prawdopodobnie jest dezinformacją”), co zgadza się z `summary.level`. Zostaje pierścień z wypełnieniem (ok. 80 / 50 / 15%): przy `score: null` (same wstrzymania) pierścień ma być pusty albo ukryty, nie „50%”. Opisy wciąż mówią „duży / niski wynik prawdy”; propozycja: „mocna / słaba podstawa”. `summary.score` liczony **deterministycznie w backendzie**, nigdy przez model. Stare ekrany Sidebar nadal mają „81%” — do ujednolicenia.
-2. **„Dezinformacja” w czerwonym boksie** — werdykt z briefu to „fałszywe”; „dezinformacja” zakłada intencję, której system nie bada. Propozycja: „Tekst prawdopodobnie fałszywy”. Żółty opis miesza brak dowodów z „częściowo prawdziwe, częściowo fałszywe” (to `misleading`); to dwa różne stany.
-3. **Czarny box kampanii** — nadal stwierdza, że tekst „zawiera nieprawdziwe informacje powiązane z… kampaniami”. Dopasowanie do katalogu to kontekst, nie werdykt (brief, scenariusz I). Treść ma być warunkowa: „Treść jest podobna do znanej sprawy dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.” (dokładnie `campaignAlert.message` z `rag/`).
-4. **„Sprzeczne źródła”** — v2 naprawiła ikonę (ostrzeżenie zamiast ptaszka) i karty źródeł (tytuł, wydawca, data, link). Brakuje cytatu (`quote`) i roli (`supports` / `refutes`), żeby obywatel widział, która strona co mówi.
-5. **Chip reputacji** — w v2 zniknął z ekranów pełnych, został na Sidebar. Zostaje zasada: tylko neutralne „Źródło z naszego katalogu / spoza naszego katalogu” (`input_source_in_catalog` / `input_source_outside_catalog`), bez wpływu na werdykt.
-6. **Ekrany** — v2 dodała stronę główną (Landing) i chip „Archiwalny”. Nadal brakuje: stanu ładowania (do 25 s), błędu technicznego, `needs_clarification`, wyniku bez dowodów i odpowiedzi częściowej. Brief: awaria i niejasne pytanie muszą wyglądać **inaczej** niż werdykt. Na Landing notka „Zawsze weryfikuj wszystkie informacje” jest dobra; tekst „Wyniki wygenerowane przez Sztuczną Inteligencję” lepiej zamienić na „Odpowiedź opiera się na źródłach z naszego katalogu; sprawdź je sam”, bo brief każe pokazywać podstawy, nie model.
-7. **Panel „Fakt”** — lista „Źródła:” to nadal same domeny (`google.com`). Kontrakt wymaga tytułu, wydawcy, daty i linku, najlepiej z cytatem; brakuje siły podstawy (`evidenceStrength` + `strengthReasons`) i ograniczeń (`limitations`), które `AGENTS.md` każe pokazywać zawsze.
-8. **Opis zielonego boksu** „znaczna większość źródeł podaje tą samą informację” — brief zakazuje oceniania po popularności; dozwolona przesłanka to „liczba niezależnych potwierdzeń”. Propozycja: „potwierdzają to niezależne źródła”.
+1. **„Tekst prawdopodobnie jest dezinformacją”** (czerwony) — werdykt z briefu to „fałszywe”; „dezinformacja” zakłada intencję, której system nie bada. Propozycja: „Tekst prawdopodobnie fałszywy”, opis „Źródła przeczą sprawdzonym twierdzeniom”. Fragment opisu „bądź jeszcze nie mieć oficjalnego źródła potwierdzającego” usunąć: brak źródła to stan `unknown` (żółty), nie fałsz.
+2. **Żółty box** — opis miesza „może nie istnieć wystarczająco zweryfikowanych informacji” (`level: unknown`) z „częściowo prawdziwe oraz fałszywe informacje” (`level: mixed`). To dwa stany i potrzebują dwóch etykiet: `mixed` → „Część twierdzeń prawdziwa, część nie” z ikoną ⚠; `unknown` → „Nie udało się ocenić” z ikoną „?” i opisem „Nie znaleźliśmy wystarczających źródeł. To nie znaczy, że informacja jest fałszywa”.
+3. **Czarny box kampanii** — nadal stwierdza, że tekst „zawiera nieprawdziwe informacje powiązane z… kampaniami”. Dopasowanie do katalogu to kontekst, nie werdykt (brief, scenariusz I). Treść ma być dokładnie `campaignAlert.message` („Treść jest podobna do znanych przypadków dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.”), a „Więcej informacji” prowadzi do `matches[].url`.
+4. **Panel „Fakt”** (Sidebar, bez zmian od v1) — „Źródła:” to same domeny (`google.com`), a box ma jeszcze „81% Pewności prawdy”. Potrzebne: tytuł, wydawca, data, link i cytat (`quote`) każdego źródła, siła podstawy (`evidenceStrength` + `strengthReasons`) i ograniczenia (`limitations`), które `AGENTS.md` każe pokazywać zawsze. Procent zastąpić tą samą ikoną z etykietą co na pełnym ekranie.
+5. **Panel „Sprzeczne źródła”** — karty mają tytuł, wydawcę, datę i link; brakuje cytatu i roli (`supports` / `refutes`), żeby obywatel widział, która strona co mówi, oraz `missing` („czego nie ustalono”).
+6. **Brakujące ekrany** — stan ładowania (do 25 s, z informacją, co się dzieje), `technical_error` (503), `needs_clarification`, `out_of_scope`, wynik bez dowodów (scenariusz D) i odpowiedź częściowa (A13). Brief: awaria i niejasne pytanie muszą wyglądać **inaczej** niż werdykt (bez koloru werdyktu i bez boksu zbiorczego).
+7. **Landing** — „Wyniki wygenerowane przez Sztuczną Inteligencję” zamienić na „Odpowiedź opiera się na źródłach z naszego katalogu. Sprawdź je sam”; zdanie „Zawsze weryfikuj wszystkie informacje” zostaje. Sekcja „Nagłówek następnej części tekstu” to dobre miejsce na „Jak to działa” i link do listy źródeł (`GET /api/sources`).
+8. **Zielony opis** „można zweryfikować poprzez oficjalne źródła” — `high` daje też ocena weryfikatora faktów albo dwa niezależne źródła wtórne (`agent/rules.go`). Propozycja: „potwierdzają to wiarygodne źródła”; które dokładnie, mówią chipy i `summary.reasons`.
+
+### 6a. Dostępność (priorytet zespołu)
+
+Decyzja z 21.11: dostępność jest priorytetem. Cel: WCAG 2.1 AA. Co z tego wynika dla API i frontu:
+
+- **Każdy stan ma tekst, nie tylko kolor i ikonę.** `verdict`, `summary.level`, `badges`, `warnings[].type` to enumy; etykiety po polsku w jednym pliku tekstów frontu (`texts.ts`), z nich też `aria-label` ikon. Backend wysyła do wyświetlenia tylko `message`, `justification`, `missing`, `limitations`, `summary.reasons`, `strengthReasons` i `campaignAlert.message`, zawsze po polsku, prostym językiem, bez pojęć technicznych.
+- **`message` jest niepuste dla każdego statusu innego niż `ok`** (czytnik ekranu dostaje komunikat zamiast pustej strony). `eval/` to sprawdza.
+- **Podświetlenia w tekście nie są jedyną drogą do werdyktu:** pod tekstem lista twierdzeń z werdyktami, dostępna klawiaturą, działa przy `span: null` i przy 200% rozmiaru tekstu. Panel boczny otwierany przyciskiem (`aria-expanded`), nie samym hoverem.
+- **Kontrast:** tekst na pastelowych boksach jest czarny, to dobrze. Do poprawy: niebieski link „Więcej informacji” na czarnym boksie (za niski kontrast, zrobić biały z podkreśleniem) i jasnoszara linia „Wydawca, 01.01.2020” na kartach źródeł (`AGENTS.md`: bez szarego tekstu dla ważnych treści).
+- **Panel ustawień dostępności** (zrzut wzorcowy w v3, styl serwisów gov.pl): kontrast (domyślny / wysoki jasny / wysoki ciemny), rozmiar tekstu (100 / 125 / 150 / 200%), „ogranicz animacje”, „przywróć domyślne”. Front: `localStorage`, wartości startowe z `prefers-contrast` i `prefers-reduced-motion`. W trybach wysokiego kontrastu werdykty muszą pozostać rozróżnialne bez koloru (ikona + etykieta). Bez żadnego pola w API.
+- **Discord:** te same etykiety słowne co w WWW (werdykt nigdy samym emoji), zob. `ToReply` w §4.
 
 ## 7. Pytania otwarte
 
 - `400` dla złego JSON-a: jaki `status` w ciele? Propozycja: `technical_error` z komunikatem „Nieprawidłowe zapytanie”. Za długi lub pusty `input` → `200` + `needs_clarification`.
 - ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Rozstrzygnięte: bot przez Gateway. Zostaje wybór sposobu użycia (kanał z Message Content Intent czy `/sprawdz`) i adapter demonstracyjny jako plan B.
 - Czy `document.text` zapisujemy w bazie (potrzebne do `GET /api/checks/{id}`), skoro to pełna treść cudzego artykułu? Propozycja: dla URL przechowujemy tylko zamaskowany fragment do 5000 znaków z retencją 24 h, opisaną w README.
-- CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go.
+- CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go. Na Railway front i backend mogą być pod jednym adresem (backend serwuje `dist/`), wtedy CORS znika.
 - Limit żądań: proponujemy 10 żądań na minutę na IP dla `POST /api/check`, wartość w `.env`.
+- Czy `claims[].span` i `claims[].conflict` wejdą do `agent/`? Decyzja właściciela `agent/`. Do tego czasu backend zwraca `span: null` i `conflict: null`, a front radzi sobie bez nich (lista twierdzeń, rozbieżność z ról źródeł).
+
+## 8. Plan implementacji backendu (`src/backend/`)
+
+Kolejność: pionowy przekrój najpierw. Każdy krok kończy się działającym `curl` i commitem.
+
+1. **`POST /api/check`** (`handlers.go`): dekodowanie JSON z `DisallowUnknownFields` i `http.MaxBytesReader` (np. 64 KB); `validateCheckRequest` (`input` 1–5000 znaków po `TrimSpace`, `inputType` ∈ {`text`, `url`}; pusty albo za długi → `200` + `needs_clarification`); maskowanie e-mail / telefon / PESEL (`privacy.go`, regexy → `[e-mail]`, `[telefon]`, `[PESEL]`); `requestId` z `crypto/rand` (16 bajtów sformatowane jak UUID v4, bez biblioteki); `context.WithTimeout(ctx, 25 s)`; `verifier.Verify(ctx, agent.VerifyRequest{RequestID, Channel: "web", Input: zamaskowany, InputType})`.
+2. **Uzupełnienia po `Verify`** (`enrich.go`, czyste funkcje z testami tabelarycznymi): dla `inputType: text` i `status: ok` `document = { title: null, text: <zamaskowany input> }` (dla URL `document` daje `agent/`); `summary` i `badges` według reguł niżej; `span: null`, `conflict: null`, dopóki nie da ich `agent/`.
+3. **Kod HTTP ze statusu:** `ok`, `needs_clarification`, `out_of_scope` → `200`; `technical_error` → `503`. Ciało zawsze pełny `CheckResult`.
+4. **Zapis przebiegu** (`store.go`, pgx): tabela `checks` (DDL niżej), `CREATE TABLE IF NOT EXISTS` przy starcie. Błąd zapisu idzie do logu, odpowiedź do użytkownika i tak wychodzi (`AGENTS.md`: audyt nie wywala operacji).
+5. **`GET /api/checks/{requestId}`** i **`DELETE /api/checks/{requestId}`**: odczyt / usunięcie wiersza; `404` z `{ "error": { "code": "not_found", "message": "…" } }`.
+6. **Limit żądań** (`ratelimit.go`): mapa IP → licznik w oknie minutowym, w pamięci; `RATE_LIMIT_PER_MINUTE` (domyślnie 10); `429` + `Retry-After` i ciało `technical_error` z komunikatem o limicie. IP z `X-Forwarded-For` tylko przy `TRUST_PROXY=true` (Railway).
+7. **`GET /api/sources`**: proxy `GET {RAG_URL}/sources` (timeout 8 s); awaria → `503` z `{ "error": { "code": "rag_unavailable", "message": "…" } }`.
+8. **`GET /health`**: dodać `"rag"` (`GET {RAG_URL}/health`) i `"model"` (`LLM_BASE_URL` ustawiony).
+9. **Logi** (`log/slog`, jeden wpis na sprawdzenie): `requestId`, `channel`, `status`, `latencyMs`, `model`, `estimatedCostUsd`, `searchErrors`, `injectionAttempts`, `abstained`. To pokrywa obserwowalność z briefu.
+10. **Discord** na końcu (§4), po działającym WWW end-to-end.
+
+**Reguły `summary.level`** (deterministyczne, `enrich.go`). `substantive` = twierdzenia z werdyktem `confirmed`, `false` lub `misleading`:
+
+| Warunek | `level` |
+|---|---|
+| `substantive` puste (same `insufficient_evidence` / `not_verifiable`) | `unknown` |
+| wszystkie `substantive` = `confirmed` | `high` |
+| wszystkie `substantive` = `false` | `low` |
+| inaczej (mieszanka albo jakiekolwiek `misleading`) | `mixed` |
+
+`reasons` po polsku z liczb: „2 z 3 twierdzeń potwierdzone”, „1 twierdzenie bez wystarczających dowodów”, „w tym 1 źródło urzędowe”. Status inny niż `ok` → `summary: null`.
+
+**Reguły `badges`** (tylko przy `status: ok`, z sumy `claims[].sources`): jest `sourceType: official` → `official_source_present`, inaczej `official_source_absent`. Najnowsze `publishedAt` starsze niż `BADGE_ARCHIVAL_DAYS` (domyślnie 365) → `archival_material`, nowsze → `fresh_material`, brak dat → bez chipa świeżości. Nic z opinii modelu.
+
+**DDL tabeli `checks`:**
+
+```sql
+CREATE TABLE IF NOT EXISTS checks (
+  id UUID PRIMARY KEY,
+  channel TEXT NOT NULL,
+  input_type TEXT NOT NULL,
+  input_masked TEXT NOT NULL,
+  status TEXT NOT NULL,
+  result JSONB NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  model TEXT,
+  estimated_cost_usd DOUBLE PRECISION,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+`result` to pełny `CheckResult` po maskowaniu (dla URL `document.text` przycięte do 5000 znaków). Retencja: `DELETE FROM checks WHERE created_at < now() - interval '24 hours'` przy starcie i co godzinę (`CHECK_RETENTION_HOURS`, domyślnie 24).
+
+**Nowe zmienne w `.env.example`:** `RATE_LIMIT_PER_MINUTE=10`, `BADGE_ARCHIVAL_DAYS=365`, `CHECK_RETENTION_HOURS=24`, `TRUST_PROXY=false`. `RAG_URL` i `LLM_*` już są, czyta je `agent.NewFromEnv`.
+
+**Test tekstowy na koniec kroku 1–4:**
+
+```
+curl -s -X POST localhost:3001/api/check -H "Content-Type: application/json" -d "{\"input\":\"Policja zatrzymała 59 osób.\",\"inputType\":\"text\"}"
+```
