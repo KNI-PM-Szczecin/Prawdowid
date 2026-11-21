@@ -5,7 +5,8 @@ Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje si�
 
 ## Struktura
 - `spec/` — brief zadania, regulamin, wymagania (przeczytaj najpierw)
-- `front/` — React (interfejs WWW)
+- `src/` — Next.js (interfejs WWW, frontend)
+- `front/` — nieużywany, frontend jest w `src/`
 - `backend/` — Node.js (API, kanały)
 - `agent/` — logika weryfikacji
 - `rag/` — korpus i wyszukiwanie źródeł
@@ -13,17 +14,18 @@ Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje si�
 Zasady pracy dla ludzi i agentów AI: `AGENTS.md`. Kontrakty między modułami: `CONTRACT.md`.
 
 ## Wymagania
-Narzędzia do zainstalowania przed startem: Git, Node.js z npm (`backend/`, `front/`, `agent/`), Python 3.12 i `uv` (`rag/`).
+Narzędzia do zainstalowania przed startem: Git, Node.js i `pnpm` (`src/`, `backend/`, `agent/`), Python 3.12 i `uv` (`rag/`).
 
 ArchLinux:
 ```
-sudo pacman -S nodejs npm python uv
+sudo pacman -S nodejs pnpm python uv
 ```
 
 Windows (PowerShell):
 ```
 winget install Git.Git
 winget install OpenJS.NodeJS.LTS
+winget install pnpm.pnpm
 winget install Python.Python.3.12
 winget install astral-sh.uv
 ```
