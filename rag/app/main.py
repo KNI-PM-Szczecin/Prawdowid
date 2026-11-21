@@ -11,13 +11,14 @@ from fastapi.responses import JSONResponse
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 from app import db
+from app.catalog import SourceOutsideCatalogError, load_catalog, resolve_entry
 from app.config import settings
 from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.incidents import incident_point_id, index_incidents
-from app.ingest import ingest_document
+from app.ingest import DuplicateDocumentError, ingest_document
 from app.models import (
     DeletionReport,
     EuvsDisinfoSyncStatus,
@@ -31,6 +32,7 @@ from app.models import (
     SearchRequest,
     SearchResponse,
     SourceAuditEntry,
+    SourceCatalog,
 )
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.vector_store import VectorStore
@@ -49,6 +51,9 @@ HTTP_NOT_FOUND = 404
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_ACCEPTED = 202
+HTTP_CONFLICT = 409
+HTTP_UNPROCESSABLE = 422
+DUPLICATE_MESSAGE = "Dokument {document_id} ma tę samą treść co {duplicate_of}. Nie wgrano."
 EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
 
 
@@ -117,6 +122,17 @@ async def require_admin(x_admin_token: Annotated[str | None, Header()] = None) -
 
 
 AdminOnly = [Depends(require_admin)]
+AUDIT_FIELDS = (
+    "document_id",
+    "title",
+    "publisher",
+    "url",
+    "source_type",
+    "license",
+    "published_at",
+    "fetched_at",
+    "active_chunks",
+)
 
 
 async def _dependency_status(probe) -> tuple[str, object]:
@@ -154,13 +170,36 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
 
 @app.post("/ingest", response_model=list[IngestResult], dependencies=AdminOnly)
 async def ingest(request: IngestRequest) -> list[IngestResult]:
-    return [await ingest_document(document, app.state.models, app.state.store) for document in request.documents]
+    """Documents are processed in order; on 422/409 the earlier ones stay indexed and the detail names the culprit."""
+    results: list[IngestResult] = []
+    for document in request.documents:
+        try:
+            results.append(await ingest_document(document, app.state.models, app.state.store))
+        except SourceOutsideCatalogError as error:
+            raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=str(error)) from error
+        except DuplicateDocumentError as error:
+            raise HTTPException(
+                status_code=HTTP_CONFLICT,
+                detail=DUPLICATE_MESSAGE.format(document_id=error.document_id, duplicate_of=error.duplicate_of),
+            ) from error
+    return results
+
+
+@app.get("/sources/catalog", response_model=SourceCatalog)
+async def sources_catalog() -> SourceCatalog:
+    """Trusted-source catalog with qualification rules: what gets in, with which tier, and when it is excluded."""
+    return load_catalog()
 
 
 @app.get("/sources", response_model=list[SourceAuditEntry])
 async def sources() -> list[SourceAuditEntry]:
     return [
-        SourceAuditEntry(**dict(row), domain=urlparse(row["url"]).hostname or "") for row in await db.list_sources()
+        SourceAuditEntry(
+            **{field: row[field] for field in AUDIT_FIELDS},
+            domain=urlparse(row["url"]).hostname or "",
+            in_catalog=resolve_entry(row["url"]) is not None,
+        )
+        for row in await db.list_sources()
     ]
 
 
