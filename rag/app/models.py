@@ -39,10 +39,36 @@ class SourceIn(ApiModel):
     published_at: Timestamp | None = None
     fetched_at: Timestamp
     license: str | None = None
-    source_type: SourceType
-    tier: Tier = 2
-    reliability: Reliability
+    # Left empty, these come from the source catalog by the URL's domain (app/catalog.py).
+    source_type: SourceType | None = None
+    tier: Tier | None = None
+    reliability: Reliability | None = None
     topic_tag: str = Field(min_length=1, max_length=100)
+
+
+class QualifiedSource(SourceIn):
+    """SourceIn after catalog qualification: metadata complete, origin of the qualification recorded."""
+
+    source_type: SourceType
+    tier: Tier
+    reliability: Reliability
+    in_catalog: bool
+
+
+class CatalogEntry(ApiModel):
+    publisher: str
+    domains: list[str] = Field(min_length=1)
+    source_type: SourceType
+    tier: Tier
+    reliability: Reliability
+    qualification: str
+
+
+class SourceCatalog(ApiModel):
+    version: str
+    note: str
+    rules: dict[str, str]
+    entries: list[CatalogEntry]
 
 
 class DocumentIn(ApiModel):
@@ -58,6 +84,7 @@ class IngestResult(ApiModel):
     document_id: str
     chunks_indexed: int
     chunks_replaced: int
+    in_catalog: bool
 
 
 class SearchFilters(ApiModel):
@@ -182,6 +209,7 @@ class SourceAuditEntry(ApiModel):
     published_at: Timestamp | None
     fetched_at: Timestamp
     active_chunks: int
+    in_catalog: bool
 
 
 DependencyStatus = Literal["ok", "unavailable"]

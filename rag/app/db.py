@@ -5,7 +5,7 @@ from uuid import UUID
 import asyncpg
 
 from app.config import settings
-from app.models import SourceIn
+from app.models import QualifiedSource
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +38,17 @@ def pool() -> asyncpg.Pool:
     return _pool
 
 
-async def upsert_source_with_chunks(source: SourceIn, chunk_ids: list[UUID]) -> None:
+async def upsert_source_with_chunks(source: QualifiedSource, content_hash: str, chunk_ids: list[UUID]) -> None:
     async with pool().acquire() as connection, connection.transaction():
         await connection.execute(
             """
-            INSERT INTO sources (document_id, title, publisher, url, published_at, fetched_at, license, source_type)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO sources
+                (document_id, title, publisher, url, published_at, fetched_at, license, source_type, content_hash)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (document_id) DO UPDATE SET
                 title = EXCLUDED.title, publisher = EXCLUDED.publisher, url = EXCLUDED.url,
                 published_at = EXCLUDED.published_at, fetched_at = EXCLUDED.fetched_at,
-                license = EXCLUDED.license, source_type = EXCLUDED.source_type
+                license = EXCLUDED.license, source_type = EXCLUDED.source_type, content_hash = EXCLUDED.content_hash
             """,
             source.document_id,
             source.title,
@@ -57,6 +58,7 @@ async def upsert_source_with_chunks(source: SourceIn, chunk_ids: list[UUID]) -> 
             source.fetched_at,
             source.license,
             source.source_type,
+            content_hash,
         )
         await connection.executemany(
             """
@@ -82,6 +84,20 @@ async def active_chunk_ids_for_document(document_id: str) -> list[UUID]:
         "SELECT chunk_id FROM document_metadata WHERE source_id = $1 AND NOT is_deleted", document_id
     )
     return [row["chunk_id"] for row in rows]
+
+
+async def find_duplicate_document(content_hash: str, document_id: str) -> str | None:
+    """Id of another document with active chunks and the same text, or None."""
+    return await pool().fetchval(
+        """
+        SELECT s.document_id FROM sources s
+        WHERE s.content_hash = $1 AND s.document_id <> $2
+          AND EXISTS (SELECT 1 FROM document_metadata m WHERE m.source_id = s.document_id AND NOT m.is_deleted)
+        LIMIT 1
+        """,
+        content_hash,
+        document_id,
+    )
 
 
 async def list_sources() -> list[asyncpg.Record]:
