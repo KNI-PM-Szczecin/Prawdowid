@@ -1,0 +1,61 @@
+// Soft colour wash behind the page (Figma). A radial mask gives the blurred edge: filter: blur() on elements
+// this large renders blotchy in Chromium and leaves hard edges where the element meets the viewport.
+// Blobs carry no information: high-contrast modes drop them (tokens), reduced motion stops the drift (global).
+.blobs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+
+  // On a phone one blob covers the whole viewport, so the wash is lighter there.
+  @media (max-width: 40rem) {
+    opacity: 0.55;
+  }
+
+  &__blob {
+    position: absolute;
+    display: block;
+    background-color: var(--tone-blob);
+    -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgb(0 0 0 / 55%) 45%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 0%, rgb(0 0 0 / 55%) 45%, transparent 100%);
+    will-change: transform;
+    transition: background-color 700ms ease;
+    animation: blob-drift 28s ease-in-out infinite alternate;
+
+    &--top {
+      top: -28rem;
+      right: -22rem;
+      width: 72rem;
+      height: 72rem;
+    }
+
+    &--left {
+      top: 18%;
+      left: -30rem;
+      width: 64rem;
+      height: 64rem;
+      animation-duration: 36s;
+      animation-direction: alternate-reverse;
+    }
+
+    &--bottom {
+      right: 10%;
+      bottom: -30rem;
+      width: 56rem;
+      height: 56rem;
+      opacity: 0.7;
+      animation-duration: 32s;
+    }
+  }
+}
+
+@keyframes blob-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+
+  to {
+    transform: translate(-3rem, 2.5rem) scale(1.08);
+  }
+}

@@ -30,12 +30,7 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
 
   return (
     <div class="check-form">
-      <h1 id="main-heading" tabIndex={-1} class="check-form__title">
-        {texts.form.title}
-      </h1>
-
       <form
-        class="check-form__form"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -83,7 +78,7 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
 
       {IS_MOCK_MODE && (
         <section aria-labelledby="examples-title" class="check-form__examples">
-          <h2 id="examples-title" class="section-title">
+          <h2 id="examples-title" class="check-form__examples-title">
             {texts.form.examplesTitle}
           </h2>
           <ul class="check-form__example-list">
@@ -97,17 +92,6 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
           </ul>
         </section>
       )}
-
-      <section aria-labelledby="how-title" class="check-form__how">
-        <h2 id="how-title" class="check-form__how-title">
-          {texts.howItWorks.title}
-        </h2>
-        <ol class="check-form__steps">
-          {texts.howItWorks.steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      </section>
     </div>
   );
 }

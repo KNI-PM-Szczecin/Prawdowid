@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { toneClass, verdictTone } from "../lib/presentation";
 import { texts } from "../lib/texts";
 import type { CheckResult } from "../lib/types";
 import { BadgeList } from "./BadgeList";
@@ -10,6 +11,11 @@ import "./ResultView.scss";
 import { SummaryBox } from "./SummaryBox";
 import { TechnicalDetails } from "./TechnicalDetails";
 
+function isInViewport(element: HTMLElement): boolean {
+  const rect = element.getBoundingClientRect();
+  return rect.bottom > 0 && rect.top < window.innerHeight;
+}
+
 interface ResultViewProps {
   result: CheckResult;
   submittedInput: string;
@@ -19,18 +25,51 @@ interface ResultViewProps {
 export function ResultView({ result, submittedInput, onNewCheck }: ResultViewProps) {
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const panelScrollRef = useRef<HTMLDivElement>(null);
   const document = result.document;
   const selectedClaim = result.claims.find((claim) => claim.id === selectedClaimId) ?? null;
   const panelOpen = selectedClaim !== null;
 
   useEffect(() => headingRef.current?.focus(), [result.requestId]);
 
+  useEffect(() => {
+    panelScrollRef.current?.scrollTo({ top: 0 });
+  }, [selectedClaimId]);
+
+  // Opening or closing the drawer reflows the main column, so the clicked claim would jump up or down.
+  // Its position on screen is recorded before the change and the page is scrolled by the difference after.
+  const scrollAnchorRef = useRef<{ element: HTMLElement; top: number } | null>(null);
+
+  const anchorTo = (element: HTMLElement | null) => {
+    scrollAnchorRef.current = element ? { element, top: element.getBoundingClientRect().top } : null;
+  };
+
+  useLayoutEffect(() => {
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+    scrollAnchorRef.current = null;
+    const shift = anchor.element.getBoundingClientRect().top - anchor.top;
+    if (shift !== 0) window.scrollBy({ top: shift });
+  }, [selectedClaimId]);
+
+  // The element that opened the drawer: focus returns to it on close.
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  const selectClaim = (claimId: string, trigger: HTMLElement) => {
+    triggerRef.current = trigger;
+    anchorTo(trigger);
+    setSelectedClaimId(claimId);
+  };
+
   const closePanel = () => {
-    const claimId = selectedClaimId;
+    const listTrigger = window.document.querySelector<HTMLElement>(`[data-claim-trigger="${selectedClaimId}"]`);
+    const trigger = triggerRef.current?.isConnected ? triggerRef.current : listTrigger;
+    triggerRef.current = null;
+    // The page must not move on close: only a trigger still on screen is held in place through the reflow.
+    anchorTo(trigger && isInViewport(trigger) ? trigger : null);
     setSelectedClaimId(null);
     window.requestAnimationFrame(() => {
-      const trigger = window.document.querySelector<HTMLElement>(`[data-claim-trigger="${claimId}"]`);
-      (trigger ?? headingRef.current)?.focus();
+      (trigger ?? headingRef.current)?.focus({ preventScroll: true });
     });
   };
 
@@ -55,10 +94,10 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
           text={document?.text ?? submittedInput}
           claims={result.claims}
           selectedClaimId={selectedClaimId}
-          onSelect={setSelectedClaimId}
+          onSelect={selectClaim}
         />
 
-        <ClaimList claims={result.claims} selectedClaimId={selectedClaimId} onSelect={setSelectedClaimId} />
+        <ClaimList claims={result.claims} selectedClaimId={selectedClaimId} onSelect={selectClaim} />
 
         <section aria-labelledby="limitations-title">
           <h2 id="limitations-title" class="section-title">
@@ -80,8 +119,8 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
       </div>
 
       {selectedClaim && (
-        <div class="result-view__side">
-          <div class="result-view__side-inner">
+        <div class={`result-view__side ${toneClass(verdictTone(selectedClaim))}`}>
+          <div ref={panelScrollRef} class="result-view__side-inner">
             <ClaimPanel claim={selectedClaim} onClose={closePanel} />
           </div>
         </div>

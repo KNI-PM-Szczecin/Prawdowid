@@ -8,7 +8,13 @@ export type SourceType = "official" | "secondary" | "factcheck" | "incident";
 export type SourceRole = "supports" | "refutes" | "context";
 export type WarningType = "source_status" | "incident_match" | "archival_material" | "other";
 export type SummaryLevel = "high" | "mixed" | "low" | "unknown";
-export type Badge = "fresh_material" | "archival_material" | "official_source_present" | "official_source_absent";
+export type Badge =
+  | "fresh_material"
+  | "archival_material"
+  | "official_source_present"
+  | "official_source_absent"
+  | "input_source_in_catalog"
+  | "input_source_outside_catalog";
 
 export interface Source {
   id: string;
