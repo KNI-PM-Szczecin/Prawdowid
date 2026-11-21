@@ -43,8 +43,13 @@ class Settings(BaseSettings):
     # Rerank budget: 15 chunks x 600 chars + 10 fact-checks + 10 incidents is about 5 s on CPU (contract: rag max 8 s).
     candidate_pool_size: int = 12
     rerank_top_k: int = 5
-    # Qwen 3.5 9B loses recall in the middle of long prompts; more than 7 passages drowns the contradiction rules.
+    # Small models (Qwen3 0.6B on FastFlowLM) lose recall in long prompts; more than 7 passages drowns the rules.
     rerank_top_k_max: int = 7
+    # A new document is a copy when most of its chunks point to the same other document and the mean best cosine
+    # is high. Measured on the demo corpus: re-fetched pages score mean 0.89-0.95 with share 0.75-1.0; distinct
+    # pages of one site either keep the mean below 0.88 or spread their matches over many documents (share <= 0.67).
+    near_duplicate_min_mean_cosine: float = 0.87
+    near_duplicate_min_share: float = 0.7
     # Sigmoid of the BGE reranker logit; below 0.5 (logit < 0) the pair is judged irrelevant, so it is not evidence.
     rerank_min_score: float = 0.5
     # Divides the logit before the sigmoid so strong matches (logit 5..10) stay distinguishable instead of all ~1.0.
@@ -105,7 +110,7 @@ class Settings(BaseSettings):
 
     # Optional OpenAI-compatible endpoint (e.g. FastFlowLM) for query expansion; empty = rule-based only.
     expansion_llm_url: str = ""
-    expansion_llm_model: str = "qwen3.5:9b"
+    expansion_llm_model: str = "qwen3:0.6b"
     expansion_llm_api_key: str = ""
     # Must fit inside rag's 8 s budget together with retrieval and reranking; on timeout the rules take over.
     expansion_llm_timeout_seconds: float = 3.0
