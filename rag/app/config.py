@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Supabase free tier caps pooler connections and backend/ uses the same database.
     postgres_pool_max_size: int = 5
     qdrant_url: str = "http://localhost:6333"
+    qdrant_timeout_seconds: int = 5
+    postgres_command_timeout_seconds: float = 5.0
     collection_name: str = "evidence_chunks"
     model_cache_dir: str = "/models"
 
@@ -31,11 +33,15 @@ class Settings(BaseSettings):
     # Profile from app/languages/<code>.json (stemmer + stopwords) for BM25; FastEmbed has no Polish stemmer.
     corpus_language: str = "pl"
 
-    chunk_max_chars: int = 1200
-    chunk_overlap_chars: int = 200
+    # Cross-encoder cost grows with text length (10 x 1200 chars = 4.7 s on 8 threads); 600 keeps rerank in budget.
+    chunk_max_chars: int = 600
+    chunk_overlap_chars: int = 100
+    # ONNX threads for embeddings and the reranker; 0 = all CPU cores.
+    model_threads: int = 0
 
     retrieval_limit_per_query: int = 30
-    candidate_pool_size: int = 30
+    # Rerank budget: 15 chunks x 600 chars + 10 fact-checks + 10 incidents is about 5 s on CPU (contract: rag max 8 s).
+    candidate_pool_size: int = 15
     rerank_top_k: int = 5
     # Qwen 3.5 9B loses recall in the middle of long prompts; more than 7 passages drowns the contradiction rules.
     rerank_top_k_max: int = 7
@@ -51,7 +57,7 @@ class Settings(BaseSettings):
     factcheck_url: str = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
     factcheck_language: str = "pl"
     factcheck_page_size: int = 10
-    factcheck_max_reviews: int = 15
+    factcheck_max_reviews: int = 10
     # Kept well under rag's own 8 s budget in CONTRACT.md §2, so a slow Google never sinks the whole search.
     factcheck_timeout_seconds: float = 4.0
     # Same query within the TTL reuses the answer: fewer paid calls and the same result for repeated checks.
@@ -83,7 +89,8 @@ class Settings(BaseSettings):
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3.5:9b"
     expansion_llm_api_key: str = ""
-    expansion_llm_timeout_seconds: float = 20.0
+    # Must fit inside rag's 8 s budget together with retrieval and reranking; on timeout the rules take over.
+    expansion_llm_timeout_seconds: float = 3.0
 
     protection_days: int = 7
     eviction_max_active_chunks: int = 50000

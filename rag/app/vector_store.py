@@ -59,7 +59,7 @@ class VectorStore:
     """
 
     def __init__(self, collection_name: str = settings.collection_name) -> None:
-        self._client = AsyncQdrantClient(url=settings.qdrant_url)
+        self._client = AsyncQdrantClient(url=settings.qdrant_url, timeout=settings.qdrant_timeout_seconds)
         self._collection = collection_name
 
     async def ensure_collection(self) -> None:

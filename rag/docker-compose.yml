@@ -1,12 +1,14 @@
 services:
   qdrant:
     image: qdrant/qdrant:v1.20.0
+    restart: unless-stopped
     volumes:
       - qdrant_data:/qdrant/storage
 
   postgres:
     profiles: ["local-db"]
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: rag
       # Only the local-db profile uses it; the postgres image refuses to start with an empty password.
@@ -24,6 +26,7 @@ services:
 
   rag:
     build: .
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8001:8000"
     environment:

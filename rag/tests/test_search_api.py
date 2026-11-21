@@ -41,6 +41,8 @@ class FakeStore:
         return self._chunks
 
     async def count(self):
+        if self._failure is not None:
+            raise self._failure
         return len(self._chunks)
 
 
@@ -271,3 +273,19 @@ def test_euvsdisinfo_sync_requires_admin_and_token(client, monkeypatch):
     assert response.status_code == 403
     catalog = client.get("/incidents").json()
     assert catalog["euvsdisinfo"]["enabled"] is False
+
+
+def test_health_reports_each_dependency_and_degrades_to_503(client):
+    assert client.get("/health").json() == {
+        "status": "ok",
+        "corpusVersion": CORPUS_VERSION,
+        "database": "ok",
+        "qdrant": "ok",
+        "incidentCatalog": "ok",
+    }
+    app.state.store = FakeStore([], failure=RuntimeError("qdrant down"))
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["status"] == "degraded"
+    assert response.json()["qdrant"] == "unavailable"
+    assert response.json()["database"] == "ok"
