@@ -1,6 +1,6 @@
 {
-  "version": "2026-11-21",
-  "note": "Katalog zaufanych źródeł: przykłady z listy mentora MSZ (docs/draft.md) i rekomendacje briefu (spec/brief.md §7). Pełna lista od mentora do uzupełnienia. Dopasowanie po domenie URL (domena lub jej poddomena). Obecność domeny w katalogu nigdy nie jest podstawą werdyktu, tylko domyślnych metadanych i neutralnej informacji o statusie źródła.",
+  "version": "2026-11-21.2",
+  "note": "Katalog zaufanych źródeł: lista domen rządowych od mentora MSZ (aktualności i ostrzeżenia), rekomendacje briefu (spec/brief.md §7) i weryfikatorzy faktów. Dopasowanie po domenie URL (domena lub jej poddomena, najdłuższa wygrywa). Obecność domeny w katalogu nigdy nie jest podstawą werdyktu, tylko domyślnych metadanych i neutralnej informacji o statusie źródła.",
   "rules": {
     "official": "Organ władzy publicznej, instytucja państwowa lub unijna. Dokumenty pierwotne: akty prawne, komunikaty, dane. Tier 1, wiarygodność wysoka.",
     "factcheck": "Organizacja weryfikująca fakty z jawną metodologią i procedurą sprostowań (standardy IFCN/EFCSN). Tier 2. Ocena weryfikatora jest dowodem do cytowania, nie werdyktem systemu.",
@@ -10,32 +10,377 @@
     "exclusion": "Źródło usuwamy z katalogu, gdy publikuje bez sprostowań lub gdy mentor/zespół zgłosi zastrzeżenia. Dokumenty wykluczonego źródła usuwa DELETE /sources/{documentId}."
   },
   "entries": [
-    { "publisher": "Administracja rządowa RP (gov.pl, w tym RCB, GIS, KG PSP, MSWiA, MSZ)", "domains": ["gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Serwis rządowy; obejmuje komunikaty ministerstw, RCB, GIS i KG PSP publikowane pod gov.pl." },
-    { "publisher": "ISAP - Internetowy System Aktów Prawnych", "domains": ["isap.sejm.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Kancelaria Sejmu; teksty aktów prawnych. Rekomendacja briefu." },
-    { "publisher": "Sejm RP", "domains": ["sejm.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Druki, głosowania, stenogramy." },
-    { "publisher": "Senat RP", "domains": ["senat.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Druki i głosowania Senatu." },
-    { "publisher": "Dziennik Ustaw", "domains": ["dziennikustaw.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Urzędowy publikator aktów prawnych." },
-    { "publisher": "Monitor Polski", "domains": ["monitorpolski.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Urzędowy publikator." },
-    { "publisher": "dane.gov.pl", "domains": ["dane.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Otwarte dane publiczne. Rekomendacja briefu." },
-    { "publisher": "EUR-Lex", "domains": ["eur-lex.europa.eu"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Prawo Unii Europejskiej. Rekomendacja briefu." },
-    { "publisher": "Komisja Europejska", "domains": ["ec.europa.eu", "commission.europa.eu"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Instytucja UE." },
-    { "publisher": "Policja", "domains": ["policja.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Komunikaty Policji. Lista mentora." },
-    { "publisher": "CERT Polska", "domains": ["cert.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Zespół reagowania NASK. Lista mentora." },
-    { "publisher": "IMGW-PIB", "domains": ["imgw.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Instytut meteorologii, ostrzeżenia. Lista mentora." },
-    { "publisher": "GDDKiA", "domains": ["gddkia.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Zarządca dróg krajowych. Lista mentora." },
-    { "publisher": "Urząd Lotnictwa Cywilnego", "domains": ["ulc.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Lista mentora." },
-    { "publisher": "Główny Urząd Statystyczny", "domains": ["stat.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Statystyka publiczna." },
-    { "publisher": "Narodowy Bank Polski", "domains": ["nbp.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Bank centralny." },
-    { "publisher": "ZUS", "domains": ["zus.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Instytucja publiczna." },
-    { "publisher": "NFZ", "domains": ["nfz.gov.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Instytucja publiczna." },
-    { "publisher": "NASK", "domains": ["nask.pl"], "sourceType": "official", "tier": 2, "reliability": "high", "qualification": "Państwowy instytut badawczy; materiały o dezinformacji. Rekomendacja briefu." },
-    { "publisher": "Demagog", "domains": ["demagog.org.pl"], "sourceType": "factcheck", "tier": 2, "reliability": "high", "qualification": "Weryfikator faktów, sygnatariusz IFCN. Występuje w scenariuszach mentora." },
-    { "publisher": "AFP Sprawdzam", "domains": ["sprawdzam.afp.com"], "sourceType": "factcheck", "tier": 2, "reliability": "high", "qualification": "Dział weryfikacji AFP, sygnatariusz IFCN." },
-    { "publisher": "Konkret24", "domains": ["konkret24.tvn24.pl"], "sourceType": "factcheck", "tier": 2, "reliability": "high", "qualification": "Weryfikator faktów, sygnatariusz IFCN." },
-    { "publisher": "Fakenews.pl", "domains": ["fakenews.pl"], "sourceType": "factcheck", "tier": 2, "reliability": "medium", "qualification": "Weryfikator faktów z jawną metodologią; status IFCN do potwierdzenia." },
-    { "publisher": "PAP FakeHunter", "domains": ["fakehunter.pap.pl"], "sourceType": "factcheck", "tier": 2, "reliability": "medium", "qualification": "Weryfikacja faktów Polskiej Agencji Prasowej." },
-    { "publisher": "Polska Agencja Prasowa", "domains": ["pap.pl"], "sourceType": "secondary", "tier": 2, "reliability": "medium", "qualification": "Agencja informacyjna z procedurą sprostowań. Występuje w scenariuszach mentora." },
-    { "publisher": "EDMO", "domains": ["edmo.eu"], "sourceType": "secondary", "tier": 2, "reliability": "high", "qualification": "Europejskie Obserwatorium Mediów Cyfrowych. Rekomendacja briefu." },
-    { "publisher": "EUvsDisinfo", "domains": ["euvsdisinfo.eu"], "sourceType": "incident", "tier": 2, "reliability": "high", "qualification": "Rejestr EEAS; importowany do katalogu kampanii, nie do korpusu dowodów." }
+    {
+      "publisher": "Administracja rządowa RP (gov.pl: ostrzeżenia, RCB, MSWiA, KG PSP, GIS, MON, MI, MSZ, KPRM)",
+      "domains": [
+        "gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Serwis rządowy; obejmuje gov.pl/web/gov/ostrzezenia, RCB (raport dobowy), MSWiA (RSO), KG PSP, GIS, obronę narodową, infrastrukturę, dyplomację (informacje dla podróżujących) i premiera. Lista mentora."
+    },
+    {
+      "publisher": "ISAP - Internetowy System Aktów Prawnych",
+      "domains": [
+        "isap.sejm.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Kancelaria Sejmu; teksty aktów prawnych. Rekomendacja briefu."
+    },
+    {
+      "publisher": "Sejm RP",
+      "domains": [
+        "sejm.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Druki, głosowania, stenogramy."
+    },
+    {
+      "publisher": "Senat RP",
+      "domains": [
+        "senat.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Druki i głosowania Senatu."
+    },
+    {
+      "publisher": "Dziennik Ustaw",
+      "domains": [
+        "dziennikustaw.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Urzędowy publikator aktów prawnych."
+    },
+    {
+      "publisher": "Monitor Polski",
+      "domains": [
+        "monitorpolski.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Urzędowy publikator."
+    },
+    {
+      "publisher": "dane.gov.pl",
+      "domains": [
+        "dane.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Otwarte dane publiczne. Rekomendacja briefu."
+    },
+    {
+      "publisher": "EUR-Lex",
+      "domains": [
+        "eur-lex.europa.eu"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Prawo Unii Europejskiej. Rekomendacja briefu."
+    },
+    {
+      "publisher": "Komisja Europejska",
+      "domains": [
+        "ec.europa.eu",
+        "commission.europa.eu"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Instytucja UE."
+    },
+    {
+      "publisher": "Policja",
+      "domains": [
+        "policja.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Komunikaty Policji. Lista mentora."
+    },
+    {
+      "publisher": "CERT Polska",
+      "domains": [
+        "cert.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Zespół reagowania NASK; komunikaty moje.cert.pl. Lista mentora."
+    },
+    {
+      "publisher": "IMGW-PIB",
+      "domains": [
+        "imgw.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Ostrzeżenia meteo, hydro i bałtyckie (meteo.imgw.pl, hydro.imgw.pl, baltyk.imgw.pl). Lista mentora."
+    },
+    {
+      "publisher": "GDDKiA",
+      "domains": [
+        "gddkia.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Informacje drogowe i lista utrudnień (drogi.gddkia.gov.pl). Lista mentora."
+    },
+    {
+      "publisher": "Urząd Lotnictwa Cywilnego",
+      "domains": [
+        "ulc.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Lista mentora."
+    },
+    {
+      "publisher": "Główny Urząd Statystyczny",
+      "domains": [
+        "stat.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Statystyka publiczna."
+    },
+    {
+      "publisher": "Narodowy Bank Polski",
+      "domains": [
+        "nbp.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Bank centralny."
+    },
+    {
+      "publisher": "ZUS",
+      "domains": [
+        "zus.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Instytucja publiczna."
+    },
+    {
+      "publisher": "NFZ",
+      "domains": [
+        "nfz.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Instytucja publiczna."
+    },
+    {
+      "publisher": "NASK",
+      "domains": [
+        "nask.pl"
+      ],
+      "sourceType": "official",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Państwowy instytut badawczy; materiały o dezinformacji. Rekomendacja briefu."
+    },
+    {
+      "publisher": "Demagog",
+      "domains": [
+        "demagog.org.pl"
+      ],
+      "sourceType": "factcheck",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Weryfikator faktów, sygnatariusz IFCN. Występuje w scenariuszach mentora."
+    },
+    {
+      "publisher": "AFP Sprawdzam",
+      "domains": [
+        "sprawdzam.afp.com"
+      ],
+      "sourceType": "factcheck",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Dział weryfikacji AFP, sygnatariusz IFCN."
+    },
+    {
+      "publisher": "Konkret24",
+      "domains": [
+        "konkret24.tvn24.pl"
+      ],
+      "sourceType": "factcheck",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Weryfikator faktów, sygnatariusz IFCN."
+    },
+    {
+      "publisher": "Fakenews.pl",
+      "domains": [
+        "fakenews.pl"
+      ],
+      "sourceType": "factcheck",
+      "tier": 2,
+      "reliability": "medium",
+      "qualification": "Weryfikator faktów z jawną metodologią; status IFCN do potwierdzenia."
+    },
+    {
+      "publisher": "PAP FakeHunter",
+      "domains": [
+        "fakehunter.pap.pl"
+      ],
+      "sourceType": "factcheck",
+      "tier": 2,
+      "reliability": "medium",
+      "qualification": "Weryfikacja faktów Polskiej Agencji Prasowej."
+    },
+    {
+      "publisher": "Polska Agencja Prasowa",
+      "domains": [
+        "pap.pl"
+      ],
+      "sourceType": "secondary",
+      "tier": 2,
+      "reliability": "medium",
+      "qualification": "Agencja informacyjna z procedurą sprostowań. Występuje w scenariuszach mentora."
+    },
+    {
+      "publisher": "EDMO",
+      "domains": [
+        "edmo.eu"
+      ],
+      "sourceType": "secondary",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Europejskie Obserwatorium Mediów Cyfrowych. Rekomendacja briefu."
+    },
+    {
+      "publisher": "EUvsDisinfo",
+      "domains": [
+        "euvsdisinfo.eu"
+      ],
+      "sourceType": "incident",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Rejestr EEAS; importowany do katalogu kampanii, nie do korpusu dowodów."
+    },
+    {
+      "publisher": "Odyseusz (MSZ, rejestracja podróży i ostrzeżenia dla podróżujących)",
+      "domains": [
+        "odyseusz.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Serwis MSZ. Lista mentora."
+    },
+    {
+      "publisher": "Policja (jednostki wojewódzkie)",
+      "domains": [
+        "policja.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Komunikaty komend wojewódzkich, np. mazowiecka.policja.gov.pl. Lista mentora."
+    },
+    {
+      "publisher": "Państwowa Agencja Atomistyki",
+      "domains": [
+        "paa.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Monitoring radiacyjny i komunikaty. Lista mentora."
+    },
+    {
+      "publisher": "Główny Inspektorat Ochrony Środowiska",
+      "domains": [
+        "gios.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Jakość powietrza (powietrze.gios.gov.pl). Lista mentora."
+    },
+    {
+      "publisher": "Urząd Transportu Kolejowego",
+      "domains": [
+        "utk.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Prawa pasażerów kolei. Lista mentora."
+    },
+    {
+      "publisher": "Morska Służba Poszukiwania i Ratownictwa (SAR)",
+      "domains": [
+        "sar.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Lista mentora."
+    },
+    {
+      "publisher": "Urzędy Morskie (Gdynia, Szczecin)",
+      "domains": [
+        "umgdy.gov.pl",
+        "ums.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Bezpieczeństwo morskie, warunki żeglugi. Lista mentora."
+    },
+    {
+      "publisher": "Wody Polskie",
+      "domains": [
+        "wody.gov.pl"
+      ],
+      "sourceType": "official",
+      "tier": 1,
+      "reliability": "high",
+      "qualification": "Komunikaty nawigacyjne (publikowane też pod gov.pl/web/wody-polskie). Lista mentora."
+    },
+    {
+      "publisher": "Komenda Główna Straży Ochrony Kolei",
+      "domains": [
+        "kgsok.pl"
+      ],
+      "sourceType": "official",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Formacja państwowa (PKP PLK). Lista mentora."
+    },
+    {
+      "publisher": "Portal Pasażera (PKP PLK)",
+      "domains": [
+        "portalpasazera.pl"
+      ],
+      "sourceType": "official",
+      "tier": 2,
+      "reliability": "high",
+      "qualification": "Rozkłady i utrudnienia na kolei; spółka Skarbu Państwa. Lista mentora."
+    }
   ]
 }

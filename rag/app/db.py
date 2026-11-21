@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from app.models import QualifiedSource
 logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 EMPTY_CORPUS_VERSION = "empty"
 
 _pool: asyncpg.Pool | None = None
@@ -84,6 +86,14 @@ async def active_chunk_ids_for_document(document_id: str) -> list[UUID]:
         "SELECT chunk_id FROM document_metadata WHERE source_id = $1 AND NOT is_deleted", document_id
     )
     return [row["chunk_id"] for row in rows]
+
+
+async def fetch_scraped_pages(limit: int) -> list[asyncpg.Record]:
+    """Rows of the scraper's table in the shared database; the table name is configuration, so it is validated."""
+    table = settings.corpus_scraped_table
+    if not IDENTIFIER.fullmatch(table):
+        raise ValueError(f"Invalid corpus table name: {table!r}")
+    return await pool().fetch(f'SELECT id, date, site, title, content FROM "{table}" ORDER BY id LIMIT $1', limit)
 
 
 async def find_duplicate_document(content_hash: str, document_id: str) -> str | None:

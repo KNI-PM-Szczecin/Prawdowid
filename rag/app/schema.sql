@@ -30,5 +30,12 @@ ALTER TABLE document_metadata ENABLE ROW LEVEL SECURITY;
 -- SHA-256 of the normalized text; two active documents with the same text are a poisoning or operator error.
 ALTER TABLE sources ADD COLUMN IF NOT EXISTS content_hash CHAR(64);
 
+-- Tables created by an earlier schema (DATE / TIMESTAMP columns) are migrated in place; no-op when already TIMESTAMPTZ.
+ALTER TABLE sources ALTER COLUMN published_at TYPE TIMESTAMPTZ, ALTER COLUMN fetched_at TYPE TIMESTAMPTZ;
+ALTER TABLE document_metadata
+    ALTER COLUMN added_at TYPE TIMESTAMPTZ,
+    ALTER COLUMN protected_until TYPE TIMESTAMPTZ,
+    ALTER COLUMN last_accessed_at TYPE TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_document_metadata_active
     ON document_metadata (is_deleted, tier, protected_until);

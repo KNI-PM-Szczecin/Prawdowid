@@ -37,7 +37,7 @@ Testy nie wymagają Dockera ani modeli: czyste funkcje (chunking, stemmer, ekspa
 
 ## Budżet czasu
 
-Kontrakt daje rag 8 s na wywołanie. Reranker (cross-encoder na CPU) jest najdroższy i rośnie liniowo z długością tekstu, dlatego fragmenty mają 600 znaków, pula kandydatów 15, fact-checków jest maks. 10, a sprawy z katalogu są oceniane po pierwszych 400 znakach. Zmierzone: najgorszy przypadek ok. 5 s, typowe zapytanie 2–3 s. Ekspansja przez LLM ma limit 3 s, Qdrant i Postgres po 5 s. `GET /health` sprawdza bazę, Qdrant i katalog incydentów i zwraca `503 degraded`, gdy któreś nie odpowiada; kontenery mają `restart: unless-stopped`.
+Kontrakt daje rag 8 s na wywołanie. Reranker (cross-encoder na CPU) jest najdroższy i rośnie liniowo z długością tekstu, dlatego fragmenty mają 450 znaków, pula kandydatów 12, fact-checków jest maks. 10, a z katalogu kampanii rerankowanych jest 5 spraw po pierwszych 400 znakach. Metadane z Postgresa są pobierane równolegle z rerankingiem. Zmierzone na korpusie 104 stron (1504 fragmenty) i katalogu 201 spraw: mediana 3,3 s, przed strojeniem 6,0 s. To samo zapytanie (z filtrami i `topK`) w ciągu 10 min i przy tej samej wersji korpusu wraca z pamięci podręcznej w RAM, więc powtórzenia i drugi kanał dostają identyczną odpowiedź bez kosztu rerankera. Ekspansja przez LLM ma limit 3 s, Qdrant i Postgres po 5 s. `GET /health` sprawdza bazę, Qdrant i katalog incydentów i zwraca `503 degraded`, gdy któreś nie odpowiada; kontenery mają `restart: unless-stopped`.
 
 ## Bezpieczeństwo
 
@@ -75,6 +75,8 @@ Korpus domyślnie po polsku (`RAG_CORPUS_LANGUAGE=pl`). BM25 z FastEmbed nie ma 
 ## Zasilanie korpusu
 
 Katalog zaufanych źródeł jest w `app/data/sources_catalog.json` (`GET /sources/catalog`): wydawca, domeny, typ, tier, wiarygodność i uzasadnienie kwalifikacji, plus reguły dla typów, źródeł spoza katalogu i wykluczania. Dopasowanie po domenie URL (najdłuższa pasująca domena wygrywa, więc `isap.sejm.gov.pl` ma własny wpis mimo ogólnego `gov.pl`). Przy `POST /ingest` dla domeny z katalogu `sourceType`, `tier` i `reliability` można pominąć; dla domeny spoza katalogu trzeba je podać jawnie (inaczej `422`), a dokument jest w audycie oznaczony `inCatalog: false`. Obecność w katalogu nigdy nie wpływa na werdykt, tylko na metadane i neutralną informację o statusie źródła. Nowe źródło to nowy wpis w pliku, bez zmian w kodzie.
+
+Import ze scrapera zespołu: scraper zapisuje strony do tabeli `ScrappedData` (`id`, `date` jako RRRRMMDD, `site`, `title`, `content`) we wspólnej bazie. `POST /admin/corpus/sync?maxDocuments=5000` (token admina, `202`) wgrywa je w tle przez zwykłą ścieżkę `ingest`: katalog nadaje typ i tier po domenie, kopie treści są pomijane, a linie powtarzające się w co najmniej 30% stron (menu, stopki) są usuwane przed podziałem na fragmenty. Postęp w `GET /corpus/sync`. Import jest idempotentny (`documentId` = `scrapped:<id>`, ponowne wgranie podmienia fragmenty). Na CPU 111 stron to ok. 8 min. Tabela `Law` (polskie prawo) czeka na dane i ustalenie adresu URL dla aktów.
 
 Duplikaty: rag liczy skrót znormalizowanej treści (`content_hash`) i odrzuca `409` dokument o tej samej treści co inny aktywny dokument. Ponowne wgranie pod tym samym `documentId` nadal podmienia fragmenty. Niemal identyczne teksty (parafrazy) nie są wykrywane.
 
