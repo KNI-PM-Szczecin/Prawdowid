@@ -7,7 +7,8 @@
 | `requirements.md` | Zwięzła lista wymagań z briefu: MVP, funkcje premiowane, twarde zasady, miary, punktacja. Czytaj najpierw. |
 | `brief.md` | Pełna treść zadania od organizatora (MSZ). Źródło prawdy o wymaganiach. |
 | `regulation.md` | Regulamin zadania (nagroda, jury, przeniesienie praw autorskich). |
-| `originals/` | Oryginalne PDF-y. Przy każdej rozbieżności wygrywają nad wyciągami tekstowymi. |
+| `mentor-test-scenarios.md` | Przykładowe pytania i oczekiwane odpowiedzi dla scenariuszy A–J od mentora (Piotr Sosnowski). Szablon, część pól do uzupełnienia; mentor zapowiedział aktualizację. |
+| `originals/` | Oryginalne pliki (PDF, DOCX). Przy każdej rozbieżności wygrywają nad wyciągami tekstowymi. |
 
 ## Pierwszeństwo
 1. `brief.md` i `regulation.md` wygrywają w sprawie tego, co produkt ma robić i jak jest oceniany.
