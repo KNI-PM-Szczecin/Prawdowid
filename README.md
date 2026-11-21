@@ -7,6 +7,7 @@ Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje si�
 - `spec/` — brief zadania, regulamin, wymagania (przeczytaj najpierw)
 - `src/` — React + Vite (interfejs WWW, frontend)
 - `front/` — nieużywany, frontend jest w `src/`
+- Docelowo `src/` ma zawierać `src/frontend/` i `src/backend/` (decyzja do uzgodnienia z zespołem, przeniesienie w osobnym PR). Do tego czasu obowiązuje układ powyżej.
 - `backend/` — Go (API, kanały)
 - `agent/` — Go (logika weryfikacji)
 - `rag/` — korpus i wyszukiwanie źródeł
@@ -53,3 +54,6 @@ Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
 
 ## Zespół
 Uzupełnić.
+
+## Wdrożenie (Railway)
+Jeden publiczny adres obsługuje usługa `front` (Caddy): serwuje zbudowany `src/` i przekazuje `/api/*` do `backend/` przez sieć prywatną. `backend/`, `rag/` i Qdrant nie mają publicznych domen. Dockerfile'e są w `deploy/` (kontekst budowania to korzeń repo). Sekrety tylko w zmiennych Railwaya.

@@ -28,6 +28,8 @@ wdrożeniowość 20%, użyteczność 15%, innowacyjność 15%. Funkcje premiowan
 | `rag/` | Python (FastAPI), uv | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
 | `eval/` | Python | Zestaw własnych przypadków testowych (scenariusze A–J z `spec/brief.md`, min. 30), skrypt liczący metryki z `spec/requirements.md` i raport wyników do prezentacji. Służy też do strojenia progu wstrzymania się z `CONTRACT.md`. |
 
+**Docelowa struktura (decyzja Pabla, do uzgodnienia z zespołem):** frontend i backend mają docelowo trafić do wspólnego folderu `src/` jako `src/frontend/` i `src/backend/`. Do czasu osobnego PR z przeniesieniem (razem z `go.work`, ścieżkami w `CONTRACT.md`, Dockerfile'ami w `deploy/` i README) obowiązuje struktura z tabeli powyżej: nie przenoś folderów na własną rękę.
+
 Kanały (`backend/`) nigdy nie zawierają logiki weryfikacji. Wołają `agent/` tym samym wywołaniem niezależnie od kanału (`backend/` importuje pakiet z `agent/`, oba moduły spina `go.work` w korzeniu).
 **Menedżer pakietów:** `pnpm` w `src/` (własny `package.json` i `pnpm-lock.yaml`), moduły Go w `backend/` i `agent/` (`go.mod`, `go.sum`; zależności przez `go get`, porządek przez `go mod tidy`), `uv` w `rag/`. Nie używaj `npm` ani `yarn` i nie commituj `package-lock.json`.
 `src/` to statyczna aplikacja React (Vite, bez serwera po stronie frontu). Nie zawiera logiki weryfikacji, woła API `backend/` zgodnie z `CONTRACT.md`.
