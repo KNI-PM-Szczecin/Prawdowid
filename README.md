@@ -53,3 +53,6 @@ Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
 
 ## Zespół
 Uzupełnić.
+
+## Wdrożenie (Railway)
+Jeden publiczny adres obsługuje usługa `front` (Caddy): serwuje zbudowany `src/frontend/` i przekazuje `/api/*` do `src/backend/` przez sieć prywatną. `src/backend/`, `rag/` i Qdrant nie mają publicznych domen. Dockerfile'e są w `deploy/` (kontekst budowania to korzeń repo). Sekrety tylko w zmiennych Railwaya.
