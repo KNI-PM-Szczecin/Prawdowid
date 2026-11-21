@@ -326,6 +326,8 @@ Drugi kanał to **bot na Discordzie** (połączenie wychodzące przez Gateway), 
 - Proponowany sposób użycia: wiadomość w wydzielonym kanale (np. `#prawdowid`) albo wzmianka bota. Odczyt treści wiadomości wymaga włączenia w Discord Developer Portal opcji **Message Content Intent**. Alternatywa bez tej opcji: komenda `/sprawdz`, ale wtedy trzeba w ciągu 3 s potwierdzić odebranie (odpowiedź „deferred”) i dopiero potem wysłać wynik.
 - Odpowiedź w jednej wiadomości do 2000 znaków (limit Discorda). Dłuższe wyniki skracamy i dajemy link do pełnego widoku. Podczas sprawdzania bot pokazuje „pisze…”.
 - Z kanału wolno zmienić tylko pole `Channel` i format odpowiedzi. Ten sam `Input` daje ten sam wynik co WWW (scenariusz G).
+- **Decyzje Pawła (21.11):** (1) bot czyta wiadomości **w kanale lub w wiadomości prywatnej (DM)**, nie przez `/sprawdz`; (2) **tylko stdlib Go**, to ma być MVP; (3) `agent.Verify` jeszcze nie istnieje, więc kanał powstaje na **mocku** zwracającym `CheckResult`.
+- **Uwaga techniczna (do potwierdzenia przez Pawła):** stdlib Go **nie ma klienta WebSocket**, a Gateway Discorda go wymaga. Przy samej stdlib realny MVP to odpytywanie REST (`GET /channels/{id}/messages` co 1–2 s dla jednego, wskazanego kanału, odpowiedź przez `POST /channels/{id}/messages`, z uwzględnieniem limitów Discorda). DM są tą drogą trudniejsze, bo bot nie ma prostego sposobu na wylistowanie cudzych DM; wtedy kanał jest drogą podstawową, a DM dopiero przy małej zależności od biblioteki WebSocket. Zmiana na bibliotekę wymaga wpisu w PR (`AGENTS.md`: najpierw stdlib).
 - Plan B na brak sieci lub kont: adapter demonstracyjny z tą samą ścieżką `agent.Verify` (brief dopuszcza adapter, gdy organizator nie zapewnia kont).
 
 Odpowiedź w kanale (`ToReply`), przykład:
