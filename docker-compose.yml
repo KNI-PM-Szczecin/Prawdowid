@@ -72,8 +72,10 @@ services:
       DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-5}
       RAG_URL: http://rag:8000
       LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
     depends_on:
       postgres:

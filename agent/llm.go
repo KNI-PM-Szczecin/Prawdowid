@@ -8,15 +8,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
 const (
 	// Deterministic answers: the same input must give the same verdict on every channel (CONTRACT.md §2).
-	llmTemperature  = 0.0
-	llmMaxTokens    = 400
-	maxErrorBodyLen = 200
+	llmTemperature = 0.0
+	llmMaxTokens   = 400
+	// OpenAI reasoning models count reasoning tokens against the limit, so leave headroom.
+	openAIMaxCompletionTokens = 800
+	openAIHost                = "api.openai.com"
+	// "none" is accepted by gpt-6-luna and gpt-6-sol; gpt-6.1-sol and gpt-6-astra need "low".
+	defaultReasoningEffort = "none"
+	maxErrorBodyLen        = 200
 )
 
 // Completion is one model answer with token counts for cost logging.
@@ -42,6 +48,23 @@ type OpenAICompatibleProvider struct {
 	apiKey  string
 	model   string
 	client  *http.Client
+	// reasoningEffort is sent only to api.openai.com (GPT-5/6 reasoning models).
+	reasoningEffort string
+}
+
+// WithReasoningEffort overrides the OpenAI reasoning effort; empty keeps the default.
+func (p *OpenAICompatibleProvider) WithReasoningEffort(effort string) *OpenAICompatibleProvider {
+	if effort != "" {
+		p.reasoningEffort = effort
+	}
+	return p
+}
+
+// isOpenAI reports whether the provider talks to the hosted OpenAI API, which rejects
+// temperature, max_tokens and unknown fields such as think on GPT-5/6 models.
+func (p *OpenAICompatibleProvider) isOpenAI() bool {
+	parsed, err := url.Parse(p.baseURL)
+	return err == nil && strings.EqualFold(parsed.Hostname(), openAIHost)
 }
 
 // NewOpenAICompatibleProvider builds a provider; apiKey may be empty for local servers.
@@ -51,6 +74,8 @@ func NewOpenAICompatibleProvider(baseURL, apiKey, model string, timeout time.Dur
 		apiKey:  apiKey,
 		model:   model,
 		client:  &http.Client{Timeout: timeout},
+
+		reasoningEffort: defaultReasoningEffort,
 	}
 }
 
@@ -69,6 +94,14 @@ type chatRequest struct {
 	Think       bool          `json:"think"` // Qwen3 on FastFlowLM: thinking off keeps answers short and JSON-only
 }
 
+// openAIChatRequest is the request shape accepted by OpenAI GPT-5/6 models.
+type openAIChatRequest struct {
+	Model               string        `json:"model"`
+	Messages            []chatMessage `json:"messages"`
+	MaxCompletionTokens int           `json:"max_completion_tokens"`
+	ReasoningEffort     string        `json:"reasoning_effort"`
+}
+
 type chatResponse struct {
 	Choices []struct {
 		Message struct {
@@ -83,13 +116,7 @@ type chatResponse struct {
 
 // Generate sends system and user messages separately; source text never reaches the system message.
 func (p *OpenAICompatibleProvider) Generate(ctx context.Context, system, user string) (Completion, error) {
-	payload, err := json.Marshal(chatRequest{
-		Model:       p.model,
-		Messages:    []chatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}},
-		Temperature: llmTemperature,
-		MaxTokens:   llmMaxTokens,
-		Think:       false,
-	})
+	payload, err := p.payload(system, user)
 	if err != nil {
 		return Completion{}, fmt.Errorf("encode chat request: %w", err)
 	}
@@ -125,6 +152,26 @@ func (p *OpenAICompatibleProvider) Generate(ctx context.Context, system, user st
 		InputTokens:  parsed.Usage.PromptTokens,
 		OutputTokens: parsed.Usage.CompletionTokens,
 	}, nil
+}
+
+// payload builds the request body for the local (FastFlowLM, Ollama) or the hosted OpenAI dialect.
+func (p *OpenAICompatibleProvider) payload(system, user string) ([]byte, error) {
+	messages := []chatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}}
+	if p.isOpenAI() {
+		return json.Marshal(openAIChatRequest{
+			Model:               p.model,
+			Messages:            messages,
+			MaxCompletionTokens: openAIMaxCompletionTokens,
+			ReasoningEffort:     p.reasoningEffort,
+		})
+	}
+	return json.Marshal(chatRequest{
+		Model:       p.model,
+		Messages:    messages,
+		Temperature: llmTemperature,
+		MaxTokens:   llmMaxTokens,
+		Think:       false,
+	})
 }
 
 func truncate(text string, limit int) string {

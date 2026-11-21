@@ -44,7 +44,8 @@ func NewFromEnv(logger *slog.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	provider := NewOpenAICompatibleProvider(config.LLMBaseURL, config.LLMAPIKey, config.LLMModel, config.LLMTimeout)
+	provider := NewOpenAICompatibleProvider(config.LLMBaseURL, config.LLMAPIKey, config.LLMModel, config.LLMTimeout).
+		WithReasoningEffort(config.LLMReasoningEffort)
 	return New(config, provider, logger)
 }
 
