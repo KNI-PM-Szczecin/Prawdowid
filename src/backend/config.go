@@ -12,6 +12,11 @@ import (
 const (
 	defaultPort             = "3001"
 	defaultDatabaseMaxConns = 5
+	defaultRateLimit        = 20
+	defaultRetentionDays    = 30
+	defaultArchivalDays     = 365
+	defaultRagURL           = "http://localhost:8001"
+	defaultTrustedProxyHops = 1
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -22,6 +27,16 @@ type Config struct {
 	Port             string
 	DatabaseURL      string
 	DatabaseMaxConns int32
+	// RateLimitPerMinute is the number of checks one client address may start per minute.
+	RateLimitPerMinute int
+	// RetentionDays is how long stored check runs are kept before they are deleted.
+	RetentionDays int
+	// ArchivalDays is the age of the newest source after which material is flagged as archival.
+	ArchivalDays int
+	// RagURL is the rag service address, the same variable the agent reads.
+	RagURL string
+	// TrustedProxyHops is how many proxies append to X-Forwarded-For before the backend; the rate limiter reads that entry from the right.
+	TrustedProxyHops int
 }
 
 func loadConfig() (Config, error) {
@@ -41,10 +56,34 @@ func loadConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	rateLimit, err := intFromEnv("CHECK_RATE_LIMIT_PER_MINUTE", defaultRateLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	retentionDays, err := intFromEnv("CHECK_RETENTION_DAYS", defaultRetentionDays)
+	if err != nil {
+		return Config{}, err
+	}
+
+	archivalDays, err := intFromEnv("BADGE_ARCHIVAL_DAYS", defaultArchivalDays)
+	if err != nil {
+		return Config{}, err
+	}
+
+	trustedProxyHops, err := intFromEnv("TRUSTED_PROXY_HOPS", defaultTrustedProxyHops)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		Port:             stringFromEnv("PORT", defaultPort),
-		DatabaseURL:      databaseURL,
-		DatabaseMaxConns: int32(maxConns),
+		Port:               stringFromEnv("PORT", defaultPort),
+		DatabaseURL:        databaseURL,
+		DatabaseMaxConns:   int32(maxConns),
+		RateLimitPerMinute: rateLimit,
+		RetentionDays:      retentionDays,
+		ArchivalDays:       archivalDays,
+		RagURL:             stringFromEnv("RAG_URL", defaultRagURL),
+		TrustedProxyHops:   trustedProxyHops,
 	}, nil
 }
 
