@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     corpus_fetch_max_bytes: int = 2_000_000
     corpus_fetch_delay_seconds: float = 0.5
     corpus_fetch_user_agent: str = "Prawdowid/0.1 (hackathon demo fact-checking corpus)"
+    # POST /fetch for agent/: text returned for claim extraction, the page itself is not stored.
+    fetch_max_text_chars: int = 20_000
 
     # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
     euvsdisinfo_token: str = Field(

@@ -42,6 +42,11 @@ def test_fetch_page_returns_text_and_sends_generic_user_agent():
             200, text="<html><body><script>app()</script></body></html>", headers={"content-type": "text/html"}
         ),
         httpx.Response(200, text="<p>" + "x" * 3_000_000 + "</p>", headers={"content-type": "text/html"}),
+        httpx.Response(
+            200,
+            text="<html><head><title>Pardon Our Interruption</title></head><body><p>Please verify.</p></body></html>",
+            headers={"content-type": "text/html"},
+        ),
     ],
 )
 def test_fetch_page_rejects_errors_non_html_empty_and_oversized(response):
