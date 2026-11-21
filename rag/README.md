@@ -35,6 +35,10 @@ uv run pytest
 ```
 Testy nie wymagają Dockera ani modeli: czyste funkcje (chunking, stemmer, ekspansja, eviction, wykrywanie prompt injection) oraz kształt `/search` na atrapach (wyniki, pusta lista, 503, 422, token). Zestaw prób prompt injection w `tests/test_injection.py` napisaliśmy sami, więc to test regresji, a nie niezależna miara skuteczności.
 
+## Budżet czasu
+
+Kontrakt daje rag 8 s na wywołanie. Reranker (cross-encoder na CPU) jest najdroższy i rośnie liniowo z długością tekstu, dlatego fragmenty mają 600 znaków, pula kandydatów 15, fact-checków jest maks. 10, a sprawy z katalogu są oceniane po pierwszych 400 znakach. Zmierzone: najgorszy przypadek ok. 5 s, typowe zapytanie 2–3 s. Ekspansja przez LLM ma limit 3 s, Qdrant i Postgres po 5 s. `GET /health` sprawdza bazę, Qdrant i katalog incydentów i zwraca `503 degraded`, gdy któreś nie odpowiada; kontenery mają `restart: unless-stopped`.
+
 ## Bezpieczeństwo
 
 - `POST /ingest`, `DELETE /sources/{documentId}` i `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` równego `RAG_ADMIN_TOKEN`. Bez tokena zwracają 401, a gdy token nie jest skonfigurowany, 403.
@@ -50,7 +54,7 @@ Testy nie wymagają Dockera ani modeli: czyste funkcje (chunking, stemmer, ekspa
 | FastEmbed (ONNX, CPU) | BGE-M3 dense, BM25 sparse, `bge-reranker-v2-m3` (int8). Wszystko w kontenerze, bez GPU. |
 | APScheduler | Eviction codziennie o 3:00, optymalizacja segmentów Qdranta o 4:00. |
 
-Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30, z filtrami `sourceTypes` i `publishedAfter` wewnątrz Qdranta) → pula 30 unikalnych → reranking cross-encoderem względem oryginału → `score = sigmoid(logit / 4)` w skali 0..1, odcięcie poniżej 0,5 → `topK` wyników (domyślnie 5, maksymalnie 7, więcej daje 422) → złączenie z metadanymi z Postgresa → blok `<dostepne_zrodla>` → w tle `read_count + 1`.
+Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30, z filtrami `sourceTypes` i `publishedAfter` wewnątrz Qdranta) → pula 15 unikalnych → reranking cross-encoderem względem oryginału → `score = sigmoid(logit / 4)` w skali 0..1, odcięcie poniżej 0,5 → `topK` wyników (domyślnie 5, maksymalnie 7, więcej daje 422) → złączenie z metadanymi z Postgresa → blok `<dostepne_zrodla>` → w tle `read_count + 1`.
 
 Pola API są w camelCase zgodnie z `../CONTRACT.md` (sekcja 3). Daty są znacznikami czasu ISO 8601; wartość bez strefy jest traktowana jako UTC. Poza kontraktem odpowiedź ma dodatkowo `contextXml`, `expandedQueries`, `elapsedMs`, a każdy `Passage` ma też `chunkId`, `tier` i `reliability`.
 
