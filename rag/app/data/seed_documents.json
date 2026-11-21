@@ -164,22 +164,6 @@
     },
     {
       "source": {
-        "documentId": "seed:who-5g",
-        "title": "5G mobile networks DO NOT spread COVID-19",
-        "publisher": "World Health Organization",
-        "url": "https://www.who.int/multi-media/details/5g-mobile-networks-do-not-spread-covid-19",
-        "publishedAt": "2020-05-04T00:00:00Z",
-        "fetchedAt": "2026-11-22T00:00:00Z",
-        "license": "CC BY-NC-SA 3.0 IGO (WHO)",
-        "sourceType": "official",
-        "tier": 1,
-        "reliability": "high",
-        "topicTag": "www.who.int"
-      },
-      "text": "5G mobile networks DO NOT spread COVID-19. Viruses cannot travel on radio waves/mobile networks. COVID-19 is spreading in many countries that do not have 5G mobile networks. COVID-19 is spread through respiratory droplets when an infected person coughs, sneezes or speaks."
-    },
-    {
-      "source": {
         "documentId": "seed:zakaz-spalinowych-2035",
         "title": "Rozporządzenie Parlamentu Europejskiego i Rady (UE) 2023/851",
         "publisher": "Unia Europejska (EUR-Lex)",

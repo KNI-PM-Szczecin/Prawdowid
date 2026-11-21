@@ -499,3 +499,50 @@ func TestOrdinaryTextIsNotFlaggedAsInjection(t *testing.T) {
 		}
 	}
 }
+
+const emptyExtraction = `{"twierdzenia":[],"pominiete":0}`
+
+// The model sometimes returns no claim for a vague yes/no question; the citizen still asked about a fact.
+func TestYesNoQuestionFallsBackToStatementWhenExtractionIsEmpty(t *testing.T) {
+	cases := map[string]string{
+		"Czy we Włoszech ostatnio odbywał się strajk generalny?":        "We Włoszech ostatnio odbywał się strajk generalny.",
+		"czy NATO namówiło Ukrainę do ataku na Chiny???":                "NATO namówiło Ukrainę do ataku na Chiny.",
+		"  Czy od wczoraj w Pcimiu bilety kupimy tylko w aplikacji ?  ": "Od wczoraj w Pcimiu bilety kupimy tylko w aplikacji.",
+	}
+	for input, want := range cases {
+		provider := &fakeProvider{extract: emptyExtraction, judge: judgeJSON("brak_dowodow", "Sejm i Senat są wybierane na czteroletnie kadencje", "kontekst")}
+		rag := &ragStub{search: searchWith(officialPassage())}
+		result := verify(t, newTestAgent(t, provider, rag), input, InputTypeText)
+		if result.Status != StatusOK || len(result.Claims) != 1 || result.Claims[0].Text != want {
+			t.Errorf("%q: expected one claim %q, got status %s claims %+v", input, want, result.Status, result.Claims)
+		}
+	}
+}
+
+// Only a single short "czy" question is rewritten; open questions and multi-sentence input still need clarification.
+func TestNonYesNoInputWithoutClaimsNeedsClarification(t *testing.T) {
+	inputs := []string{
+		"Jak się dziś masz?",
+		"Czy to prawda? Ktoś mi to wysłał.",
+		"Czy?",
+	}
+	for _, input := range inputs {
+		provider := &fakeProvider{extract: emptyExtraction}
+		rag := &ragStub{search: searchWith(officialPassage())}
+		result := verify(t, newTestAgent(t, provider, rag), input, InputTypeText)
+		if result.Status != StatusNeedsClarification {
+			t.Errorf("%q: expected needs_clarification, got %s %+v", input, result.Status, result.Claims)
+		}
+	}
+}
+
+// The extracted claims win over the fallback whenever the model found any.
+func TestQuestionFallbackNotUsedWhenExtractionFindsClaims(t *testing.T) {
+	extract := `{"twierdzenia":[{"tekst":"Sejm ma 460 posłów.","fragment":"Sejm ma 460 posłów"}],"pominiete":0}`
+	provider := &fakeProvider{extract: extract, judge: judgeJSON("brak_dowodow", "Sejm i Senat są wybierane na czteroletnie kadencje", "kontekst")}
+	rag := &ragStub{search: searchWith(officialPassage())}
+	result := verify(t, newTestAgent(t, provider, rag), "Czy to prawda, że Sejm ma 460 posłów?", InputTypeText)
+	if len(result.Claims) != 1 || result.Claims[0].Text != "Sejm ma 460 posłów." {
+		t.Fatalf("expected the extracted claim, got %+v", result.Claims)
+	}
+}

@@ -41,7 +41,6 @@ def test_seed_chunks_contain_the_facts_the_eval_expects():
         "700 mln zł",
         "650 mln zł",
         "24 lutego 2022 r. Federacja Rosyjska dokonała napaści",
-        "5G mobile networks DO NOT spread COVID-19",
         "Od dnia 1 stycznia 2035 r.",
         "60 lat dla kobiet",
         "16 województw",
