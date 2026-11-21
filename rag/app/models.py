@@ -177,6 +177,17 @@ class EuvsDisinfoSyncStatus(ApiModel):
     available: int | None
 
 
+class FetchRequest(ApiModel):
+    url: HttpUrl
+
+
+class FetchResponse(ApiModel):
+    url: str
+    title: str
+    text: str
+    truncated: bool
+
+
 class CorpusFetchRequest(ApiModel):
     urls: list[HttpUrl] = Field(default_factory=list, max_length=settings.corpus_fetch_max_urls)
 

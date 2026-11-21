@@ -5,6 +5,7 @@ from typing import Annotated
 from urllib.parse import urlparse
 
 import asyncpg
+import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -19,6 +20,7 @@ from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
+from app.fetcher import FetchError, fetch_page
 from app.incidents import incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, ingest_document
 from app.models import (
@@ -28,6 +30,8 @@ from app.models import (
     EuvsDisinfoSyncStatus,
     EvictionReport,
     ExternalSourceInfo,
+    FetchRequest,
+    FetchResponse,
     HealthResponse,
     IncidentCatalogSummary,
     IncidentIngestRequest,
@@ -59,6 +63,7 @@ HTTP_ACCEPTED = 202
 HTTP_CONFLICT = 409
 HTTP_UNPROCESSABLE = 422
 DUPLICATE_MESSAGE = "Dokument {document_id} ma tę samą treść co {duplicate_of}. Nie wgrano."
+FETCH_FAILED_MESSAGE = "Nie udało się pobrać strony: {reason}."
 NEAR_DUPLICATE_MESSAGE = "Dokument {document_id} ma niemal tę samą treść co {duplicate_of} (parafraza). Nie wgrano."
 EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
 
@@ -190,6 +195,20 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
                 detail=message.format(document_id=error.document_id, duplicate_of=error.duplicate_of),
             ) from error
     return results
+
+
+@app.post("/fetch", response_model=FetchResponse)
+async def fetch_url(request: FetchRequest) -> FetchResponse:
+    """Page text for agent/ when the user submits a URL; nothing is stored, the same parser as for the corpus."""
+    try:
+        async with httpx.AsyncClient(timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=True) as client:
+            page = await fetch_page(client, str(request.url))
+    except FetchError as error:
+        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=FETCH_FAILED_MESSAGE.format(reason=error)) from error
+    truncated = len(page.text) > settings.fetch_max_text_chars
+    return FetchResponse(
+        url=page.url, title=page.title, text=page.text[: settings.fetch_max_text_chars], truncated=truncated
+    )
 
 
 @app.get("/sources/external", response_model=list[ExternalSourceInfo])
