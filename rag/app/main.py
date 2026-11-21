@@ -45,6 +45,7 @@ from app.models import (
 )
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.vector_store import VectorStore
+from app.warmup import warm_up
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -85,6 +86,9 @@ async def lifespan(app: FastAPI):
     factcheck = FactCheckClient()
     app.state.factcheck = factcheck
     logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
+
+    # Before the scheduler and before uvicorn accepts requests: the first citizen search must not pay for cold models.
+    await warm_up(app.state.models, store)
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_eviction, "cron", hour=settings.eviction_cron_hour, args=[store])
