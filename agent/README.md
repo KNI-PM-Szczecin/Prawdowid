@@ -18,10 +18,10 @@ Model: dowolny serwer zgodny z OpenAI `/v1/chat/completions` (FastFlowLM, Ollama
 ## Przepływ
 
 1. Pusty input → `needs_clarification`. URL → `POST /fetch` w `rag/` (422 → `needs_clarification`, „nie da się odczytać strony”).
-2. Jedno zdanie → to jest twierdzenie, bez modelu. Dłuższy tekst → prompt `extract` → maks. 3 najważniejsze twierdzenia; pominięte trafiają do `limitations`.
-3. Dla każdego twierdzenia `POST /search` (`topK` 5), maks. 3 twierdzenia równolegle. Wyniki są scalane w kolejności ekstrakcji, więc równoległość nie zmienia treści ani kolejności odpowiedzi. Brak wyników → `insufficient_evidence` bez wołania modelu.
+2. Jedno zdanie (nie pytanie) → to jest twierdzenie, bez modelu. Dłuższy tekst → prompt `extract` → maks. 3 najważniejsze twierdzenia; pominięte trafiają do `limitations`.
+3. Dla każdego twierdzenia `POST /search` (`topK` 5), maks. 3 twierdzenia równolegle. Wyniki są scalane w kolejności ekstrakcji, więc równoległość nie zmienia treści ani kolejności odpowiedzi. Brak wyników → model może tylko uznać treść za opinię (`not_verifiable`), inaczej `insufficient_evidence`.
 4. Prompt `judge` dostaje twierdzenie i `contextXml` w wiadomości użytkownika; prompt systemowy nigdy nie zawiera treści źródeł.
-5. Reguły (`rules.go`, `CONTRACT.md` §4) rozstrzygają: cytat musi być dosłownie we fragmencie o podanym `id`, `confirmed`/`false` wymaga mocnej podstawy (źródło urzędowe, ocena weryfikatora albo dwa niezależne wtórne) i cytatu o pasującej roli, ocena weryfikatora faktów w cytowanym fragmencie wygrywa z modelem, alert kampanii z `rag/` i flagi injection idą do `warnings`/`meta`, nigdy do werdyktu.
+5. Reguły (`rules.go`, `CONTRACT.md` §4) rozstrzygają: cytat musi być dosłownie we fragmencie o podanym `id`, `confirmed`/`false` wymaga mocnej podstawy (źródło urzędowe, ocena weryfikatora albo dwa niezależne wtórne) i cytatu o pasującej roli, ocena weryfikatora faktów w cytowanym fragmencie wzmacnia zgodny werdykt modelu, a niezgodna daje wstrzymanie się (mogła dotyczyć innego twierdzenia), polecenia w samym zgłoszeniu lub pobranej stronie są liczone w `meta.injectionAttempts` i logowane, alert kampanii z `rag/` i flagi injection idą do `warnings`/`meta`, nigdy do werdyktu.
 6. `evidenceStrength` i `strengthReasons` liczone z przesłanek (typ i niezależność źródeł, wiek), nie z opinii modelu.
 
 Budżet: 25 s na `Verify`, 12 s na wywołanie `rag/` (`RAG_TIMEOUT_SECONDS`), 10 s na wywołanie modelu, temperatura 0, myślenie Qwen3 wyłączone.
@@ -36,6 +36,6 @@ Budżet: 25 s na `Verify`, 12 s na wywołanie `rag/` (`RAG_TIMEOUT_SECONDS`), 10
 cd agent
 go vet ./... && go test ./...
 ```
-Testy używają atrapy modelu i serwera `rag/` z `httptest`: potwierdzenie ze źródłem urzędowym, zmyślony cytat odrzucony, jedno źródło wtórne za mało na `false`, ocena weryfikatora wygrywa z modelem, brak wyników bez wołania modelu, awarie jako `technical_error`, niepoprawny JSON z ponowieniem i wstrzymaniem, injection i alert kampanii jako kontekst, ekstrakcja z długiego tekstu, wejście URL.
+Testy używają atrapy modelu i serwera `rag/` z `httptest`: potwierdzenie ze źródłem urzędowym, zmyślony cytat odrzucony, jedno źródło wtórne za mało na `false`, niezgodna ocena weryfikatora daje wstrzymanie się, brak wyników bez werdyktu merytorycznego, opinia bez źródeł jako `not_verifiable`, liczebnik z kropką bez ekstrakcji, polecenia w zgłoszeniu (E01–E06), awarie jako `technical_error`, niepoprawny JSON z ponowieniem i wstrzymaniem, injection i alert kampanii jako kontekst, ekstrakcja z długiego tekstu, wejście URL.
 
 Nie ma jeszcze testu z prawdziwym modelem: FastFlowLM działa na maszynie kolegi. Pierwszy przebieg `eval/` pokaże, czy Qwen3 0.6B trzyma format JSON i wybiera trafne cytaty.

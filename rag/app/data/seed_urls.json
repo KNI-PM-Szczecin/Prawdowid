@@ -1,5 +1,18 @@
 {
-  "note": "Publiczne strony z domen katalogu (app/data/sources_catalog.json) do uzupełnienia korpusu demo: adresy z listy mentora MSZ plus weryfikatorzy faktów i źródła wtórne, żeby korpus miał min. 10 domen i 2 typy źródeł (brief). Pobierane przez POST /admin/corpus/fetch; strony bez tekstu w HTML (aplikacje JS) są pomijane i liczone jako failed.",
+  "note": "Publiczne strony z domen katalogu (app/data/sources_catalog.json) do uzupełnienia korpusu demo: adresy z listy mentora MSZ plus weryfikatorzy faktów i źródła wtórne, żeby korpus miał min. 10 domen i 2 typy źródeł (brief). Pobierane przez POST /admin/corpus/fetch; strony bez tekstu w HTML (aplikacje JS) są pomijane i liczone jako failed. Wpis publishedAt przypina datę publikacji tylko wtedy, gdy strona nie ma metadanych, a data jest widoczna w jej treści lub w akcie prawnym (np. Dz.U. z 16 lipca 1997).",
+  "publishedAt": {
+    "https://www.gov.pl/web/ijhars/20-lat-polski-w-unii-europejskiej": "2024-05-01T00:00:00Z",
+    "https://www.gov.pl/web/premier/25-lat-temu-polska-przystapila-do-nato": "2024-03-12T00:00:00Z",
+    "https://www.senat.gov.pl/o-senacie/wybrane-akty-prawne/konstytucja/": "1997-07-16T00:00:00Z",
+    "https://publikacje.new.stat.gov.pl/portal-publikacje/komunikat-w-sprawie-sredniorocznego-wskaznika-cen-towarow-i-uslug-konsumpcyjnych-ogolem-w-2023-r": "2024-01-15T00:00:00Z",
+    "https://stat.gov.pl/obszary-tematyczne/ceny-handel/wskazniki-cen/wskazniki-cen-towarow-i-uslug-konsumpcyjnych-w-grudniu-2023-roku,2,146.html": "2024-01-15T00:00:00Z",
+    "https://www.gov.pl/web/dyplomacja/oswiadczenie-doradczego-komitetu-prawnego-przy-ministrze-spraw-zagranicznych-rp": "2022-03-04T00:00:00Z",
+    "https://www.who.int/multi-media/details/5g-mobile-networks-do-not-spread-covid-19": "2020-05-04T00:00:00Z",
+    "https://eur-lex.europa.eu/legal-content/PL/TXT/?uri=CELEX:32023R0851": "2023-04-25T00:00:00Z",
+    "https://stat.gov.pl/statystyka-regionalna/jednostki-terytorialne/podzial-administracyjny-polski": "2025-01-01T00:00:00Z",
+    "https://www.zus.pl/powszechny-wiek-emerytalny": "2017-10-01T00:00:00Z",
+    "https://www.krakow.pl/odwiedz_krakow/148881,artykul,o_krakowie.html": "2017-03-09T00:00:00Z"
+  },
   "urls": [
     "https://odyseusz.gov.pl/",
     "https://www.gov.pl/web/dyplomacja/informacje-dla-podrozujacych",
@@ -40,6 +53,22 @@
     "https://www.pap.pl/",
     "https://sprawdzam.afp.com/",
     "https://konkret24.tvn24.pl/",
-    "https://edmo.eu/"
+    "https://edmo.eu/",
+    "https://www.gov.pl/web/ijhars/20-lat-polski-w-unii-europejskiej",
+    "https://www.gov.pl/web/premier/25-lat-temu-polska-przystapila-do-nato",
+    "https://www.senat.gov.pl/o-senacie/wybrane-akty-prawne/konstytucja/",
+    "https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU19970780483",
+    "https://publikacje.new.stat.gov.pl/portal-publikacje/komunikat-w-sprawie-sredniorocznego-wskaznika-cen-towarow-i-uslug-konsumpcyjnych-ogolem-w-2023-r",
+    "https://stat.gov.pl/obszary-tematyczne/ceny-handel/wskazniki-cen/wskazniki-cen-towarow-i-uslug-konsumpcyjnych-w-grudniu-2023-roku,2,146.html",
+    "https://demagog.org.pl/wypowiedzi/darmowa-komunikacja-jaka-kwote-musialby-dolozyc-wroclaw",
+    "https://www.wroclaw.pl/komunikacja/komunikacja-miejska-we-wroclawiu-i-aglomeracji-200-mln-pasazerow",
+    "https://demagog.org.pl/wypowiedzi/darmowa-komunikacja-dla-65-latkow-tylko-we-wroclawiu-sprawdzamy",
+    "https://www.gov.pl/web/dyplomacja/oswiadczenie-doradczego-komitetu-prawnego-przy-ministrze-spraw-zagranicznych-rp",
+    "https://www.who.int/multi-media/details/5g-mobile-networks-do-not-spread-covid-19",
+    "https://www.trade.gov.pl/en/knowledge/poland-in-the-eu",
+    "https://eur-lex.europa.eu/legal-content/PL/TXT/?uri=CELEX:32023R0851",
+    "https://stat.gov.pl/statystyka-regionalna/jednostki-terytorialne/podzial-administracyjny-polski",
+    "https://www.zus.pl/powszechny-wiek-emerytalny",
+    "https://www.krakow.pl/odwiedz_krakow/148881,artykul,o_krakowie.html"
   ]
 }

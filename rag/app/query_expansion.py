@@ -1,6 +1,8 @@
+import hashlib
 import json
 import logging
 import re
+import time
 from urllib.parse import urlparse
 
 import httpx
@@ -47,6 +49,18 @@ def is_hosted_openai(url: str) -> bool:
     return (parsed.hostname or "").lower() == OPENAI_HOST
 
 
+def _reasoning_effort() -> str:
+    return settings.expansion_llm_reasoning_effort.strip().lower() or "none"
+
+
+def _temperature_pinned() -> bool:
+    """
+    Hosted OpenAI accepts temperature only with reasoning_effort=none (docs: remove temperature when effort is not
+    none). Without a pinned temperature the auxiliary queries change between runs, so rules are used instead.
+    """
+    return not is_hosted_openai(settings.expansion_llm_url) or _reasoning_effort() == "none"
+
+
 def _payload(claim: str) -> dict:
     payload = {
         "model": settings.expansion_llm_model,
@@ -57,8 +71,8 @@ def _payload(claim: str) -> dict:
     }
     if is_hosted_openai(settings.expansion_llm_url):
         payload["max_completion_tokens"] = settings.expansion_llm_max_completion_tokens
-        payload["reasoning_effort"] = settings.expansion_llm_reasoning_effort
-    else:
+        payload["reasoning_effort"] = _reasoning_effort()
+    if _temperature_pinned():
         payload["temperature"] = EXPANSION_TEMPERATURE
     return payload
 
@@ -82,12 +96,42 @@ async def _expand_with_llm(claim: str) -> ExpandedQueries:
     )
 
 
+_cache: dict[str, tuple[float, ExpandedQueries]] = {}
+
+
+def _cache_key(claim: str) -> str:
+    """Hash, not the claim itself, so user text is not kept in memory longer than the request."""
+    return hashlib.sha256(claim.encode("utf-8")).hexdigest()
+
+
+def _cached(claim: str) -> ExpandedQueries | None:
+    entry = _cache.get(_cache_key(claim))
+    if entry is None or entry[0] < time.monotonic():
+        return None
+    return entry[1]
+
+
+def _remember(claim: str, queries: ExpandedQueries) -> None:
+    if len(_cache) >= settings.expansion_cache_max_entries:
+        _cache.pop(next(iter(_cache)))
+    _cache[_cache_key(claim)] = (time.monotonic() + settings.expansion_cache_ttl_seconds, queries)
+
+
 async def expand(claim: str) -> ExpandedQueries:
-    """Returns original, negative and neutral queries; falls back to rules when the LLM is absent or fails."""
-    if not settings.expansion_llm_url:
-        return expand_with_rules(claim)
-    try:
-        return await _expand_with_llm(claim)
-    except (httpx.HTTPError, ValueError, KeyError, IndexError, json.JSONDecodeError):
-        logger.warning("LLM query expansion failed, using rules", exc_info=True)
-        return expand_with_rules(claim)
+    """
+    Original, negative and neutral queries; falls back to rules when the LLM is absent or fails.
+    A cached expansion keeps repeated checks identical (brief: same input, same result).
+    """
+    cached = _cached(claim)
+    if cached is not None:
+        return cached
+    if not settings.expansion_llm_url or not _temperature_pinned():
+        queries = expand_with_rules(claim)
+    else:
+        try:
+            queries = await _expand_with_llm(claim)
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, json.JSONDecodeError):
+            logger.warning("LLM query expansion failed, using rules", exc_info=True)
+            queries = expand_with_rules(claim)
+    _remember(claim, queries)
+    return queries

@@ -1,4 +1,3 @@
-@use "sass:list";
 @use "tokens";
 @use "mixins" as *;
 
@@ -76,6 +75,12 @@ svg {
   outline-offset: 3px;
 }
 
+// Headings and panels focused by script after a view change (tabindex -1) are not reachable with
+// Tab, so the ring would only ever appear after a click. Screen readers still announce them.
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -118,6 +123,12 @@ svg {
   padding: 0.75rem 1.5rem;
   font-size: $text-lg;
   font-weight: $weight-semibold;
+
+  transition: transform $duration-press $ease-out, opacity $duration-press ease, background-color $duration-press ease;
+
+  &:active {
+    transform: scale(0.97);
+  }
 
   &--primary {
     background: var(--ink);
@@ -164,9 +175,19 @@ svg {
 }
 
 .app {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  overflow-x: clip;
   background: var(--page);
   color: var(--ink);
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--page);
 }
 
 .demo-banner {
@@ -176,25 +197,6 @@ svg {
   text-align: center;
   font-size: $text-lg;
   font-weight: $weight-semibold;
-}
-
-// Soft background glow from the Figma design, tinted by the summary level; off in high-contrast modes.
-$page-glow: (
-  high: (#e9fedb, #f1fde8),
-  mixed: (#fffbd6, #fffce3),
-  low: (#ffe6e6, #fff0f0),
-);
-
-.page-glow {
-  background-repeat: no-repeat;
-}
-
-@each $level, $colors in $page-glow {
-  :root[data-contrast="default"] .page-glow[data-tone="#{$level}"] {
-    background-image:
-      radial-gradient(ellipse 60% 50% at 90% 10%, list.nth($colors, 1), transparent),
-      radial-gradient(ellipse 40% 50% at 0% 60%, list.nth($colors, 2), transparent);
-  }
 }
 
 :root[data-reduce-motion="true"] *,

@@ -1,0 +1,262 @@
+{
+  "note": "Kuratorowany zestaw dokumentów demo z dosłownymi fragmentami publicznych źródeł. Uzupełnia korpus o fakty z zestawu eval i scenariusza C. Każdy wpis ma link, wydawcę, datę publikacji i licencję; treść jest cytatem, nie streszczeniem. Dokumenty są wgrywane automatycznie przy starcie rag (RAG_SEED_CORPUS_ENABLED), więc demo nie zależy od dostępności stron.",
+  "fetchedAt": "2026-11-22T00:00:00Z",
+  "documents": [
+    {
+      "source": {
+        "documentId": "seed:konstytucja-rp",
+        "title": "Konstytucja Rzeczypospolitej Polskiej",
+        "publisher": "Senat Rzeczypospolitej Polskiej",
+        "url": "https://www.senat.gov.pl/o-senacie/wybrane-akty-prawne/konstytucja/",
+        "publishedAt": "1997-07-16T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy Senatu RP",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.senat.gov.pl"
+      },
+      "text": "KONSTYTUCJA\nRZECZYPOSPOLITEJ POLSKIEJ\nz dnia 2 kwietnia 1997 r.\n(Dz. U. z dnia 16 lipca 1997 r.)\n\nArt. 29.\nStolicą Rzeczypospolitej Polskiej jest Warszawa.\n\nArt. 96.\n1. Sejm składa się z 460 posłów.\n2. Wybory do Sejmu są powszechne, równe, bezpośrednie i proporcjonalne oraz odbywają się w głosowaniu tajnym.\nArt. 97.\n1. Senat składa się ze 100 senatorów.\n2. Wybory do Senatu są powszechne, bezpośrednie i odbywają się w głosowaniu tajnym.\nArt. 98.\n1. Sejm i Senat są wybierane na czteroletnie kadencje. Kadencje Sejmu i Senatu rozpoczynają się z dniem zebrania się Sejmu na pierwsze posiedzenie i trwają do dnia poprzedzającego dzień zebrania się Sejmu następnej kadencji.\n\nArt. 127.\n1. Prezydent Rzeczypospolitej jest wybierany przez Naród w wyborach powszechnych, równych, bezpośrednich i w głosowaniu tajnym.\n2. Prezydent Rzeczypospolitej jest wybierany na pięcioletnią kadencję i może być ponownie wybrany tylko raz.\n\nArt. 227.\n1. Centralnym bankiem państwa jest Narodowy Bank Polski. Przysługuje mu wyłączne prawo emisji pieniądza oraz ustalania i realizowania polityki pieniężnej. Narodowy Bank Polski odpowiada za wartość polskiego pieniądza.\n2. Organami Narodowego Banku Polskiego są: Prezes Narodowego Banku Polskiego, Rada Polityki Pieniężnej oraz Zarząd Narodowego Banku Polskiego.\n6. Rada Polityki Pieniężnej ustala corocznie założenia polityki pieniężnej i przedkłada je do wiadomości Sejmowi równocześnie z przedłożeniem przez Radę Ministrów projektu ustawy budżetowej. Rada Polityki Pieniężnej, w ciągu 5 miesięcy od zakończenia roku budżetowego, składa Sejmowi sprawozdanie z wykonania założeń polityki pieniężnej."
+    },
+    {
+      "source": {
+        "documentId": "seed:konstytucja-uchwalenie",
+        "title": "26 lat temu uchwalona została ustawa zasadnicza",
+        "publisher": "Senat Rzeczypospolitej Polskiej",
+        "url": "https://www.senat.gov.pl/aktualnoscilista/art,15451,26-lat-temu-uchwalona-zostala-ustawa-zasadnicza.html",
+        "publishedAt": "2023-04-02T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy Senatu RP",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.senat.gov.pl"
+      },
+      "text": "2 kwietnia 1997 r. Zgromadzenie Narodowe uchwaliło Konstytucję Rzeczypospolitej Polskiej, a następnie, 25 maja tego samego roku, została ona przyjęta przez Polaków w referendum. Konstytucja zaczęła obowiązywać 17 października 1997 r."
+    },
+    {
+      "source": {
+        "documentId": "seed:ue-2004",
+        "title": "20 lat Polski w Unii Europejskiej",
+        "publisher": "Inspekcja Jakości Handlowej Artykułów Rolno-Spożywczych",
+        "url": "https://www.gov.pl/web/ijhars/20-lat-polski-w-unii-europejskiej",
+        "publishedAt": "2024-05-01T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Dokładnie 20 lat temu - 1 maja 2004 roku na mocy Traktatu Akcesyjnego podpisanego w Atenach - Polska stała się członkiem Unii Europejskiej. Przystąpienie Polski do Unii Europejskiej było jednym z najważniejszych wydarzeń w nowożytnej historii Polski, mającym długofalowe i wielowymiarowe skutki tak dla naszego kraju, jak i jego mieszkańców."
+    },
+    {
+      "source": {
+        "documentId": "seed:nato-1999",
+        "title": "25 lat temu Polska przystąpiła do NATO",
+        "publisher": "Kancelaria Prezesa Rady Ministrów",
+        "url": "https://www.gov.pl/web/premier/25-lat-temu-polska-przystapila-do-nato",
+        "publishedAt": "2024-03-12T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "12 marca 1999 roku nasz kraj został przyjęty do Sojuszu Północnoatlantyckiego – największego i najsilniejszego paktu obronnego w historii współczesnego świata. Przystąpienie Polski do NATO było jedną z najważniejszych decyzji po 1989 roku. To wielkie, ponadpartyjne dzieło, z którego powinniśmy być dumni."
+    },
+    {
+      "source": {
+        "documentId": "seed:inflacja-grudzien-2023",
+        "title": "Wskaźniki cen towarów i usług konsumpcyjnych w grudniu 2023 roku",
+        "publisher": "Główny Urząd Statystyczny",
+        "url": "https://stat.gov.pl/obszary-tematyczne/ceny-handel/wskazniki-cen/wskazniki-cen-towarow-i-uslug-konsumpcyjnych-w-grudniu-2023-roku,2,146.html",
+        "publishedAt": "2024-01-15T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "CC BY 4.0 (GUS)",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "stat.gov.pl"
+      },
+      "text": "Ceny towarów i usług konsumpcyjnych w grudniu 2023 r. w porównaniu z analogicznym miesiącem ub. roku wzrosły o 6,2% (przy wzroście cen usług – o 8,2% i towarów – o 5,5%). W stosunku do po-przedniego miesiąca ceny towarów i usług wzrosły o 0,1% (w tym usług – o 0,8%, przy spadku cen towarów – o 0,2%). Wzrost cen towarów i usług konsumpcyjnych w 2023 r. w stosunku do roku poprzedniego wyniósł 11,4%."
+    },
+    {
+      "source": {
+        "documentId": "seed:inflacja-srednioroczna-2023",
+        "title": "Komunikat w sprawie średniorocznego wskaźnika cen towarów i usług konsumpcyjnych ogółem w 2023 r.",
+        "publisher": "Główny Urząd Statystyczny",
+        "url": "https://publikacje.new.stat.gov.pl/portal-publikacje/komunikat-w-sprawie-sredniorocznego-wskaznika-cen-towarow-i-uslug-konsumpcyjnych-ogolem-w-2023-r",
+        "publishedAt": "2024-01-15T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "CC BY 4.0 (GUS)",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "publikacje.new.stat.gov.pl"
+      },
+      "text": "Na podstawie art. 94 ust. 1 pkt 1 lit. a ustawy z dnia 17 grudnia 1998 r. o emeryturach i rentach z Funduszu Ubezpieczeń Społecznych (Dz. U. z 2023 r. poz. 1251, 1429 i 1672) ogłasza się, że średnioroczny wskaźnik cen towarów i usług konsumpcyjnych ogółem w 2023 r. w stosunku do 2022 r. wyniósł 111,4 (wzrost cen o 11,4%)."
+    },
+    {
+      "source": {
+        "documentId": "seed:wroclaw-komunikacja-demagog",
+        "title": "Darmowa komunikacja. Jaką kwotę musiałby dołożyć Wrocław?",
+        "publisher": "Demagog",
+        "url": "https://demagog.org.pl/wypowiedzi/darmowa-komunikacja-jaka-kwote-musialby-dolozyc-wroclaw",
+        "publishedAt": "2024-04-05T09:24:13Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Cytat weryfikacyjny, link do źródła (Demagog)",
+        "sourceType": "factcheck",
+        "tier": 2,
+        "reliability": "high",
+        "topicTag": "demagog.org.pl"
+      },
+      "text": "To rezygnacja z przychodów z tytułu biletów, a to jest w 7 mld budżecie naprawdę skromna kwota – 200 mln zł około. Natomiast MPK [we Wrocławiu – przyp. Demagog] i tak nas kosztuje bodajże ok. 700 mln zł.\nZ miejskiej kasy na transport zbiorowy przeznaczono 650 mln zł. Wpływy z biletów pozwalały więc kompensować ok. ⅓ wydatków na komunikację zbiorową.\nKasztelowicz podkreśla, że miasto i tak musi dopłacać do komunikacji publicznej. Już dzisiaj wydatki z budżetu miasta na Miejskie Przedsiębiorstwo Komunikacyjne (MPK) we Wrocławiu to kwota 700 mln zł. Sprawdźmy, czy dane przytoczone przez polityka mają odzwierciedlenie w faktach.\nA co z kosztami komunikacji miejskiej? Kwota wydatków z budżetu miasta wzrasta. W 2022 roku na komunikację zbiorową przeznaczono 568 mln zł. W 2023 roku to już suma rzędu 650 mln zł, co potwierdza dyrektorka Wydziału Transportu Urzędu Miejskiego Wrocławia. W 2024 roku miasto planuje wydać na transport zbiorowy 776 mln zł.\nWrocław – podobnie jak inne duże miasta – ponosi większą część wydatków na transport zbiorowy. Stolica województwa dolnośląskiego w 2023 roku pokryła 63 proc. kosztów związanych z funkcjonowaniem transportu w mieście. To odsetek już po odliczeniu wpływów, a więc środków ze sprzedaży biletów."
+    },
+    {
+      "source": {
+        "documentId": "seed:wroclaw-komunikacja-miasto",
+        "title": "Komunikacja miejska we Wrocławiu i w aglomeracji - 200 mln pasażerów",
+        "publisher": "Miasto Wrocław",
+        "url": "https://www.wroclaw.pl/komunikacja/komunikacja-miejska-we-wroclawiu-i-aglomeracji-200-mln-pasazerow",
+        "publishedAt": "2024-01-10T17:21:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy miasta Wrocławia",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.wroclaw.pl"
+      },
+      "text": "Pojazdy więcej jeździły i przewiozły o ponad 20 milionów pasażerów więcej niż w 2022 roku – to 194,5 miliona podróży. 2023 rok to również rekordowa sprzedaż biletów komunikacji miejskiej – 36 mln sztuk o wartości 207,9 mln zł. To o ponad 5,5 mln więcej niż w 2022 roku. Wyższa była również wartość sprzedaży. Do budżetu miasta wpłynęło dodatkowych 37,5 miliona złotych. Do tego około 3,5 mln zł wpływów z biletów międzygminnych.\nWarto pamiętać, że Wrocław jest miastem, w którym najwięcej ludzi korzysta z komunikacji miejskiej bezpłatnie. Decyzją prezydenta Jacka Sutryka i rady miejskiej za przejazdy nie płacą uczniowie do 21. roku życia i seniorzy po 65. roku. Koszt ich przejazdów pokrywa budżet miasta. Wrocław za pracę przewozową w 2023 roku zapłacił wszystkim przewoźnikom - także kolejowym, bo tu połączenia również dofinansowujemy - około 650 milionów złotych."
+    },
+    {
+      "source": {
+        "documentId": "seed:wroclaw-65-demagog",
+        "title": "Darmowa komunikacja dla 65-latków tylko we Wrocławiu? Sprawdzamy",
+        "publisher": "Demagog",
+        "url": "https://demagog.org.pl/wypowiedzi/darmowa-komunikacja-dla-65-latkow-tylko-we-wroclawiu-sprawdzamy",
+        "publishedAt": "2024-03-12T12:28:10Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Cytat weryfikacyjny, link do źródła (Demagog)",
+        "sourceType": "factcheck",
+        "tier": 2,
+        "reliability": "high",
+        "topicTag": "demagog.org.pl"
+      },
+      "text": "Takie najważniejsze moje osiągnięcia w poprzedniej kadencji rady miejskiej to przede wszystkim doprowadzenie do tego, że nie 70-, tylko 65-latkowie, we Wrocławiu, jeżdżą komunikacją miejską bezpłatnie. Ja zgłosiłem ten pomysł, on został przyjęty przez prezydenta i przez radnych i dziś jesteśmy jedynym miastem z takimi ulgami. W innych miastach jest 70 lat, u nas 65-latkowie jeżdżą komunikacją miejską bezpłatnie.\nWe Wrocławiu od 2022 roku osobom, które ukończyły 65 lat, przysługuje prawo do bezpłatnego korzystania z komunikacji miejskiej.\nZmiana weszła w życie na mocy uchwały z 2017 roku, czyli nie w obecnie mijającej (2018–2024), tylko w poprzedniej kadencji (2014–2018) Rady Miasta Wrocław. Początkowo próg wiekowy obniżono z 70 lat do 69 lat. Z każdym kolejnym rokiem był stopniowo zmniejszany aż do 65 lat w 2022 roku.\nWrocław nie jest jedynym miastem oferującym osobom powyżej 65. roku życia darmową komunikację miejską. Z takiej ulgi korzystają również seniorzy i seniorki w Bydgoszczy, w Toruniu oraz w Lublinie.\nZnaleźliśmy co najmniej trzy inne miasta, w których 65-latkowie jeżdżą komunikacją miejską za darmo. Na tej podstawie oceniamy wypowiedź jako fałsz.\nZnaleźliśmy co najmniej trzy miasta, w których komunikacja miejska jest darmowa dla osób powyżej 65. roku życia. Oznacza to, że wbrew słowom radnego, Wrocław nie jest jedynym miastem, które wprowadziło takie rozwiązanie."
+    },
+    {
+      "source": {
+        "documentId": "seed:rosja-napasc-2022",
+        "title": "Oświadczenie Doradczego Komitetu Prawnego przy Ministrze Spraw Zagranicznych RP, Warszawa, 4 marca 2022 r.",
+        "publisher": "Ministerstwo Spraw Zagranicznych",
+        "url": "https://www.gov.pl/web/dyplomacja/oswiadczenie-doradczego-komitetu-prawnego-przy-ministrze-spraw-zagranicznych-rp",
+        "publishedAt": "2022-03-04T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Dnia 24 lutego 2022 r. Federacja Rosyjska dokonała napaści zbrojnej na Ukrainę. W ten sposób, mimo wysiłków pokojowych, rozpoczęła międzynarodowy konflikt zbrojny, który wstrząsa podstawami współczesnej wspólnoty międzynarodowej i prawa międzynarodowego."
+    },
+    {
+      "source": {
+        "documentId": "seed:zakaz-spalinowych-2035",
+        "title": "Rozporządzenie Parlamentu Europejskiego i Rady (UE) 2023/851",
+        "publisher": "Unia Europejska (EUR-Lex)",
+        "url": "https://eur-lex.europa.eu/legal-content/PL/TXT/?uri=CELEX:32023R0851",
+        "publishedAt": "2023-04-25T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Ponowne wykorzystanie dozwolone (decyzja 2011/833/UE)",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "eur-lex.europa.eu"
+      },
+      "text": "Aby zredukować emisje netto gazów cieplarnianych o co najmniej 55 % do 2030 r. w porównaniu z poziomami z 1990 r., należy zaostrzyć wymogi w zakresie redukcji określone w rozporządzeniu Parlamentu Europejskiego i Rady (UE) 2019/631 (9) w odniesieniu zarówno do samochodów osobowych, jak i lekkich pojazdów użytkowych. Należy również wyznaczyć jasną ścieżkę dalszych redukcji po 2030 r., aby przyczynić się do osiągnięcia celu polegającego na neutralności klimatycznej do 2050 r. Bez podjęcia ambitnych działań w zakresie redukcji emisji gazów cieplarnianych w sektorze transportu drogowego konieczne byłyby większe redukcje emisji w innych sektorach, w tym w sektorach, w których obniżenie emisyjności jest trudniejsze.\n„5a. Od dnia 1 stycznia 2035 r. zastosowanie mają następujące docelowe poziomy emisji dla unijnego parku pojazdów:\nw odniesieniu do średniego poziomu emisji parku nowych samochodów osobowych docelowy poziom emisji dla unijnego parku pojazdów równy 100 % redukcji docelowego poziomu w 2021 r. ustalony zgodnie z załącznikiem I część A pkt 6.1.3.;\nw odniesieniu do średniego poziomu emisji parku nowych lekkich pojazdów użytkowych docelowy poziom emisji dla unijnego parku pojazdów równy 100 % redukcji docelowego poziomu w 2021 r. ustalony zgodnie z załącznikiem I część B pkt 6.1.3.”"
+    },
+    {
+      "source": {
+        "documentId": "seed:zus-wiek-emerytalny",
+        "title": "Powszechny wiek emerytalny",
+        "publisher": "Zakład Ubezpieczeń Społecznych",
+        "url": "https://www.zus.pl/powszechny-wiek-emerytalny",
+        "publishedAt": "2017-10-01T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy ZUS",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.zus.pl"
+      },
+      "text": "Od 1 października 2017 r. wiek emerytalny wynosi 60 lat dla kobiet i\n65 lat dla mężczyzn."
+    },
+    {
+      "source": {
+        "documentId": "seed:gus-podzial-administracyjny",
+        "title": "Podział administracyjny Polski",
+        "publisher": "Główny Urząd Statystyczny",
+        "url": "https://stat.gov.pl/statystyka-regionalna/jednostki-terytorialne/podzial-administracyjny-polski",
+        "publishedAt": "2025-01-01T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "CC BY 4.0 (GUS)",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "stat.gov.pl"
+      },
+      "text": "Trójstopniowy podział administracyjny (terytorialny) Polski został wprowadzony z dniem 1 stycznia 1999 roku. Zgodnie z nim terytorium Polski podzielone zostało na województwa, następnie na powiaty (w tym gminy mające status miast na prawach powiatu) oraz gminy. Podział ten zastąpił obowiązujący od 1975 roku dwustopniowy podział administracyjny na województwa i gminy. Według stanu na 1 stycznia 2025 r. podział administracyjny Polski obejmował 16 województw, 314 powiatów i 66 miast na prawach powiatu, 2479 gmin."
+    },
+    {
+      "source": {
+        "documentId": "seed:krakow-stolica-malopolski",
+        "title": "O Krakowie – informacje praktyczne",
+        "publisher": "Miasto Kraków",
+        "url": "https://www.krakow.pl/odwiedz_krakow/148881,artykul,o_krakowie.html",
+        "publishedAt": "2017-03-09T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy miasta Krakowa",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.krakow.pl"
+      },
+      "text": "Kraków to miasto na prawach powiatu, położone w południowej Polsce, nad Wisłą, drugie w kraju pod względem liczby mieszkańców i powierzchni. Dawna stolica, miasto koronacyjne i nekropolia królów Polski. Stolica województwa małopolskiego."
+    },
+    {
+      "source": {
+        "documentId": "seed:monitor-konwergencji-2024",
+        "title": "Monitor Konwergencji z Unią Gospodarczą i Walutową – grudzień 2024",
+        "publisher": "Ministerstwo Finansów",
+        "url": "https://www.gov.pl/attachment/8baafc92-720a-41a2-a722-5f04d367a2c8",
+        "publishedAt": "2024-12-31T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy Ministerstwa Finansów",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Bieżące szacunki dla Polski dotyczące konwergencji nominalnej wskazują, że niewypełnione pozostają kryteria: stabilności cen, stóp procentowych oraz stabilności kursu walutowego (z uwagi na fakt, iż złoty nie został włączony do mechanizmu ERM II). Ponadto w lipcu br. Polska została objęta procedurą nadmiernego deficytu (EDP), w związku z czym Polska nie spełnia również kryterium stabilności fiskalnej."
+    },
+    {
+      "source": {
+        "documentId": "seed:waluta-zloty",
+        "title": "Poland in the EU",
+        "publisher": "Portal Promocji Eksportu trade.gov.pl",
+        "url": "https://www.trade.gov.pl/en/knowledge/poland-in-the-eu",
+        "publishedAt": "2022-06-09T13:57:22Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.trade.gov.pl"
+      },
+      "text": "Poland has been a member of the European Union since 1 May 2004 under the Accession Treaty signed in Athens on 16 April 2003. As a member state, Poland has the power to influence EU decisions.\nPlease be advised that Poland is not a member of Eurozone. Polish złoty remains Poland’s official currency and legal tender. You can find official exchanges rates at the National Bank of Poland’s website."
+    }
+  ]
+}

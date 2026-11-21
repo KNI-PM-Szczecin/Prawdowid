@@ -13,17 +13,24 @@ interface ClaimPanelProps {
 }
 
 export function ClaimPanel({ claim, onClose }: ClaimPanelProps) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const conflict = hasConflict(claim);
 
+  // Focus moves to the panel itself (a labelled landmark), not the title, so a mouse click does not
+  // draw a focus ring around the claim text. Keyboard users reach the close button with one Tab.
+  // The panel is taller than the screen, so the scroll is set explicitly to its top: the browser's
+  // focus scroll would align its bottom instead.
   useEffect(() => {
-    headingRef.current?.focus();
+    const panel = panelRef.current;
+    if (!panel) return;
+    panel.focus({ preventScroll: true });
+    panel.scrollIntoView({ block: "start" });
   }, [claim.id]);
 
   return (
-    <aside id="claim-panel" aria-labelledby="claim-panel-title" class="claim-panel">
+    <aside id="claim-panel" ref={panelRef} tabIndex={-1} aria-labelledby="claim-panel-title" class="claim-panel">
       <div class="claim-panel__header">
-        <h2 id="claim-panel-title" ref={headingRef} tabIndex={-1} class="claim-panel__title">
+        <h2 id="claim-panel-title" class="claim-panel__title">
           {claim.text}
         </h2>
         <button type="button" onClick={onClose} aria-label={texts.panel.close} class="icon-button">

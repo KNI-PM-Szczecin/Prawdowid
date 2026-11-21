@@ -37,7 +37,7 @@ interface HighlightedTextProps {
   text: string;
   claims: Claim[];
   selectedClaimId: string | null;
-  onSelect: (claimId: string) => void;
+  onSelect: (claimId: string, trigger: HTMLElement) => void;
 }
 
 export function HighlightedText({ text, claims, selectedClaimId, onSelect }: HighlightedTextProps) {
@@ -57,11 +57,11 @@ export function HighlightedText({ text, claims, selectedClaimId, onSelect }: Hig
             aria-expanded={selected}
             aria-controls="claim-panel"
             aria-label={`${segment.text} (${verdictLabel(claim)})`}
-            onClick={() => onSelect(claim.id)}
+            onClick={(event) => onSelect(claim.id, event.currentTarget)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                onSelect(claim.id);
+                onSelect(claim.id, event.currentTarget);
               }
             }}
             class={`highlighted-text__claim ${toneClass(verdictTone(claim))} ${selected ? "highlighted-text__claim--selected" : ""}`}

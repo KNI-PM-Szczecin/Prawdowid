@@ -6,7 +6,7 @@ import { VerdictChip } from "./VerdictChip";
 interface ClaimListProps {
   claims: Claim[];
   selectedClaimId: string | null;
-  onSelect: (claimId: string) => void;
+  onSelect: (claimId: string, trigger: HTMLElement) => void;
 }
 
 // Keyboard and screen-reader path to every claim, also when span is null or highlights are hard to see.
@@ -26,7 +26,7 @@ export function ClaimList({ claims, selectedClaimId, onSelect }: ClaimListProps)
               <li key={claim.id}>
                 <button
                   type="button"
-                  onClick={() => onSelect(claim.id)}
+                  onClick={(event) => onSelect(claim.id, event.currentTarget)}
                   data-claim-trigger={claim.id}
                   aria-expanded={claim.id === selectedClaimId}
                   aria-controls="claim-panel"

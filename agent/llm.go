@@ -96,12 +96,14 @@ type chatRequest struct {
 	Think       bool          `json:"think"` // Qwen3 on FastFlowLM: thinking off keeps answers short and JSON-only
 }
 
-// openAIChatRequest is the request shape accepted by OpenAI GPT-5/6 models.
+// openAIChatRequest is the request shape accepted by OpenAI GPT-5/6 models. Temperature is a pointer so an
+// explicit 0 is sent when reasoning_effort=none (the hosted API rejects temperature for other efforts).
 type openAIChatRequest struct {
 	Model               string        `json:"model"`
 	Messages            []chatMessage `json:"messages"`
 	MaxCompletionTokens int           `json:"max_completion_tokens"`
 	ReasoningEffort     string        `json:"reasoning_effort"`
+	Temperature         *float64      `json:"temperature,omitempty"`
 }
 
 type chatResponse struct {
@@ -160,12 +162,17 @@ func (p *OpenAICompatibleProvider) Generate(ctx context.Context, system, user st
 func (p *OpenAICompatibleProvider) payload(system, user string) ([]byte, error) {
 	messages := []chatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}}
 	if p.isOpenAI() {
-		return json.Marshal(openAIChatRequest{
+		request := openAIChatRequest{
 			Model:               p.model,
 			Messages:            messages,
 			MaxCompletionTokens: openAIMaxCompletionTokens,
 			ReasoningEffort:     p.reasoningEffort,
-		})
+		}
+		if p.reasoningEffort == "none" {
+			temperature := llmTemperature
+			request.Temperature = &temperature
+		}
+		return json.Marshal(request)
 	}
 	return json.Marshal(chatRequest{
 		Model:       p.model,

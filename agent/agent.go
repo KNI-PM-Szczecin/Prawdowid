@@ -139,6 +139,11 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		return a.technicalError(r, err), nil
 	}
 	r.result.Document = document
+	if containsInstructions(text) {
+		r.injections++
+		r.limitations = append(r.limitations, limitationInputInstructions)
+		a.logger.Warn("prompt injection in submission", "requestId", request.RequestID, "inputType", request.InputType)
+	}
 
 	claims, omitted, usage, err := a.extractClaims(ctx, text)
 	r.addUsage(usage)
@@ -251,6 +256,12 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 			break
 		}
 	}
+	if len(claims) == 0 {
+		if statement, ok := questionAsStatement(text); ok {
+			a.logger.Info("extraction found no claim in a yes/no question, checking the question as a statement")
+			return []string{statement}, 0, usageOf(completion), nil
+		}
+	}
 	return claims, max(answer.Omitted, 0), usageOf(completion), nil
 }
 
@@ -276,26 +287,12 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 	}
 
 	if len(search.Results) == 0 {
-		claim.Verdict = VerdictInsufficientEvidence
-		claim.Justification = missingNoSources
-		claim.EvidenceStrength = StrengthNone
-		claim.StrengthReasons = []string{reasonNoSources}
-		claim.Missing = stringPtr(missingNoSources)
-		r.abstained = true
-		return claim, nil
+		return a.checkClaimWithoutSources(ctx, r, claim, search.ContextXML)
 	}
 
-	system, user := a.prompts.judgeMessages(claimText, search.ContextXML, a.now().Format("2006-01-02"))
-	var answer judgeAnswer
-	completion, err := askJSON(ctx, a.provider, system, user, &answer)
-	r.addUsage(usageOf(completion))
+	answer, err := a.judge(ctx, r, claimID, claimText, search.ContextXML)
 	if err != nil {
-		if !errors.Is(err, ErrModelAnswer) {
-			return Claim{}, err
-		}
-		a.logger.Warn("judge returned no JSON", "requestId", r.request.RequestID, "claimId", claimID, "error", err.Error())
-		r.limitations = append(r.limitations, fmt.Sprintf(limitationModelFallback, claimID))
-		answer = judgeAnswer{Verdict: "brak_dowodow", Justification: missingWeakEvidence}
+		return Claim{}, err
 	}
 	if answer.Suspicious {
 		r.injections++
@@ -311,10 +308,19 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 	if dropped > 0 {
 		a.logger.Info("citations dropped by validation", "requestId", r.request.RequestID, "claimId", claimID, "dropped", dropped)
 	}
-	ruling := applyFactcheckRatings(sources, passages)
+	proposed := mapVerdict(answer.Verdict)
+	ruling := applyFactcheckRatings(sources, passages, proposed)
+	demoted := demoteMismatchedNumbers(claimText, sources, passages)
 	ev := assessEvidence(sources, a.now())
-	d := decide(claimID, mapVerdict(answer.Verdict), answer.Missing, sources, ev, dropped, ruling)
+	d := decide(claimID, proposed, answer.Missing, sources, ev, dropped, ruling)
 	r.limitations = append(r.limitations, d.limitations...)
+	if demoted > 0 {
+		a.logger.Info("citations with other numbers demoted to context", "requestId", r.request.RequestID, "claimId", claimID, "demoted", demoted)
+		r.limitations = append(r.limitations, fmt.Sprintf(limitationNumbersMismatch, claimID))
+		if d.verdict == VerdictInsufficientEvidence && proposed != VerdictInsufficientEvidence {
+			d.missing = stringPtr(missingNumbersMismatch)
+		}
+	}
 
 	claim.Verdict = d.verdict
 	claim.Justification = strings.TrimSpace(answer.Justification)
@@ -331,6 +337,51 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 	if claim.Verdict == VerdictInsufficientEvidence || claim.Verdict == VerdictNotVerifiable {
 		r.abstained = true
 	}
+	return claim, nil
+}
+
+// judge asks the model for a verdict; a malformed answer becomes an abstention, any other failure is returned.
+func (a *Agent) judge(ctx context.Context, r *claimRun, claimID, claimText, contextXML string) (judgeAnswer, error) {
+	system, user := a.prompts.judgeMessages(claimText, contextXML, a.now().Format("2006-01-02"))
+	var answer judgeAnswer
+	completion, err := askJSON(ctx, a.provider, system, user, &answer)
+	r.addUsage(usageOf(completion))
+	if err != nil {
+		if !errors.Is(err, ErrModelAnswer) {
+			return judgeAnswer{}, err
+		}
+		a.logger.Warn("judge returned no JSON", "requestId", r.request.RequestID, "claimId", claimID, "error", err.Error())
+		r.limitations = append(r.limitations, fmt.Sprintf(limitationModelFallback, claimID))
+		answer = judgeAnswer{Verdict: "brak_dowodow", Justification: missingWeakEvidence}
+	}
+	return answer, nil
+}
+
+// checkClaimWithoutSources handles a search with no passages. The model still sees the claim, because an opinion or a
+// prediction is not_verifiable whether or not sources exist; any other verdict is impossible without evidence, so it
+// becomes insufficient_evidence and the model's justification is not shown.
+func (a *Agent) checkClaimWithoutSources(ctx context.Context, r *claimRun, claim Claim, contextXML string) (Claim, error) {
+	if strings.TrimSpace(contextXML) == "" {
+		contextXML = emptyContextXML
+	}
+	claim.EvidenceStrength = StrengthNone
+	claim.StrengthReasons = []string{reasonNoSources}
+	r.abstained = true
+	answer, err := a.judge(ctx, r, claim.ID, claim.Text, contextXML)
+	if err != nil {
+		return Claim{}, err
+	}
+	if answer.Suspicious {
+		r.injections++
+	}
+	if mapVerdict(answer.Verdict) == VerdictNotVerifiable && strings.TrimSpace(answer.Justification) != "" {
+		claim.Verdict = VerdictNotVerifiable
+		claim.Justification = strings.TrimSpace(answer.Justification)
+		return claim, nil
+	}
+	claim.Verdict = VerdictInsufficientEvidence
+	claim.Justification = missingNoSources
+	claim.Missing = stringPtr(missingNoSources)
 	return claim, nil
 }
 

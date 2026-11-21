@@ -56,7 +56,7 @@ docker compose up -d --build
 
 ## Zasilanie korpusu
 
-`rag` startuje pusty. Endpointy administracyjne wymagają nagłówka `X-Admin-Token` z wartością `RAG_ADMIN_TOKEN`.
+`rag` przy starcie sam uzupełnia korpus z `rag/app/data/seed_documents.json` (17 dosłownych fragmentów źródeł z datami i linkami) i katalog kampanii z `rag/app/data/seed_incidents.json`, więc podstawowe fakty i scenariusz I działają bez ręcznego zasilania. Endpointy administracyjne wymagają nagłówka `X-Admin-Token` z wartością `RAG_ADMIN_TOKEN`.
 ```
 # test dymny na fikcyjnych danych
 curl -X POST http://127.0.0.1:8001/ingest -H "X-Admin-Token: $RAG_ADMIN_TOKEN" -H "Content-Type: application/json" --data-binary @rag/tests/smoke_documents.json

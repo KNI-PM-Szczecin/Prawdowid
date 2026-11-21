@@ -196,13 +196,11 @@ type decision struct {
 	consistent  bool
 }
 
-// decide applies CONTRACT.md §4: confirmed/false need strong evidence with matching roles; a fact-checker's
-// rating on a cited fact-check wins over the model; otherwise the claim becomes an abstention with `missing`.
-// factcheckRuling is the verdict a cited fact-checker's rating implies, if any source carries one.
+// factcheckRuling says how the ratings of the cited fact-checks relate to the model's verdict.
 type factcheckRuling struct {
-	publisher string
-	verdict   string
-	found     bool
+	agrees            bool   // some cited fact-check rates the claim the same way as the model
+	conflicts         bool   // some cited fact-check rates it differently
+	conflictPublisher string // first fact-checker whose rating differs
 }
 
 var roleForFactcheckVerdict = map[string]string{
@@ -213,8 +211,10 @@ var roleForFactcheckVerdict = map[string]string{
 }
 
 // applyFactcheckRatings reads the rating from the full passage of every cited fact-check (the quote may be only
-// the claim part) and aligns the citation role with it, so the ruling and the roles never contradict each other.
-func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage) factcheckRuling {
+// the claim part). A rating that matches the model's verdict aligns the citation role with it. A rating that differs
+// is not applied: the fact-checker may have rated a different claim on the same topic (CONTRACT.md §4: the rating is
+// evidence, not a ready verdict, and topical similarity is not enough), so decide turns it into an abstention.
+func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage, proposed string) factcheckRuling {
 	ruling := factcheckRuling{}
 	for index := range sources {
 		if sources[index].SourceType != SourceTypeFactcheck {
@@ -228,20 +228,30 @@ func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage) fac
 		if !known {
 			continue
 		}
-		sources[index].Role = roleForFactcheckVerdict[verdict]
-		if !ruling.found {
-			ruling = factcheckRuling{publisher: publisher, verdict: verdict, found: true}
+		if verdict == proposed {
+			sources[index].Role = roleForFactcheckVerdict[verdict]
+			ruling.agrees = true
+			continue
+		}
+		if !ruling.conflicts {
+			ruling.conflicts = true
+			ruling.conflictPublisher = publisher
 		}
 	}
 	return ruling
 }
 
+// decide applies CONTRACT.md §4: confirmed/false need strong evidence with matching roles; a cited fact-check whose
+// rating differs from the model's verdict makes the claim an abstention; otherwise weak evidence also abstains.
 func decide(claimID, proposed string, modelMissing *string, sources []SourceRef, ev evidence, dropped int, ruling factcheckRuling) decision {
 	result := decision{verdict: proposed, missing: modelMissing, consistent: true}
-	if ruling.found && ruling.verdict != proposed {
-		result.verdict = ruling.verdict
-		result.limitations = append(result.limitations, fmt.Sprintf(limitationFactcheckRule, claimID, ruling.publisher))
+	if ruling.conflicts && !ruling.agrees {
+		result.limitations = append(result.limitations, fmt.Sprintf(limitationFactcheckMismatch, claimID, ruling.conflictPublisher))
 		result.consistent = false
+		if proposed != VerdictInsufficientEvidence {
+			result.verdict = VerdictInsufficientEvidence
+			result.missing = stringPtr(missingFactcheckMismatch)
+		}
 	}
 	switch result.verdict {
 	case VerdictNotVerifiable:
@@ -285,12 +295,38 @@ func decide(claimID, proposed string, modelMissing *string, sources []SourceRef,
 
 func stringPtr(value string) *string { return &value }
 
-// isSingleStatement decides whether the submission is already one claim, so extraction can be skipped.
+const maxSingleStatementRunes = 300
+
+// A sentence ends with . ! ? or … followed by a capital letter. An ordinal number ("po 65. roku życia") is followed by
+// a lowercase word, so it does not split the statement.
+var sentenceBoundary = regexp.MustCompile(`[.!?…]\s+\p{Lu}`)
+
+// isSingleStatement decides whether the submission is already one claim, so extraction can be skipped. Questions go
+// through extraction, which rewrites them as statements; checked as they are, they would read as no claim at all.
 func isSingleStatement(input string) bool {
 	trimmed := strings.TrimSpace(input)
-	if len([]rune(trimmed)) > 300 || strings.Contains(trimmed, "\n") {
+	if len([]rune(trimmed)) > maxSingleStatementRunes || strings.Contains(trimmed, "\n") || strings.HasSuffix(trimmed, "?") {
 		return false
 	}
-	terminators := strings.Count(trimmed, ". ") + strings.Count(trimmed, "? ") + strings.Count(trimmed, "! ")
-	return terminators == 0
+	return !sentenceBoundary.MatchString(trimmed)
+}
+
+// A yes/no question in Polish keeps statement word order after "czy", so dropping "czy" and "?" gives the claim.
+var yesNoQuestion = regexp.MustCompile(`(?i)^czy\s+(.+?)\s*\?+$`)
+
+// questionAsStatement turns one short yes/no question ("Czy we Włoszech był strajk?") into the statement it asks
+// about. It is the fallback when extraction returns no claim for such a question: the model sometimes skips vague
+// questions, but the citizen still asked about a fact. Anything longer or with several sentences returns false.
+func questionAsStatement(input string) (string, bool) {
+	trimmed := strings.TrimSpace(input)
+	if len([]rune(trimmed)) > maxSingleStatementRunes || strings.Contains(trimmed, "\n") || sentenceBoundary.MatchString(trimmed) {
+		return "", false
+	}
+	match := yesNoQuestion.FindStringSubmatch(trimmed)
+	if match == nil {
+		return "", false
+	}
+	body := []rune(match[1])
+	body[0] = unicode.ToUpper(body[0])
+	return string(body) + ".", true
 }

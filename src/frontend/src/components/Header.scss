@@ -1,8 +1,19 @@
 @use "../styles/mixins" as *;
 
 .header {
-  border-bottom: 1px solid var(--line);
   background: var(--page);
+
+  &__inner {
+    border-bottom: 1px solid var(--line);
+  }
+
+  // On wide screens the claim drawer is fixed below the header, so the header stays in view too
+  // and the accessibility button is never covered.
+  @include from-lg {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
 
   &__inner {
     display: flex;
@@ -26,24 +37,6 @@
     text-decoration: none;
   }
 
-  &__nav {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1rem;
-
-    @include from-sm {
-      gap: 2rem;
-    }
-  }
-
-  &__link {
-    color: var(--ink);
-    font-size: $text-lg;
-    text-decoration: underline;
-    text-underline-offset: 4px;
-  }
-
   &__accessibility {
     display: inline-flex;
     align-items: center;
@@ -52,9 +45,14 @@
     border-radius: 0.5rem;
     padding: 0.375rem 0.75rem;
     font-size: $text-lg;
+    transition: transform $duration-press $ease-out;
 
     @include hover {
       background: var(--neutral-soft);
+    }
+
+    &:active {
+      transform: scale(0.97);
     }
   }
 

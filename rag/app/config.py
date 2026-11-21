@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     incident_min_score: float = 0.7
     incident_max_matches: int = 3
     incident_summary_max_chars: int = 400
+    # app/data/seed_incidents.json fills an empty catalog at start (real EUvsDisinfo cases, context only).
+    seed_incidents_enabled: bool = True
 
     # Team scraper writes pages into this table of the shared database (id, date YYYYMMDD, site, title, content).
     corpus_scraped_table: str = "ScrappedData"
@@ -91,6 +93,8 @@ class Settings(BaseSettings):
     corpus_fetch_user_agent: str = "Prawdowid/0.1 (hackathon demo fact-checking corpus)"
     # POST /fetch for agent/: text returned for claim extraction, the page itself is not stored.
     fetch_max_text_chars: int = 20_000
+    # Curated demo documents (app/data/seed_documents.json) fill facts the demo needs; missing ids are indexed at start.
+    seed_corpus_enabled: bool = True
 
     # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
     euvsdisinfo_token: str = Field(
@@ -119,6 +123,9 @@ class Settings(BaseSettings):
     expansion_llm_max_completion_tokens: int = 800
     # Must fit inside rag's 8 s budget together with retrieval and reranking; on timeout the rules take over.
     expansion_llm_timeout_seconds: float = 3.0
+    # The same claim gets the same auxiliary queries even if the provider is not perfectly deterministic.
+    expansion_cache_ttl_seconds: int = 3600
+    expansion_cache_max_entries: int = 500
 
     protection_days: int = 7
     eviction_max_active_chunks: int = 50000

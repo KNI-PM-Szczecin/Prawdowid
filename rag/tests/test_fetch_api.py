@@ -16,7 +16,9 @@ def test_fetch_returns_page_text_and_truncation_flag(client, monkeypatch):
     monkeypatch.setattr(settings, "fetch_max_text_chars", 20)
 
     async def fake_fetch_page(http_client, url):
-        return FetchedPage(url=url, title="Komunikat", text="Treść strony, która jest dłuższa niż limit.")
+        return FetchedPage(
+            url=url, title="Komunikat", text="Treść strony, która jest dłuższa niż limit.", published_at=None
+        )
 
     monkeypatch.setattr(main, "fetch_page", fake_fetch_page)
     body = client.post("/fetch", json={"url": "https://www.gov.pl/web/rcb/x"}).json()

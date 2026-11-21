@@ -19,3 +19,4 @@ rag/data/
 bin/
 *.exe
 /backend/backend
+/src/backend/backend

@@ -1,5 +1,9 @@
 @use "../styles/mixins" as *;
 
+// With the drawer open the page splits in half: the main column is capped at this width and hugs
+// the drawer, the drawer content is capped at the same width. Together they match the 80rem layout.
+$column-width: 40rem;
+
 .result-view {
   max-width: 64rem;
   margin: 0 auto;
@@ -17,6 +21,7 @@
     @include from-lg {
       grid-template-columns: 1fr 1fr;
       gap: 0;
+      max-width: none;
     }
   }
 
@@ -28,6 +33,9 @@
 
   &--with-panel &__main {
     @include from-lg {
+      justify-self: end;
+      width: 100%;
+      max-width: $column-width;
       border-right: $border solid var(--line);
       padding-right: 2rem;
     }
@@ -66,19 +74,61 @@
     align-self: flex-start;
   }
 
+  // Figma: the claim panel sits on a blurred wash of its verdict colour (top-right). clip-path keeps the
+  // wash inside the drawer. On wide screens the drawer is fixed to the viewport below the sticky header
+  // and scrolls on its own, independently of the page. It slides in; the reduced-motion switch in
+  // global.scss shortens the transition to nothing.
   &__side {
+    position: relative;
+    clip-path: inset(0);
+    transition: transform $duration-panel $ease-out, opacity $duration-panel ease;
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+
     @include from-lg {
-      padding-left: 2rem;
+      position: fixed;
+      top: var(--header-height, 0px);
+      right: 0;
+      bottom: 0;
+      z-index: 1;
+      width: 50%;
+
+      @starting-style {
+        transform: translateX(2rem);
+      }
+    }
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: -16rem;
+      right: -16rem;
+      z-index: -1;
+      width: 44rem;
+      height: 44rem;
+      background-color: var(--tone-blob);
+      -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgb(0 0 0 / 55%) 45%, transparent 100%);
+      mask-image: radial-gradient(closest-side, #000 0%, rgb(0 0 0 / 55%) 45%, transparent 100%);
+      pointer-events: none;
+      transition: background-color 500ms ease;
     }
   }
 
   &__side-inner {
     @include from-lg {
-      position: sticky;
-      top: 1.5rem;
-      max-height: calc(100vh - 3rem);
+      height: 100%;
       overflow-y: auto;
-      padding-right: 0.5rem;
+      overscroll-behavior: contain;
+      padding: 2rem;
+    }
+
+    > * {
+      @include from-lg {
+        max-width: $column-width;
+      }
     }
   }
 }
