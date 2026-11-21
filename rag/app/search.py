@@ -9,7 +9,7 @@ from app.context import build_context_xml, contains_instructions
 from app.embeddings import EmbeddingModels
 from app.models import Passage, SearchRequest, SearchResponse
 from app.query_expansion import expand
-from app.vector_store import RetrievedChunk, VectorStore
+from app.vector_store import RetrievedChunk, VectorStore, build_filter
 
 logger = logging.getLogger(__name__)
 
@@ -36,20 +36,22 @@ async def search_passages(request: SearchRequest, models: EmbeddingModels, store
     """
     Full retrieval pipeline: query expansion -> parallel hybrid search -> cross-encoder rerank -> metadata join.
 
-    Returns at most rerank_top_k_max passages above rerank_min_score; an empty list means no relevant evidence.
+    Returns at most request.top_k passages above rerank_min_score; an empty list means no relevant evidence.
     Read counters are not updated here, the caller schedules db.register_reads for the returned chunks.
     """
     started_at = time.perf_counter()
-    top_k = min(request.top_k or settings.rerank_top_k, settings.rerank_top_k_max)
     filters = request.filters
+    payload_filter = build_filter(
+        filters.source_types if filters else None, filters.published_after if filters else None
+    )
 
     queries = await expand(request.query)
     query_texts = [queries.original, queries.negative, queries.neutral]
     dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_queries, query_texts)
     result_sets = await asyncio.gather(
         *(
-            store.hybrid_search(dense, sparse, settings.retrieval_limit_per_query)
-            for dense, sparse in zip(dense_vectors, sparse_vectors)
+            store.hybrid_search(dense, sparse, settings.retrieval_limit_per_query, payload_filter)
+            for dense, sparse in zip(dense_vectors, sparse_vectors, strict=True)
         )
     )
     candidates = _merge_candidates(list(result_sets), settings.candidate_pool_size)
@@ -57,17 +59,13 @@ async def search_passages(request: SearchRequest, models: EmbeddingModels, store
     passages: list[Passage] = []
     if candidates:
         logits = await asyncio.to_thread(models.rerank, queries.original, [chunk.text for chunk in candidates])
-        scored = [(chunk, _relevance(logit)) for chunk, logit in zip(candidates, logits)]
+        scored = [(chunk, _relevance(logit)) for chunk, logit in zip(candidates, logits, strict=True)]
         ranked = sorted(
             (pair for pair in scored if pair[1] >= settings.rerank_min_score),
             key=lambda pair: pair[1],
             reverse=True,
         )
-        metadata = await db.fetch_passage_metadata(
-            [chunk.chunk_id for chunk, _ in ranked],
-            filters.source_types if filters else None,
-            filters.published_after if filters else None,
-        )
+        metadata = await db.fetch_passage_metadata([chunk.chunk_id for chunk, _ in ranked])
         for chunk, score in ranked:
             row = metadata.get(chunk.chunk_id)
             if row is None:
@@ -75,7 +73,9 @@ async def search_passages(request: SearchRequest, models: EmbeddingModels, store
             flags = []
             if contains_instructions(chunk.text):
                 flags.append(INJECTION_FLAG)
-                logger.warning("Possible prompt injection in chunk %s (document %s)", chunk.chunk_id, row["document_id"])
+                logger.warning(
+                    "Possible prompt injection in chunk %s (document %s)", chunk.chunk_id, row["document_id"]
+                )
             passages.append(
                 Passage(
                     document_id=row["document_id"],
@@ -94,13 +94,16 @@ async def search_passages(request: SearchRequest, models: EmbeddingModels, store
                     reliability=row["reliability"],
                 )
             )
-            if len(passages) == top_k:
+            if len(passages) == request.top_k:
                 break
 
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     logger.info(
         "search done in %d ms: expansion=%s candidates=%d results=%d",
-        elapsed_ms, queries.method, len(candidates), len(passages),
+        elapsed_ms,
+        queries.method,
+        len(candidates),
+        len(passages),
     )
     return SearchResponse(
         results=passages,
