@@ -2,7 +2,7 @@
 
 > **Status: propozycja, wersja wstępna.** Ten dokument ma być aktualizowany w trakcie budowy API przez osobę, która implementuje dany endpoint. Gdy kod i ten plik się rozjadą, poprawiamy plik w tym samym PR.
 >
-> Źródłem prawdy jest `CONTRACT.md`. Elementy oznaczone **[NOWE]** nie są jeszcze w kontrakcie: to propozycje wynikające z projektu w Figmie. Zanim ktoś je zaimplementuje, trzeba je dopisać do `CONTRACT.md` (zasada z `AGENTS.md`).
+> Źródłem prawdy jest `CONTRACT.md`. Elementy oznaczone **[NOWE]** wynikają z projektu w Figmie i są wpisane do `CONTRACT.md` §1a jako propozycja do akceptacji (do tego czasu są opcjonalne). Reguły werdyktów (ocena weryfikatora faktów, rozbieżność wyjaśnialna, wydarzenia bieżące, awaria źródła zewnętrznego) są w `CONTRACT.md` §4 po PR #23 i w `spec/mentor-test-scenarios.md`.
 >
 > Wszystkie dane w przykładach są fikcyjne (adresy `przyklad.*`, wymyślone cytaty).
 
@@ -13,7 +13,7 @@
 | Nagłówek i pełny tekst artykułu | tytuł i treść sprawdzanego dokumentu (dla URL: pobrana treść) | nie → `document` **[NOWE]** |
 | Podświetlony fragment w tekście (stan normal / hover), klik otwiera panel boczny | pozycja twierdzenia w tekście | nie → `claims[].span` **[NOWE]** |
 | Box „81% / 50% / 12% Pewności prawdy” (zielony / żółty / czerwony) | zbiorcza ocena całego zgłoszenia | nie → `summary` **[NOWE]**, zob. §6 ryzyko |
-| Chipy: „Świeży”, „Brak oficjalnej informacji”, „Źródło z niską/wysoką reputacją”, „Oficjalna informacja” | etykiety wyliczone z przesłanek | częściowo (`warnings`) → `badges` **[NOWE]** |
+| Chipy: „Świeży”, „Brak oficjalnej informacji”, „Źródło z niską/wysoką reputacją”, „Oficjalna informacja” | etykiety wyliczone z przesłanek; „reputacja” zastąpiona neutralnym „źródło w katalogu / spoza katalogu” (domena URL vs `GET /sources`) | częściowo (`warnings`) → `badges` **[NOWE]** |
 | Czarny box „Ten tekst może być częścią kampanii dezinformacyjnej” + „Więcej informacji” | alert kampanii z linkami do spraw, na poziomie całego tekstu | częściowo (`warnings[].type = incident_match` bez linków) → `campaignAlert` **[NOWE]** |
 | Panel boczny: nagłówek = fragment, badge „Fakt”, wyjaśnienie, „Źródła:” | `claims[].text`, `verdict`, `justification`, `sources` | tak |
 | Panel „Sprzeczne źródła” z opisem i kartami źródeł | informacja o rozbieżności + źródła z obu stron | częściowo (`missing`, `role`) → `claims[].conflict` **[NOWE]** |
@@ -87,7 +87,7 @@ Każde ciało ma kształt `CheckResult`.
     "score": 81,
     "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym 1 źródło urzędowe"]
   },
-  "badges": ["official_source_present", "high_reputation_input_source"],
+  "badges": ["official_source_present", "fresh_material", "input_source_in_catalog"],
   "campaignAlert": null,
   "claims": [
     {
@@ -134,7 +134,7 @@ Tylko pola, które się różnią od przykładu A:
 ```json
 {
   "summary": { "level": "low", "score": 12, "reasons": ["1 z 1 twierdzeń obalone przez źródło urzędowe"] },
-  "badges": ["fresh_material", "official_source_absent", "low_reputation_input_source"],
+  "badges": ["fresh_material", "official_source_absent", "input_source_outside_catalog"],
   "campaignAlert": {
     "category": "possible_disinformation_campaign",
     "message": "Treść jest podobna do znanych przypadków dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.",
@@ -167,9 +167,33 @@ Tylko pola, które się różnią od przykładu A:
 }
 ```
 
-`campaignAlert` i chip `low_reputation_input_source` **nigdy nie wpływają** na `verdict`, `summary` ani `evidenceStrength` (zakaz z briefu, scenariusz I). Front pokazuje je obok, jako kontekst.
+`campaignAlert` i chip `input_source_outside_catalog` **nigdy nie wpływają** na `verdict`, `summary` ani `evidenceStrength` (zakaz z briefu, scenariusz I). Front pokazuje je obok, jako kontekst.
 
 ### Przykład C — sprzeczne źródła (panel „Sprzeczne źródła”)
+
+Dwa warianty (`CONTRACT.md` §4 po PR #23, scenariusz C mentora):
+
+**C1, rozbieżność wyjaśnialna** (700 mln zł to przybliżenie z wypowiedzi, 650 mln zł to konkretna pozycja z 2023 r.): werdykt z oceny weryfikatora, oba źródła pokazane, wyjaśnienie w `justification`, `conflict: null`. W `justification` mówimy, kto ocenił („według Demagoga”).
+
+```json
+{
+  "id": "c1",
+  "text": "Wrocław wydaje na komunikację miejską około 700 mln zł.",
+  "verdict": "misleading",
+  "justification": "Według Demagoga 700 mln zł to przybliżenie z wypowiedzi polityka, a 650 mln zł to wydatki na transport zbiorowy w 2023 r. To nie są dwa sprzeczne pomiary. Demagog ocenił całą wypowiedź jako częściową prawdę.",
+  "evidenceStrength": "moderate",
+  "strengthReasons": ["ocena weryfikatora faktów tego samego twierdzenia", "liczby dotyczą innego zakresu i roku"],
+  "sources": [
+    { "id": "s1", "sourceType": "factcheck", "role": "context", "publisher": "Demagog (przykład)", "quote": "Wydatki na transport zbiorowy w 2023 r. wyniosły 650 mln zł. Ocena: częściowa prawda.", "...": "…" },
+    { "id": "s2", "sourceType": "secondary", "role": "supports", "quote": "Miasto wydaje na komunikację około 700 mln zł rocznie.", "...": "…" }
+  ],
+  "warnings": [],
+  "conflict": null,
+  "missing": null
+}
+```
+
+**C2, rozbieżność niewyjaśnialna** (panel „Sprzeczne źródła” w Figmie):
 
 ```json
 {
@@ -211,6 +235,15 @@ Tylko pola, które się różnią od przykładu A:
 ```
 
 Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "score": null, ... }`, a nie 50%.
+
+**Odpowiedź częściowa** (wydarzenie bieżące, scenariusz A mentora „strajk we Włoszech”, przypadek A13): też `insufficient_evidence`, ale z **niepustym** `sources` (to, co ustalono: zapowiedź strajku) i `missing` mówiącym wprost, czego nie wiadomo („Nie mam informacji, czy strajk się odbył”). Nie piszemy, że zdarzenie się nie odbyło.
+
+### Przykład J — awaria źródła zewnętrznego (Google Fact Check)
+
+`rag/` przy błędzie klucza lub limicie **nie** zwraca 503: odpowiada normalnie z `externalSources: [{ "name": "google_factcheck", "status": "error" }]` i wynikami z korpusu. Decyzja należy do `agent/`:
+
+- gdy korpus coś zwrócił → `status: "ok"` z werdyktem z korpusu i wpisem w `limitations`: „Nie mogłem teraz sprawdzić bazy weryfikatorów faktów z powodu błędu dostępu. To nie znaczy, że takiej weryfikacji nie ma.”;
+- gdy pytanie dotyczy wyłącznie tego, czy weryfikatorzy coś sprawdzali, a korpus milczy (J03) → `503` + `technical_error` z tym samym komunikatem. Nigdy „nie ma takiego artykułu”.
 
 ### Przykład E — status niemerytoryczny
 
@@ -339,10 +372,10 @@ interface Summary {                   // [NOWE]
   reasons: string[];
 }
 
-type Badge =                          // [NOWE] etykiety po polsku w texts.ts
+type Badge =                          // [NOWE] etykiety po polsku w texts.ts; wyliczane z przesłanek, nie przez model
   | "fresh_material" | "archival_material"
   | "official_source_present" | "official_source_absent"
-  | "high_reputation_input_source" | "low_reputation_input_source";
+  | "input_source_in_catalog" | "input_source_outside_catalog"; // tylko dla inputType: url
 
 interface Claim {
   id: string;
@@ -383,14 +416,14 @@ Uwaga do `span`: Go liczy w bajtach, JS w jednostkach UTF-16. Proponujemy code p
 | `confirmed` | Prawda / „Fakt” | zielony |
 | `false` | Fałsz | czerwony |
 | `misleading` | Wprowadza w błąd | żółty |
-| `insufficient_evidence` | Brak wystarczających dowodów; „Sprzeczne źródła”, gdy `conflict != null` | szary / żółty |
+| `insufficient_evidence` | Brak wystarczających dowodów; „Sprzeczne źródła”, gdy `conflict != null`; „Ustalono częściowo”, gdy `sources` niepuste | szary / żółty |
 | `not_verifiable` | Nie da się sprawdzić (opinia, przewidywanie) | szary |
 
 Rzeczy do decyzji z osobą od designu:
 
 1. **„X% Pewności prawdy” to ryzyko punktowe.** Brief mówi, że system nie jest „sędzią prawdy”, a siła oceny ma wynikać z jawnych przesłanek. Procent sugeruje precyzję, której nie mamy, a wstrzymanie się (brak dowodów) nie może wyglądać jak „50% prawdy”. Propozycja: `summary.score` liczony **deterministycznie w backendzie** z werdyktów i `evidenceStrength` według jawnego wzoru (opisanego w README), nigdy przez model; przy samych wstrzymaniach `score: null` i osobny stan „Brak wystarczających dowodów”. Do rozważenia zmiana nazwy na „Siła potwierdzenia”.
 2. **„Sprzeczne źródła” ma zielony ptaszek** w Figmie. Powinien mieć neutralną ikonę, bo to nie jest potwierdzenie.
-3. **Chip „Źródło z niską reputacją”** dotyczy strony, z której pochodzi tekst. Wolno go pokazać tylko jako neutralne ostrzeżenie, nie może ruszać werdyktu ani procentu.
+3. **Chip „Źródło z niską reputacją”** dotyczy strony, z której pochodzi tekst. Nie mamy podstawy, by oceniać „reputację”; możemy tylko neutralnie powiedzieć, czy domena jest w naszym katalogu źródeł (`input_source_in_catalog` / `input_source_outside_catalog`). Proponowane etykiety: „Źródło z naszego katalogu” / „Źródło spoza naszego katalogu”. Nie może ruszać werdyktu ani procentu.
 4. **Brakuje ekranów:** strona główna z polem wejścia, stan ładowania (do 25 s), błąd techniczny, `needs_clarification`, wynik bez dowodów. Brakuje też w widoku wyniku: siły podstawy (`evidenceStrength` + `strengthReasons`), dat źródeł, cytatów i sekcji ograniczeń (`limitations`). `AGENTS.md` wymaga, żeby wynik zawsze je pokazywał.
 5. Lista „Źródła:” w Figmie pokazuje same domeny. Kontrakt wymaga tytułu, wydawcy, daty i linku, najlepiej z cytatem.
 
