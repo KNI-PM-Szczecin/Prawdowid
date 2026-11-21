@@ -22,5 +22,10 @@ CREATE TABLE IF NOT EXISTS document_metadata (
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- Supabase exposes the public schema through its REST API; RLS without policies blocks that path.
+-- The table owner (our direct connection) bypasses RLS, so rag/ keeps full access.
+ALTER TABLE sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_metadata ENABLE ROW LEVEL SECURITY;
+
 CREATE INDEX IF NOT EXISTS idx_document_metadata_active
     ON document_metadata (is_deleted, tier, protected_until);
