@@ -16,6 +16,7 @@ const (
 	missingDiscrepancy       = "Źródła podają rozbieżne dane i nie da się ustalić, które są właściwe."
 	missingFactcheckMismatch = "Nie ustalono, czy weryfikator faktów oceniał dokładnie to twierdzenie, " +
 		"czy inne, podobne. Sprawdź jego publikację w źródłach."
+	missingNumbersMismatch = "Cytowane źródła podają inne liczby niż twierdzenie, więc go nie potwierdzają ani nie obalają."
 
 	limitationFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów (usługa niedostępna); " +
 		"wynik opiera się tylko na korpusie źródeł."
@@ -24,6 +25,8 @@ const (
 	limitationPageTruncated     = "Strona była bardzo długa; sprawdzono jej początek."
 	limitationFactcheckMismatch = "Dla twierdzenia %s ocena weryfikatora faktów (%s) różniła się od wniosku ze źródeł. " +
 		"Weryfikator mógł oceniać inne, podobne twierdzenie, dlatego wstrzymujemy się od oceny."
+	limitationNumbersMismatch = "Dla twierdzenia %s pominęliśmy jako dowód źródła, które podają inne liczby niż twierdzenie " +
+		"(mogą dotyczyć innej sprawy)."
 	limitationModelFallback = "Dla twierdzenia %s model nie zwrócił poprawnej odpowiedzi; " +
 		"podano wstrzymanie się od oceny."
 

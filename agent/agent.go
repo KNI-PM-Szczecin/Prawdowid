@@ -304,9 +304,17 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 	}
 	proposed := mapVerdict(answer.Verdict)
 	ruling := applyFactcheckRatings(sources, passages, proposed)
+	demoted := demoteMismatchedNumbers(claimText, sources, passages)
 	ev := assessEvidence(sources, a.now())
 	d := decide(claimID, proposed, answer.Missing, sources, ev, dropped, ruling)
 	r.limitations = append(r.limitations, d.limitations...)
+	if demoted > 0 {
+		a.logger.Info("citations with other numbers demoted to context", "requestId", r.request.RequestID, "claimId", claimID, "demoted", demoted)
+		r.limitations = append(r.limitations, fmt.Sprintf(limitationNumbersMismatch, claimID))
+		if d.verdict == VerdictInsufficientEvidence && proposed != VerdictInsufficientEvidence {
+			d.missing = stringPtr(missingNumbersMismatch)
+		}
+	}
 
 	claim.Verdict = d.verdict
 	claim.Justification = strings.TrimSpace(answer.Justification)
