@@ -59,6 +59,12 @@ def _trim(text: str) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def rerank_text(hit: RetrievedChunk) -> str:
+    """EUvsDisinfo claims are long paragraphs; the cross-encoder cost grows with length (10 long texts ≈ 2 s on CPU),
+    and the campaign thesis is in the opening sentences, so only the head is scored."""
+    return hit.text[: settings.incident_summary_max_chars]
+
+
 def build_campaign_alert(scored: list[tuple[RetrievedChunk, float]]) -> CampaignAlert | None:
     """Keeps only strong matches; None means the claim resembles no known campaign closely enough."""
     strong = sorted((pair for pair in scored if pair[1] >= settings.incident_min_score), key=lambda pair: -pair[1])

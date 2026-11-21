@@ -10,6 +10,7 @@ from app.context import build_context_xml, contains_instructions
 from app.embeddings import EmbeddingModels
 from app.factcheck import FACTCHECK_RELIABILITY, FACTCHECK_TIER, FactCheckClient, FactCheckResult, FactCheckReview
 from app.incidents import CATALOG_STATUS_NAME, build_campaign_alert
+from app.incidents import rerank_text as incident_rerank_text
 from app.models import ExternalSourceStatus, Passage, SearchFilters, SearchRequest, SearchResponse
 from app.query_expansion import expand
 from app.vector_store import RetrievedChunk, VectorStore, build_filter
@@ -143,8 +144,11 @@ async def search_passages(
     campaign_alert = None
     if candidates or incident_hits:
         rerank_texts = [
-            candidate.rerank_text if isinstance(candidate, FactCheckReview) else candidate.text
-            for candidate in [*candidates, *incident_hits]
+            *(
+                candidate.rerank_text if isinstance(candidate, FactCheckReview) else candidate.text
+                for candidate in candidates
+            ),
+            *(incident_rerank_text(hit) for hit in incident_hits),
         ]
         logits = await asyncio.to_thread(models.rerank, queries.original, rerank_texts)
         relevances = [_relevance(logit) for logit in logits]
