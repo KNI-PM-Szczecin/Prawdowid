@@ -31,7 +31,7 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `backend/config.go`). W
 | `DELETE /api/checks/{requestId}` | usunięcie sesji demo (wymóg prywatności) | MVP |
 | `GET /health` | stan backendu i bazy (już działa) | jest |
 | `GET /api/sources` **[NOWE]** | lista źródeł korpusu do audytu (proxy do `rag/ GET /sources`) | MVP (wymóg „lista źródeł dostępna do audytu”) |
-| `POST /api/channels/discord/interactions` **[NOWE]** | drugi kanał (Discord), tylko gdy Paweł wybierze model webhookowy | MVP, zależnie od decyzji |
+| `POST /api/channels/discord/interactions` **[NOWE]** | drugi kanał (Discord) przez Interactions Endpoint (webhook), decyzja zespołu | MVP |
 | `GET /api/admin/checks` **[NOWE]** | log sprawdzeń + eksport CSV/JSON | po podstawie (funkcja premiowana) |
 | `POST /api/admin/cases`, `GET /api/admin/cases` **[NOWE]** | pętla moderatora | po podstawie (funkcja premiowana) |
 
@@ -318,9 +318,9 @@ Proxy do `rag/ GET /sources`, bez zmian kształtu (tylko odczyt, bez tokena):
 }
 ```
 
-### `POST /api/channels/discord/interactions` [NOWE, zależne od decyzji]
+### `POST /api/channels/discord/interactions` [NOWE, decyzja: webhook]
 
-Tylko jeśli Discord działa przez Interactions Endpoint (komenda `/sprawdz`). Backend weryfikuje podpis Ed25519 (`X-Signature-Ed25519`, `X-Signature-Timestamp`) **przed** wywołaniem `agent.Verify`, zły podpis → `401`. Ponieważ sprawdzenie trwa dłużej niż 3 s, odpowiedź to najpierw „deferred”, potem follow-up przez webhook Discorda. Jeśli Paweł wybierze bota przez Gateway, ten endpoint nie powstaje (bot woła `agent.Verify` w procesie).
+Discord działa przez Interactions Endpoint (webhook, komenda `/sprawdz`). Decyzja zespołu. Zwykły „incoming webhook” Discorda tylko wysyła wiadomości na kanał i nie odbiera zgłoszeń, więc go nie używamy. Backend weryfikuje podpis Ed25519 (`X-Signature-Ed25519`, `X-Signature-Timestamp`) **przed** wywołaniem `agent.Verify`, zły podpis → `401`. Ponieważ sprawdzenie trwa dłużej niż 3 s, odpowiedź to najpierw „deferred”, potem follow-up przez webhook Discorda. Do demo Discord potrzebuje publicznego adresu HTTPS (tunel do `localhost`). Plan B na brak sieci lub kont: adapter demonstracyjny z tą samą ścieżką `agent.Verify` (brief dopuszcza adapter, gdy organizator nie zapewnia kont).
 
 Odpowiedź w kanale (`ToReply`), przykład:
 
@@ -433,7 +433,7 @@ Rzeczy do decyzji z osobą od designu (stan po Figmie v2, `Untitled (2).zip`):
 ## 7. Pytania otwarte
 
 - `400` dla złego JSON-a: jaki `status` w ciele? Propozycja: `technical_error` z komunikatem „Nieprawidłowe zapytanie”. Za długi lub pusty `input` → `200` + `needs_clarification`.
-- Discord: Interactions Endpoint (HTTP, ten dokument) czy bot przez Gateway? Decyzja: Paweł.
+- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Rozstrzygnięte: Interactions Endpoint (webhook). Zostaje adres HTTPS do demo (tunel) i adapter demonstracyjny jako plan B.
 - Czy `document.text` zapisujemy w bazie (potrzebne do `GET /api/checks/{id}`), skoro to pełna treść cudzego artykułu? Propozycja: dla URL przechowujemy tylko zamaskowany fragment do 5000 znaków z retencją 24 h, opisaną w README.
 - CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go.
 - Limit żądań: proponujemy 10 żądań na minutę na IP dla `POST /api/check`, wartość w `.env`.
