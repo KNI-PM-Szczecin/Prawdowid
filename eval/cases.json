@@ -239,5 +239,67 @@
     "expected": { "status": "technical_error" },
     "requires": "fault:rag_down",
     "note": "Zatrzymaj kontener rag (docker compose stop rag), potem: run --enable fault:rag_down."
+  },
+  {
+    "id": "A13",
+    "scenario": "A",
+    "input": "Czy we Włoszech ostatnio odbywał się strajk generalny?",
+    "expected": {
+      "verdict": "insufficient_evidence"
+    },
+    "requires": "corpus:live_sources",
+    "evidenceNeeded": "Komunikat Odyseusza (MSZ) albo inne wiarygodne źródło o zapowiedzi strajku generalnego we Włoszech. Brak potwierdzenia, czy strajk się odbył.",
+    "note": "Wzorowane na przykładzie mentora (wydarzenie bieżące). Oczekiwana odpowiedź częściowa: podaje to, co ustalono (zapowiedź), i uczciwie mówi, czego nie wiadomo. Wynik zależy od daty uruchomienia."
+  },
+  {
+    "id": "C04",
+    "scenario": "C",
+    "input": "Politycy mówią, że Wrocław wydaje na komunikację miejską około 700 mln zł, a analiza Demagoga podaje 650 mln zł. Która liczba jest prawdziwa?",
+    "expected": {
+      "verdict": "misleading"
+    },
+    "requires": "corpus:factcheck",
+    "evidenceNeeded": "Ocena weryfikatora faktów (Demagog) dla tej wypowiedzi, odnaleziona przez Google Fact Check API.",
+    "note": "Rozbieżność wyjaśnialna (CONTRACT.md §4): jedna liczba to przybliżenie z wypowiedzi, druga konkretna pozycja z roku 2023. Werdykt weryfikatora to częściowa prawda, więc oczekujemy misleading z wyjaśnieniem i obu źródłami, nie insufficient_evidence."
+  },
+  {
+    "id": "D07",
+    "scenario": "D",
+    "input": "Czy od przyszłego miesiąca w Limanowej parkowanie w centrum będzie możliwe wyłącznie przez aplikację mobilną?",
+    "expected": {
+      "verdict": "insufficient_evidence"
+    },
+    "note": "Wzorowane na scenariuszu D mentora. Lokalna zmiana, której nie da się potwierdzić w żadnym źródle; potrzebny byłby komunikat urzędu miasta albo regulamin strefy parkowania."
+  },
+  {
+    "id": "G02",
+    "scenario": "G",
+    "input": "Czy tylko Wrocław oferuje bezpłatną komunikację miejską dla osób po 65. roku życia?",
+    "expected": {
+      "verdict": "false"
+    },
+    "requires": "channel:discord",
+    "evidenceNeeded": "Ocena Demagoga dla tezy o wyjątkowości Wrocławia, odnaleziona przez Google Fact Check API.",
+    "note": "Wzorowane na przykładzie G mentora. To samo wejście przez WWW i Discord musi dać ten sam werdykt i tę samą publikację. Na razie porównanie ręczne."
+  },
+  {
+    "id": "H02",
+    "scenario": "H",
+    "input": "Czy w Limanowej od przyszłego miesiąca można parkować w centrum tylko przez aplikację?",
+    "expected": {
+      "verdict": "insufficient_evidence"
+    },
+    "requires": "feature:moderator_loop",
+    "note": "Parafraza D07. Oba zgłoszenia mają trafić do jednej sprawy moderatora, a bot nie może komunikować przekazania, dopóki system go nie potwierdził. Funkcja nie jest wdrożona."
+  },
+  {
+    "id": "J03",
+    "scenario": "J",
+    "input": "Czy weryfikatorzy faktów sprawdzali, czy Wrocław był jedynym miastem z bezpłatnymi przejazdami dla osób po 65. roku życia?",
+    "expected": {
+      "status": "technical_error"
+    },
+    "requires": "fault:factcheck_down",
+    "note": "Przykład J mentora: przy awarii Google API system ujawnia ograniczenie i nie twierdzi, że takiej publikacji nie ma. Uruchom rag z błędnym FACTCHECK_API_KEY. Do potwierdzenia z Dominikiem: gdy korpus coś zwróci, wystarczy ujawnione ograniczenie w limitations."
   }
 ]
