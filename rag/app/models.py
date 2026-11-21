@@ -159,6 +159,10 @@ class EuvsDisinfoSyncStatus(ApiModel):
     available: int | None
 
 
+class CorpusFetchRequest(ApiModel):
+    urls: list[HttpUrl] = Field(default_factory=list, max_length=settings.corpus_fetch_max_urls)
+
+
 class CorpusSyncStatus(ApiModel):
     running: bool
     last_finished_at: Timestamp | None

@@ -1,33 +1,43 @@
 import asyncio
+import hashlib
+import json
 import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from urllib.parse import urlparse
+
+import httpx
 
 from app import db
 from app.catalog import SourceOutsideCatalogError, resolve_entry
 from app.config import settings
 from app.embeddings import EmbeddingModels
+from app.fetcher import FetchError, fetch_page
 from app.ingest import DuplicateDocumentError, ingest_document
 from app.models import DocumentIn, SourceIn
 from app.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 
-DOCUMENT_PREFIX = "scrapped:"
+SCRAPED_PREFIX = "scrapped:"
+WEB_PREFIX = "web:"
+WEB_ID_LENGTH = 16
 YYYYMMDD = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
 TITLE_MAX_CHARS = 300
+PROGRESS_EVERY = 20
+SEED_URLS_PATH = Path(__file__).parent / "data" / "seed_urls.json"
 
 
 @dataclass(frozen=True)
-class ScrapedPage:
-    row_id: int
-    date_code: int | None
-    site: str
+class Page:
+    document_id: str
+    url: str
     title: str
     content: str
+    fetched_at: datetime
 
 
 @dataclass
@@ -43,7 +53,9 @@ class CorpusSyncState:
 
 
 sync_state = CorpusSyncState()
+fetch_state = CorpusSyncState()
 _sync_lock = asyncio.Lock()
+_fetch_lock = asyncio.Lock()
 
 
 def parse_date_code(value: int | None) -> datetime | None:
@@ -73,18 +85,25 @@ def remove_boilerplate(contents: list[str], share: float, min_documents: int) ->
     return ["\n\n".join(line for line in lines if line not in boilerplate) for lines in line_lists]
 
 
-def to_document(page: ScrapedPage, cleaned_content: str) -> DocumentIn:
-    host = urlparse(page.site).hostname or page.site
-    entry = resolve_entry(page.site)
-    fetched_at = parse_date_code(page.date_code) or datetime.now(UTC)
+def web_document_id(url: str) -> str:
+    return WEB_PREFIX + hashlib.sha256(url.encode("utf-8")).hexdigest()[:WEB_ID_LENGTH]
+
+
+def seed_urls() -> list[str]:
+    return json.loads(SEED_URLS_PATH.read_text(encoding="utf-8"))["urls"]
+
+
+def to_document(page: Page, cleaned_content: str) -> DocumentIn:
+    host = urlparse(page.url).hostname or page.url
+    entry = resolve_entry(page.url)
     return DocumentIn(
         source=SourceIn(
-            document_id=f"{DOCUMENT_PREFIX}{page.row_id}",
+            document_id=page.document_id,
             title=page.title.strip()[:TITLE_MAX_CHARS] or host,
             publisher=entry.publisher if entry else host,
-            url=page.site,
+            url=page.url,
             published_at=None,
-            fetched_at=fetched_at,
+            fetched_at=page.fetched_at,
             license=None,
             topic_tag=host,
         ),
@@ -92,67 +111,112 @@ def to_document(page: ScrapedPage, cleaned_content: str) -> DocumentIn:
     )
 
 
-async def sync_corpus(models: EmbeddingModels, store: VectorStore, max_documents: int) -> CorpusSyncState:
-    """
-    Imports the scraper's pages from the shared database into the evidence corpus through the normal ingest path
-    (catalog qualification, duplicate rejection, chunking). One bad page never stops the run; counts say what happened.
-    """
-    if _sync_lock.locked():
-        logger.warning("Corpus sync already running, request ignored")
-        return sync_state
-    async with _sync_lock:
-        sync_state.running = True
-        sync_state.last_error = None
-        indexed = duplicates = outside = failed = 0
+async def _index_pages(
+    pages: list[Page], models: EmbeddingModels, store: VectorStore, state: CorpusSyncState, label: str
+) -> None:
+    """Normal ingest path for every page (catalog, duplicates, chunking); one bad page never stops the run."""
+    cleaned = remove_boilerplate(
+        [page.content for page in pages], settings.corpus_boilerplate_share, settings.corpus_boilerplate_min_documents
+    )
+    for page, content in zip(pages, cleaned, strict=True):
+        if not content.strip():
+            state.failed += 1
+            continue
         try:
-            rows = await db.fetch_scraped_pages(max_documents)
-            pages = [
-                ScrapedPage(row["id"], row["date"], row["site"], row["title"] or "", row["content"] or "")
-                for row in rows
-            ]
-            sync_state.available = len(pages)
-            cleaned = remove_boilerplate(
-                [page.content for page in pages],
-                settings.corpus_boilerplate_share,
-                settings.corpus_boilerplate_min_documents,
-            )
-            for page, content in zip(pages, cleaned, strict=True):
-                if not content.strip():
-                    failed += 1
-                    continue
-                try:
-                    await ingest_document(to_document(page, content), models, store)
-                    indexed += 1
-                except DuplicateDocumentError as error:
-                    duplicates += 1
-                    logger.info("Corpus sync: %s duplicates %s, skipped", error.document_id, error.duplicate_of)
-                except SourceOutsideCatalogError:
-                    outside += 1
-                    logger.warning("Corpus sync: page %s is outside the source catalog, skipped", page.row_id)
-                except Exception:
-                    failed += 1
-                    logger.exception("Corpus sync: page %s failed", page.row_id)
-                if (indexed + duplicates + outside + failed) % 20 == 0:
-                    logger.info(
-                        "Corpus sync: %d indexed, %d duplicates, %d outside catalog, %d failed",
-                        indexed,
-                        duplicates,
-                        outside,
-                        failed,
-                    )
+            await ingest_document(to_document(page, content), models, store)
+            state.indexed += 1
+        except DuplicateDocumentError as error:
+            state.skipped_duplicates += 1
+            logger.info("%s: %s duplicates %s, skipped", label, error.document_id, error.duplicate_of)
+        except SourceOutsideCatalogError:
+            state.skipped_outside_catalog += 1
+            logger.warning("%s: %s is outside the source catalog, skipped", label, page.document_id)
+        except Exception:
+            state.failed += 1
+            logger.exception("%s: %s failed", label, page.document_id)
+        done = state.indexed + state.skipped_duplicates + state.skipped_outside_catalog + state.failed
+        if done % PROGRESS_EVERY == 0:
+            logger.info("%s: %d of %d pages processed, %d indexed", label, done, len(pages), state.indexed)
+
+
+async def _run(
+    state: CorpusSyncState, lock: asyncio.Lock, label: str, load_pages, models: EmbeddingModels, store: VectorStore
+) -> CorpusSyncState:
+    if lock.locked():
+        logger.warning("%s already running, request ignored", label)
+        return state
+    async with lock:
+        state.__init__(running=True)
+        try:
+            pages = await load_pages(state)
+            state.available = len(pages)
+            await _index_pages(pages, models, store, state, label)
         except Exception as error:
-            sync_state.last_error = f"{type(error).__name__}: {error}"
-            logger.exception("Corpus sync stopped")
+            state.last_error = f"{type(error).__name__}: {error}"
+            logger.exception("%s stopped", label)
         finally:
-            sync_state.running = False
-            sync_state.last_finished_at = datetime.now(UTC)
-            sync_state.indexed, sync_state.skipped_duplicates = indexed, duplicates
-            sync_state.skipped_outside_catalog, sync_state.failed = outside, failed
+            state.running = False
+            state.last_finished_at = datetime.now(UTC)
             logger.info(
-                "Corpus sync done: %d indexed, %d duplicates, %d outside catalog, %d failed",
-                indexed,
-                duplicates,
-                outside,
-                failed,
+                "%s done: %d indexed, %d duplicates, %d outside catalog, %d failed",
+                label,
+                state.indexed,
+                state.skipped_duplicates,
+                state.skipped_outside_catalog,
+                state.failed,
             )
-    return sync_state
+    return state
+
+
+async def sync_corpus(models: EmbeddingModels, store: VectorStore, max_documents: int) -> CorpusSyncState:
+    """Imports the scraper's pages from the shared database table into the evidence corpus."""
+
+    async def load_pages(_: CorpusSyncState) -> list[Page]:
+        rows = await db.fetch_scraped_pages(max_documents)
+        return [
+            Page(
+                document_id=f"{SCRAPED_PREFIX}{row['id']}",
+                url=row["site"],
+                title=row["title"] or "",
+                content=row["content"] or "",
+                fetched_at=parse_date_code(row["date"]) or datetime.now(UTC),
+            )
+            for row in rows
+        ]
+
+    return await _run(sync_state, _sync_lock, "Corpus sync", load_pages, models, store)
+
+
+async def fetch_corpus(
+    urls: list[str], models: EmbeddingModels, store: VectorStore, transport: httpx.AsyncBaseTransport | None = None
+) -> CorpusSyncState:
+    """
+    Fetches public pages (seed list or caller's URLs) and indexes them like scraped ones. Pages that fail to
+    download or are not HTML count as failed; the rest go through the catalog, so unknown domains are skipped.
+    """
+
+    async def load_pages(state: CorpusSyncState) -> list[Page]:
+        pages: list[Page] = []
+        async with httpx.AsyncClient(
+            timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=True, transport=transport
+        ) as client:
+            for url in urls:
+                try:
+                    fetched = await fetch_page(client, url)
+                except FetchError as error:
+                    state.failed += 1
+                    logger.warning("Corpus fetch: %s skipped (%s)", url, error)
+                    continue
+                pages.append(
+                    Page(
+                        document_id=web_document_id(url),
+                        url=fetched.url,
+                        title=fetched.title,
+                        content=fetched.text,
+                        fetched_at=datetime.now(UTC),
+                    )
+                )
+                await asyncio.sleep(settings.corpus_fetch_delay_seconds)
+        return pages
+
+    return await _run(fetch_state, _fetch_lock, "Corpus fetch", load_pages, models, store)

@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     # A line present in at least this share of scraped pages is navigation boilerplate, not content.
     corpus_boilerplate_share: float = 0.3
     corpus_boilerplate_min_documents: int = 3
+    # Public pages fetched by POST /admin/corpus/fetch; the client name is generic on purpose.
+    corpus_fetch_max_urls: int = 100
+    corpus_fetch_timeout_seconds: float = 15.0
+    corpus_fetch_max_bytes: int = 2_000_000
+    corpus_fetch_delay_seconds: float = 0.5
+    corpus_fetch_user_agent: str = "Prawdowid/0.1 (hackathon demo fact-checking corpus)"
 
     # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
     euvsdisinfo_token: str = Field(
