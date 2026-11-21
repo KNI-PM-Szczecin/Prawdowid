@@ -1,0 +1,13 @@
+:{$PORT:8080} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy {$BACKEND_URL:http://backend:3001}
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
