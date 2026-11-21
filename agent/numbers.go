@@ -32,7 +32,8 @@ func cardinalNumbers(text string) map[string]bool {
 	numbers := map[string]bool{}
 	for _, bounds := range numberToken.FindAllStringIndex(text, -1) {
 		start, end := bounds[0], bounds[1]
-		isOrdinal := end < len(text) && text[end] == '.' && (end+1 == len(text) || !isASCIIDigit(text[end+1]))
+		// "65. roku" is an ordinal; a dot that ends the text closes a sentence ("w 2004."), so that number counts.
+		isOrdinal := end+1 < len(text) && text[end] == '.' && !isASCIIDigit(text[end+1])
 		if isOrdinal || legalReference.MatchString(text[:start]) {
 			continue
 		}
@@ -73,6 +74,33 @@ func citedClaimText(source SourceRef, passages map[string]Passage) string {
 	return checkedClaim
 }
 
+// numbersMatch says whether a cited text backs every number of the claim. A quote that names the year in words
+// ("25 maja tego samego roku" for a claim about 25 May 1997) is still a match when it brings no other number of its
+// own and the missing numbers are in the same passage; a quote with a different number ("458" for "460") is not.
+func numbersMatch(claimNumbers, citedNumbers map[string]bool, passageText string) bool {
+	missing := []string{}
+	for number := range claimNumbers {
+		if !citedNumbers[number] {
+			missing = append(missing, number)
+		}
+	}
+	if len(missing) == 0 {
+		return true
+	}
+	for number := range citedNumbers {
+		if !claimNumbers[number] {
+			return false
+		}
+	}
+	passageNumbers := cardinalNumbers(passageText)
+	for _, number := range missing {
+		if !passageNumbers[number] {
+			return false
+		}
+	}
+	return true
+}
+
 // demoteMismatchedNumbers turns decisive citations whose numbers differ from the claim's into context. A refuting
 // quote may legitimately carry another number (that is how it refutes), so only supporting citations and fact-checks
 // (whose rating concerns the exact numbers they checked) are compared. It returns how many citations were demoted.
@@ -92,12 +120,9 @@ func demoteMismatchedNumbers(claimText string, sources []SourceRef, passages map
 		if len(citedNumbers) == 0 {
 			continue
 		}
-		for number := range claimNumbers {
-			if !citedNumbers[number] {
-				source.Role = RoleContext
-				demoted++
-				break
-			}
+		if !numbersMatch(claimNumbers, citedNumbers, passages[source.ID].Passage) {
+			source.Role = RoleContext
+			demoted++
 		}
 	}
 	return demoted

@@ -94,3 +94,62 @@ func TestFactcheckOfClaimWithOtherNumberIsContextOnly(t *testing.T) {
 		t.Fatalf("expected abstention, got %+v", claim)
 	}
 }
+
+func TestSentenceFinalNumberIsCardinal(t *testing.T) {
+	cases := map[string][]string{
+		"Polska wstąpiła do NATO w 1999.":   {"1999"},
+		"Sejm liczy 460.":                   {"460"},
+		"Dla osób po 65. roku życia w 2024": {"2024"},
+	}
+	for text, want := range cases {
+		got := cardinalNumbers(text)
+		if len(got) != len(want) {
+			t.Errorf("cardinalNumbers(%q) = %v, want %v", text, got, want)
+			continue
+		}
+		for _, number := range want {
+			if !got[number] {
+				t.Errorf("cardinalNumbers(%q) = %v, want %v", text, got, want)
+			}
+		}
+	}
+}
+
+func referendumVerdict(t *testing.T, passageText, quote string) Claim {
+	t.Helper()
+	passage := officialPassage()
+	passage.Passage = passageText
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judgeJSON("potwierdzone", quote, "potwierdza")},
+		&ragStub{search: searchWith(passage)}), "Konstytucja RP została przyjęta w referendum 25 maja 1997 roku.", InputTypeText)
+	return result.Claims[0]
+}
+
+// The year is written in words in the quote but stated in the same passage: still evidence.
+func TestQuoteWithYearInWordsSupportsWhenPassageHasYear(t *testing.T) {
+	claim := referendumVerdict(t,
+		"2 kwietnia 1997 r. Zgromadzenie Narodowe uchwaliło Konstytucję, a następnie, 25 maja tego samego roku, została ona przyjęta przez Polaków w referendum.",
+		"25 maja tego samego roku, została ona przyjęta przez Polaków w referendum")
+	if claim.Verdict != VerdictConfirmed || claim.Sources[0].Role != RoleSupports {
+		t.Fatalf("expected confirmed, got %+v", claim)
+	}
+}
+
+// The missing year is nowhere in the passage: the source cannot back the date.
+func TestQuoteWithoutYearAbstainsWhenPassageLacksYear(t *testing.T) {
+	claim := referendumVerdict(t,
+		"Konstytucja została przyjęta przez Polaków w referendum 25 maja tego samego roku.",
+		"przyjęta przez Polaków w referendum 25 maja")
+	if claim.Verdict != VerdictInsufficientEvidence || claim.Sources[0].Role != RoleContext {
+		t.Fatalf("expected abstention, got %+v", claim)
+	}
+}
+
+// A quote with its own different number is not rescued by the passage (26 vs 25 May).
+func TestQuoteWithOtherNumberNotRescuedByPassage(t *testing.T) {
+	claim := referendumVerdict(t,
+		"W 1997 roku odbyło się referendum. Konstytucję przyjęto 26 maja, a ogłoszono później.",
+		"Konstytucję przyjęto 26 maja")
+	if claim.Verdict != VerdictInsufficientEvidence || claim.Sources[0].Role != RoleContext {
+		t.Fatalf("expected abstention, got %+v", claim)
+	}
+}

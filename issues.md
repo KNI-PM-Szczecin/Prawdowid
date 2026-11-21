@@ -86,3 +86,23 @@ Hipoteza (niezweryfikowana w logach): `rag/app/query_expansion.py` przy hostowan
 - `Szczepionki przeciw COVID-19 powodują autyzm.` → `false`, źródła Demagog i OKO.press z cytatami.
 - `Wczoraj w Szczecinie uruchomiono pierwszą w Polsce elektrownię termojądrową.` → `insufficient_evidence` bez wymyślonych źródeł.
 - Odpowiedzi poniżej 6 s, koszt ok. 0,00002–0,00007 USD na zapytanie, 100% odpowiedzi zgodnych z kontraktem.
+
+# Runda 2 (2026-11-22, po #56 i #57)
+
+Eval na produkcji po wdrożeniu #56 i #57: macro-F1 0,78, wstrzymanie się 86%, injection 100%, stabilność 94%, mediana 1,6 s. Korpus startowy pokrywa przypadki z `eval/cases.json`, więc F1 na zestawie jawnym jest zawyżone; na 10 twierdzeniach spoza eval 8 wyników było poprawnych.
+
+## Naprawione w gałęzi `fix/questions-numbers-seed`
+
+- **Pytanie „Czy…?”, dla którego model zwraca pustą listę twierdzeń** (Włochy, Limanowa D07, NATO) dostawało `needs_clarification`. Teraz krótkie pytanie tak/nie bez innych zdań jest sprawdzane jako twierdzenie (`questionAsStatement` w `agent/rules.go`), tylko gdy wyodrębnianie nic nie zwróciło. Pytania otwarte („Jak się dziś masz?”) i tekst z kilkoma zdaniami nadal dostają `needs_clarification`.
+- **Reguła liczb odrzucała poprawny cytat z rokiem zapisanym słowami** („25 maja tego samego roku” dla „25 maja 1997 roku”). Cytat bez własnej, innej liczby zostaje dowodem, gdy brakujące liczby są w tym samym fragmencie źródła (`numbersMatch` w `agent/numbers.go`). Cytat z inną liczbą (458 zamiast 460, 26 zamiast 25 maja) nadal jest tylko kontekstem.
+- **Liczba na końcu tekstu („w 1999.”) była brana za liczebnik porządkowy** i pomijana. Teraz kropka kończąca tekst zamyka zdanie.
+- **Źródło WHO o 5G usunięte z korpusu startowego.** Cytatu ani daty publikacji nie ma w HTML podlinkowanej strony (tekst jest tylko na grafice). Pozostałe 16 dokumentów sprawdzone: cytaty dosłownie na stronach źródłowych, daty publikacji widoczne na stronach. Dokument już wgrany na produkcję trzeba usunąć ręcznie: `DELETE /sources/seed:who-5g` z nagłówkiem `X-Admin-Token`.
+
+Sprawdzenie: testy jednostkowe (bez poprawek nie przechodzą `TestYesNoQuestionFallsBackToStatementWhenExtractionIsEmpty`, `TestSentenceFinalNumberIsCardinal`, `TestQuoteWithYearInWordsSupportsWhenPassageHasYear`) oraz lokalny przebieg z prawdziwym modelem `gpt-6-luna` i zaślepką `rag/`, każdy przypadek dwa razy z tym samym wynikiem.
+
+## Nadal otwarte
+
+- **I01: brak ostrzeżenia o kampanii.** Reranker porównuje zgłoszenie tylko ze streszczeniem sprawy; dla tytułu sprawy wpisanego dosłownie wynik to 0,65 przy progu 0,7. Próba z tytułem w tekście do rerankingu podniosła trafienie do 0,93, ale dała fałszywe alarmy: prawdziwe „Ukraińskie drony zaatakowały rosyjski port Ust-Ługa” 0,76 i „Drony, które wleciały nad Polskę, były rosyjskie” 0,78. Zmiana wycofana. Cross-encoder nie odróżnia twierdzenia kampanii od prawdziwego zdarzenia na ten sam temat.
+- **Scenariusz B (kontekst) 0/4:** system nigdy nie daje `misleading` dla twierdzeń nieaktualnych (np. „UE liczy 28 państw”).
+- **Pytanie o „tylko Wrocław”** model rozbija na dwa twierdzenia: z „tylko” i bez niego. Pierwsze dostanie `confirmed`, drugie `false`. Wynik jest poprawny, ale mylący dla obywatela.
+- **Okno wdrożenia:** przez około minutę po wdrożeniu `rag/` rozgrzewa modele i wgrywa korpus, a każde zapytanie kończy się `technical_error` po 12 s. Nie wdrażać w trakcie pokazu.

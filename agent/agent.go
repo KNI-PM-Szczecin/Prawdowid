@@ -256,6 +256,12 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 			break
 		}
 	}
+	if len(claims) == 0 {
+		if statement, ok := questionAsStatement(text); ok {
+			a.logger.Info("extraction found no claim in a yes/no question, checking the question as a statement")
+			return []string{statement}, 0, usageOf(completion), nil
+		}
+	}
 	return claims, max(answer.Omitted, 0), usageOf(completion), nil
 }
 

@@ -310,3 +310,23 @@ func isSingleStatement(input string) bool {
 	}
 	return !sentenceBoundary.MatchString(trimmed)
 }
+
+// A yes/no question in Polish keeps statement word order after "czy", so dropping "czy" and "?" gives the claim.
+var yesNoQuestion = regexp.MustCompile(`(?i)^czy\s+(.+?)\s*\?+$`)
+
+// questionAsStatement turns one short yes/no question ("Czy we Włoszech był strajk?") into the statement it asks
+// about. It is the fallback when extraction returns no claim for such a question: the model sometimes skips vague
+// questions, but the citizen still asked about a fact. Anything longer or with several sentences returns false.
+func questionAsStatement(input string) (string, bool) {
+	trimmed := strings.TrimSpace(input)
+	if len([]rune(trimmed)) > maxSingleStatementRunes || strings.Contains(trimmed, "\n") || sentenceBoundary.MatchString(trimmed) {
+		return "", false
+	}
+	match := yesNoQuestion.FindStringSubmatch(trimmed)
+	if match == nil {
+		return "", false
+	}
+	body := []rune(match[1])
+	body[0] = unicode.ToUpper(body[0])
+	return string(body) + ".", true
+}
