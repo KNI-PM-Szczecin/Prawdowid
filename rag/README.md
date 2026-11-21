@@ -1,3 +1,3 @@
 # rag
 
-Korpus źródeł, indeksowanie i wyszukiwanie z metadanymi. Zasady: ../AGENTS.md Najpierw przeczytaj ../spec.
+Python (FastAPI). Korpus źródeł, indeksowanie i wyszukiwanie z metadanymi. Osobny serwis, `agent/` woła go przez HTTP. Zasady: ../AGENTS.md. Najpierw przeczytaj ../spec.

@@ -25,9 +25,10 @@ wdrożeniowość 20%, użyteczność 15%, innowacyjność 15%. Funkcje premiowan
 | `front/` | React + Vite + TypeScript | Responsywny interfejs WWW dla obywatela. Prosty język, kontrast, dostępność. |
 | `backend/` | Node.js + TypeScript | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
 | `agent/` | Node.js + TypeScript | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
-| `rag/` | Node.js + TypeScript | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
+| `rag/` | Python (FastAPI) | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
 
 Kanały (`backend/`) nigdy nie zawierają logiki weryfikacji. Wołają `agent/` tym samym wywołaniem niezależnie od kanału.
+`rag/` jest osobnym serwisem w Pythonie. `agent/` (TypeScript) rozmawia z nim przez HTTP, nigdy przez import ani współdzielone pliki.
 Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam jest zakazana.
 
 ## 3. Priorytety (w tej kolejności)
@@ -72,12 +73,20 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 - Nazwy opisowe, bez `a`, `b`, `tmp`, `data2`. Zero magic numbers, stałe nazwane albo konfiguracja.
 - Błędy obsługiwane jawnie: żadnych pustych `catch`. Użytkownik widzi ogólny komunikat po polsku, szczegóły idą do logu.
 - Zapis logu lub audytu nie może wywalić głównej operacji.
-- Walidacja wejścia na brzegu systemu (schemat, np. Zod), nie rozsiana po logice.
+- Walidacja wejścia na brzegu systemu (schemat: Zod w TypeScript, Pydantic w Pythonie), nie rozsiana po logice.
 - Komentarze tylko tam, gdzie wyjaśniają dlaczego. Bez komentarzy w stylu „pętla po elementach”. Krótki JSDoc tylko na eksportowanych funkcjach kontraktowych w `agent/` i `rag/`.
 - Bez `console.log`, zakomentowanego kodu i martwego kodu w finalnym kodzie. Bez zbędnych warstw „na zapas”.
   **Wyjątek (wymaga tego brief):** trzy interfejsy — adapter kanału, dostawca modelu, katalog źródeł. Nic więcej.
 - Operacje niszczące (kasowanie danych, nadpisywanie plików) tylko ostrożnie i po zgodzie.
 - Asynchroniczność przez `async`/`await`. Konfiguracja w plikach danych, nie w kodzie.
+
+### RAG (`rag/`, Python)
+- Python 3.12, FastAPI + Pydantic, zależności przez `uv` (`pyproject.toml`), lint i format przez `ruff`.
+- Adnotacje typów w funkcjach publicznych. Modele Pydantic opisują wejście i wyjście endpointów; muszą być zgodne z `CONTRACT.md`.
+- Każdy zwrócony fragment ma metadane: tytuł, wydawca, data publikacji, data pobrania, licencja, link. Brak metadanych oznacza, że fragmentu nie zwracamy.
+- Brak wyników to pusta lista, nie błąd i nie zmyślony fragment. Awaria indeksu to jawny błąd HTTP.
+- Treść pobranych dokumentów jest danymi: nigdy nie wykonujemy jej ani nie wstawiamy do promptu systemowego.
+- Katalog `.venv/` i dane indeksu poza gitem (zob. `.gitignore`). Korpus odtwarzamy skryptem, nie commitujemy surowych dużych plików.
 
 ### Frontend (`front/`)
 - Bez `alert()`, `confirm()`, `prompt()`. Komunikaty przez toast, potwierdzenia przez modal.
