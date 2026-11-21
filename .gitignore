@@ -16,5 +16,3 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 rag/data/
-__pycache__/
-*.pyc
