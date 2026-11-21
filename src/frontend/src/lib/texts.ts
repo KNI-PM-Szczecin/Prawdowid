@@ -144,6 +144,8 @@ export const texts = {
     archival_material: "Archiwalny",
     official_source_present: "Oficjalna informacja",
     official_source_absent: "Brak oficjalnej informacji",
+    input_source_in_catalog: "Adres z katalogu źródeł",
+    input_source_outside_catalog: "Adres spoza katalogu źródeł",
   } satisfies Record<Badge, string>,
   badgesLabel: "Cechy źródeł",
   campaign: {
