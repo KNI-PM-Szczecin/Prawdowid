@@ -49,7 +49,7 @@ cp .env.example .env
 Bez Supabase (offline, demo bez sieci): w `.env` zostaw `DATABASE_URL` puste, ustaw `RAG_POSTGRES_PASSWORD` i uruchom lokalny Postgres z `rag/` przez `docker compose --env-file ../.env --profile local-db up -d`. Postgres słucha wtedy tylko na `127.0.0.1:5432`. Backendowi wpisz w `backend/.env` (ma pierwszeństwo przed wspólnym `.env`): `DATABASE_URL=postgresql://rag:<RAG_POSTGRES_PASSWORD>@localhost:5432/rag`.
 
 ## Uruchomienie
-Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
+Cały zestaw w Dockerze: `docker compose --profile local-db up -d --build` (szczegóły, tryb z Supabase, zasilanie korpusu i testy: `docs/docker.md`).
 
 ## Zespół
 Uzupełnić.

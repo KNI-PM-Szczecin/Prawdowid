@@ -2,7 +2,7 @@
 	encode gzip
 
 	handle /api/* {
-		reverse_proxy {$BACKEND_URL:http://backend.railway.internal:8080}
+		reverse_proxy {$BACKEND_URL:http://backend:3001}
 	}
 
 	handle {
