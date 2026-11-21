@@ -1,0 +1,20 @@
+{
+  "min_stem_length": 4,
+  "suffixes": [
+    "owaniami", "owaniach", "owania", "owanie", "owaniu", "owaniem",
+    "ościami", "ościach", "ością", "ości", "ość",
+    "owych", "owymi", "owemu", "owego", "owym", "owej", "owa", "owe", "owi", "ów",
+    "ami", "ach", "ego", "emu", "ymi", "imi", "ych", "ich", "iej", "iom", "iem", "iach", "iami",
+    "om", "em", "ie", "ia", "ii", "io", "iu", "ej", "ym", "im", "ow",
+    "ą", "ę", "a", "e", "i", "o", "u", "y"
+  ],
+  "stopwords": [
+    "a", "aby", "ale", "albo", "ani", "aż", "bo", "by", "być", "był", "była", "było", "byli", "będzie",
+    "co", "czy", "dla", "do", "gdy", "gdzie", "go", "i", "ich", "ile", "im", "iż", "ja", "jak", "jako",
+    "je", "jego", "jej", "jest", "jeszcze", "jeśli", "już", "ją", "każdy", "kiedy", "kto", "która",
+    "które", "który", "których", "którzy", "lub", "ma", "mi", "mnie", "może", "na", "nad", "nam", "nas",
+    "nie", "nich", "niej", "nim", "niż", "no", "o", "od", "on", "ona", "one", "oni", "ono", "oraz", "po",
+    "pod", "przez", "przy", "się", "są", "ta", "tak", "także", "tam", "te", "tego", "tej", "ten", "też",
+    "to", "tu", "tylko", "tym", "u", "w", "we", "więc", "wszystko", "z", "za", "ze", "że", "żeby"
+  ]
+}

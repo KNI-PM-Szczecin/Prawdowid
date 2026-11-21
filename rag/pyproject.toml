@@ -1,0 +1,18 @@
+[project]
+name = "prawdowid-rag"
+version = "0.1.0"
+description = "Prawdowid evidence retrieval service"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.162.5",
+    "uvicorn==0.54.0",
+    "qdrant-client==1.20.0",
+    "fastembed==0.9.1",
+    "asyncpg==0.32.0",
+    "apscheduler==3.11.3",
+    "pydantic-settings==2.15.0",
+    "httpx==0.28.1",
+]
+
+[tool.uv]
+package = false
