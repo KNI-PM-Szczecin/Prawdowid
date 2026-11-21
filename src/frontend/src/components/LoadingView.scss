@@ -1,0 +1,36 @@
+@use "../styles/mixins" as *;
+
+.loading-view {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 6rem 1rem;
+  text-align: center;
+
+  &__spinner {
+    display: block;
+    width: 4rem;
+    height: 4rem;
+    margin: 0 auto;
+    border: 8px solid var(--line);
+    border-top-color: var(--ink);
+    border-radius: 50%;
+    animation: loading-spin 1s linear infinite;
+  }
+
+  &__title {
+    margin-top: 2rem;
+    font-size: $text-3xl;
+    font-weight: $weight-semibold;
+  }
+
+  &__text {
+    margin-top: 0.75rem;
+    font-size: $text-xl;
+  }
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,76 @@
+@use "../styles/mixins" as *;
+
+.campaign-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border: $border solid var(--alert-line);
+  border-radius: $radius-xl;
+  background: var(--alert);
+  color: var(--alert-ink);
+  padding: 1.5rem;
+
+  @include from-sm {
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 2rem;
+  }
+
+  &__icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 5rem;
+    height: 5rem;
+    border: 10px solid var(--alert-ring);
+    border-radius: 50%;
+    background: var(--alert-ink);
+    color: var(--alert);
+  }
+
+  &__glyph {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  &__title {
+    font-size: $text-2xl;
+    font-weight: $weight-semibold;
+  }
+
+  &__text {
+    margin-top: 0.25rem;
+    font-size: $text-lg;
+  }
+
+  &__matches {
+    margin-top: 0.75rem;
+  }
+
+  &__matches-title {
+    font-size: $text-lg;
+    font-weight: $weight-semibold;
+  }
+
+  &__list {
+    margin-top: 0.25rem;
+    list-style: none;
+
+    > li + li {
+      margin-top: 0.5rem;
+    }
+  }
+
+  &__link {
+    color: var(--alert-ink);
+    font-size: $text-lg;
+    font-weight: $weight-semibold;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  &__match-summary {
+    font-size: $text-base;
+  }
+}

@@ -1,5 +1,6 @@
-import { TONE_CLASSES, type Tone } from "../lib/presentation";
+import { toneClass, type Tone } from "../lib/presentation";
 import { CheckIcon, CrossIcon, QuestionIcon, WarningIcon } from "./Icons";
+import "./StatusIcon.scss";
 
 const TONE_ICON: Record<Tone, typeof CheckIcon> = {
   positive: CheckIcon,
@@ -16,14 +17,11 @@ interface StatusIconProps {
 export function StatusIcon({ tone, size = "large" }: StatusIconProps) {
   const Icon = TONE_ICON[tone];
   if (size === "small") {
-    return <Icon class={`h-5 w-5 shrink-0 ${TONE_CLASSES[tone].icon}`} />;
+    return <Icon class={`status-icon-small ${toneClass(tone)}`} />;
   }
   return (
-    <span
-      class={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[10px] border-current bg-page ${TONE_CLASSES[tone].icon}`}
-      aria-hidden="true"
-    >
-      <Icon class="h-9 w-9" />
+    <span class={`status-icon ${toneClass(tone)}`} aria-hidden="true">
+      <Icon class="status-icon__glyph" />
     </span>
   );
 }

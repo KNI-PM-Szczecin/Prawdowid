@@ -1,5 +1,6 @@
-import { TONE_CLASSES, verdictLabel, verdictTone } from "../lib/presentation";
+import { toneClass, verdictLabel, verdictTone } from "../lib/presentation";
 import type { Claim } from "../lib/types";
+import "./HighlightedText.scss";
 
 interface Segment {
   text: string;
@@ -41,7 +42,7 @@ interface HighlightedTextProps {
 
 export function HighlightedText({ text, claims, selectedClaimId, onSelect }: HighlightedTextProps) {
   return (
-    <div class="whitespace-pre-line text-xl leading-loose sm:text-2xl sm:leading-loose">
+    <div class="highlighted-text">
       {buildSegments(text, claims).map((segment, index) => {
         const claim = segment.claim;
         if (!claim) {
@@ -63,7 +64,7 @@ export function HighlightedText({ text, claims, selectedClaimId, onSelect }: Hig
                 onSelect(claim.id);
               }
             }}
-            class={`cursor-pointer rounded-md border-b-4 px-1 [box-decoration-break:clone] hover:brightness-95 ${TONE_CLASSES[verdictTone(claim)].highlight} ${selected ? "outline-2 outline-offset-2 outline-ink" : ""}`}
+            class={`highlighted-text__claim ${toneClass(verdictTone(claim))} ${selected ? "highlighted-text__claim--selected" : ""}`}
           >
             {segment.text}
           </span>

@@ -1,0 +1,84 @@
+@use "../styles/mixins" as *;
+
+.result-view {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+
+  @include from-sm {
+    padding-inline: 2rem;
+  }
+
+  &--with-panel {
+    display: grid;
+    gap: 2.5rem;
+    max-width: 80rem;
+
+    @include from-lg {
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  &--with-panel &__main {
+    @include from-lg {
+      border-right: $border solid var(--line);
+      padding-right: 2rem;
+    }
+  }
+
+  &__title {
+    font-size: $text-3xl;
+    font-weight: $weight-semibold;
+    line-height: 1.25;
+
+    @include from-sm {
+      font-size: $text-5xl;
+    }
+  }
+
+  &__url {
+    font-size: $text-lg;
+    word-break: break-all;
+
+    strong {
+      font-weight: $weight-semibold;
+    }
+  }
+
+  &__limitations {
+    margin-top: 0.5rem;
+    padding-left: 1.5rem;
+    font-size: $text-lg;
+
+    > li + li {
+      margin-top: 0.25rem;
+    }
+  }
+
+  &__new {
+    align-self: flex-start;
+  }
+
+  &__side {
+    @include from-lg {
+      padding-left: 2rem;
+    }
+  }
+
+  &__side-inner {
+    @include from-lg {
+      position: sticky;
+      top: 1.5rem;
+      max-height: calc(100vh - 3rem);
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+  }
+}

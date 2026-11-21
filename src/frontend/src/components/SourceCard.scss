@@ -1,0 +1,68 @@
+@use "../styles/mixins" as *;
+
+.source-card {
+  border: $border solid var(--line);
+  border-radius: $radius-md;
+  background: var(--page);
+  padding: 1rem;
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: $text-base;
+    font-weight: $weight-semibold;
+  }
+
+  &__tag {
+    border: 1px solid var(--line);
+    border-radius: $radius-sm;
+    padding: 0.125rem 0.5rem;
+
+    &--role {
+      border-color: var(--ink);
+    }
+  }
+
+  &__title {
+    margin-top: 0.5rem;
+    font-size: $text-lg;
+    font-weight: $weight-semibold;
+  }
+
+  &__meta {
+    font-size: $text-base;
+  }
+
+  &__quote {
+    margin-top: 0.75rem;
+    border-left: 4px solid var(--ink);
+    padding-left: 0.75rem;
+    font-size: $text-lg;
+    font-style: italic;
+  }
+
+  &__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    color: var(--link);
+    font-size: $text-lg;
+    font-weight: $weight-semibold;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  &__link-icon {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  &__url {
+    margin-top: 0.25rem;
+    color: var(--ink-soft);
+    font-size: $text-sm;
+    word-break: break-all;
+  }
+}

@@ -3,6 +3,7 @@ import { IS_MOCK_MODE } from "../lib/api";
 import { MAX_INPUT_LENGTH } from "../lib/input";
 import { MOCK_EXAMPLES } from "../lib/mockResults";
 import { texts } from "../lib/texts";
+import "./CheckForm.scss";
 
 interface CheckFormProps {
   value: string;
@@ -28,13 +29,13 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
   };
 
   return (
-    <div class="mx-auto max-w-4xl px-4 py-12 sm:px-8 sm:py-20">
-      <h1 id="main-heading" tabIndex={-1} class="text-center text-4xl font-medium leading-tight sm:text-6xl">
+    <div class="check-form">
+      <h1 id="main-heading" tabIndex={-1} class="check-form__title">
         {texts.form.title}
       </h1>
 
       <form
-        class="mt-10"
+        class="check-form__form"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -59,43 +60,36 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
           aria-describedby="check-note check-count"
           aria-invalid={validationError !== null}
           aria-errormessage={validationError ? "check-error" : undefined}
-          class="block w-full resize-y rounded-2xl border-2 border-line bg-page p-4 text-xl text-ink placeholder:text-ink-soft focus:border-ink"
+          class="check-form__input"
         />
-        <div class="mt-2 flex flex-wrap items-start justify-between gap-2">
-          <p id="check-count" class={length > MAX_INPUT_LENGTH ? "font-semibold text-negative-strong" : "text-ink-soft"}>
+        <div class="check-form__meta">
+          <p id="check-count" class={length > MAX_INPUT_LENGTH ? "check-form__count--over" : undefined}>
             {texts.form.charCount(length, MAX_INPUT_LENGTH)}
           </p>
-          <p class="text-ink-soft">{texts.form.shortcutHint}</p>
+          <p>{texts.form.shortcutHint}</p>
         </div>
         {validationError && (
-          <p id="check-error" role="alert" class="mt-2 text-lg font-semibold text-negative-strong">
+          <p id="check-error" role="alert" class="check-form__error">
             {validationError}
           </p>
         )}
-        <button
-          type="submit"
-          class="mt-4 w-full rounded-xl bg-ink px-6 py-4 text-xl font-semibold text-page hover:opacity-90 sm:w-auto"
-        >
+        <button type="submit" class="button button--primary button--large check-form__submit">
           {texts.form.submit}
         </button>
-        <p id="check-note" class="mt-4 text-lg text-ink-soft">
+        <p id="check-note" class="check-form__note">
           {texts.form.note}
         </p>
       </form>
 
       {IS_MOCK_MODE && (
-        <section aria-labelledby="examples-title" class="mt-10">
-          <h2 id="examples-title" class="text-2xl font-medium">
+        <section aria-labelledby="examples-title" class="check-form__examples">
+          <h2 id="examples-title" class="section-title">
             {texts.form.examplesTitle}
           </h2>
-          <ul class="mt-4 flex flex-wrap gap-3">
+          <ul class="check-form__example-list">
             {MOCK_EXAMPLES.map((example) => (
               <li key={example.label}>
-                <button
-                  type="button"
-                  onClick={() => onChange(example.input)}
-                  class="rounded-full border-2 border-line px-4 py-2 text-lg hover:border-ink"
-                >
+                <button type="button" onClick={() => onChange(example.input)} class="check-form__example">
                   {example.label}
                 </button>
               </li>
@@ -104,11 +98,11 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
         </section>
       )}
 
-      <section aria-labelledby="how-title" class="mt-14">
-        <h2 id="how-title" class="text-3xl font-medium">
+      <section aria-labelledby="how-title" class="check-form__how">
+        <h2 id="how-title" class="check-form__how-title">
           {texts.howItWorks.title}
         </h2>
-        <ol class="mt-4 list-decimal space-y-2 pl-6 text-lg">
+        <ol class="check-form__steps">
           {texts.howItWorks.steps.map((step) => (
             <li key={step}>{step}</li>
           ))}

@@ -1,14 +1,15 @@
 import { texts } from "../lib/texts";
 import type { Badge } from "../lib/types";
+import "./BadgeList.scss";
 
 export function BadgeList({ badges }: { badges: Badge[] }) {
   if (badges.length === 0) {
     return null;
   }
   return (
-    <ul aria-label={texts.badgesLabel} class="flex flex-wrap gap-2">
+    <ul aria-label={texts.badgesLabel} class="badge-list">
       {badges.map((badge) => (
-        <li key={badge} class="rounded-full border-2 border-line bg-page px-4 py-1.5 text-lg">
+        <li key={badge} class="badge-list__item">
           {texts.badges[badge]}
         </li>
       ))}

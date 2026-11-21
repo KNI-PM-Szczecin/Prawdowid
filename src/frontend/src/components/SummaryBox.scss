@@ -1,0 +1,36 @@
+@use "../styles/mixins" as *;
+
+.summary-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border: $border solid var(--tone-line);
+  border-radius: $radius-xl;
+  background: var(--tone-soft);
+  padding: 1.5rem;
+
+  @include from-sm {
+    flex-direction: row;
+    align-items: center;
+    padding: 2rem;
+  }
+
+  &__title {
+    font-size: $text-2xl;
+    font-weight: $weight-semibold;
+  }
+
+  &__text {
+    margin-top: 0.25rem;
+    font-size: $text-lg;
+  }
+
+  &__reasons {
+    margin-top: 0.5rem;
+    font-size: $text-lg;
+
+    strong {
+      font-weight: $weight-semibold;
+    }
+  }
+}

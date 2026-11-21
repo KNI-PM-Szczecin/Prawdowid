@@ -1,6 +1,6 @@
 # frontend
 
-Preact + TypeScript + Vite + Tailwind CSS v4, pnpm. Zasady: ../../AGENTS.md. Kontrakt API: ../../CONTRACT.md i ../../docs/api.md.
+Preact + TypeScript + Vite + SCSS (Sass), pnpm. Zasady: ../../AGENTS.md. Kontrakt API: ../../CONTRACT.md i ../../docs/api.md.
 
 ## Uruchomienie
 
@@ -25,7 +25,8 @@ Railway: usługa `front` buduje `deploy/front.Dockerfile`. Zmienna `FRONT_MODE=m
 - `src/lib/api.ts`: `POST /api/check`. 200, 429 i 503 niosą `CheckResult`, wszystko inne to błąd połączenia.
 - `src/lib/mockResults.ts`: dane trybu demo, tylko fikcyjne.
 - `src/lib/accessibilitySettings.ts`: kontrast, rozmiar tekstu i animacje. Zapis w `localStorage`, wartości startowe z `prefers-contrast` i `prefers-reduced-motion`.
-- `src/components/`: jeden komponent na plik.
+- `src/components/`: jeden komponent na plik, style w pliku `.scss` o tej samej nazwie (BEM).
+- `src/styles/`: tokeny kolorów jako zmienne CSS (trzy tryby kontrastu, klasy `tone--*`), mixiny i style globalne.
 
 ## Dostępność
 

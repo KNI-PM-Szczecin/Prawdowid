@@ -1,0 +1,83 @@
+@use "../styles/mixins" as *;
+
+.accessibility-panel {
+  margin: 0 0 0 auto;
+  width: 100%;
+  max-width: 28rem;
+  height: 100%;
+  max-height: none;
+  overflow-y: auto;
+  border: 0;
+  background: var(--page);
+  color: var(--ink);
+  padding: 1.5rem;
+
+  @include from-sm {
+    padding: 2rem;
+  }
+
+  &::backdrop {
+    background: var(--backdrop);
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  &__description {
+    margin-top: 0.75rem;
+    font-size: $text-lg;
+  }
+
+  &__group {
+    margin-top: 1.5rem;
+  }
+
+  &__legend {
+    margin-bottom: 0.75rem;
+    font-size: $text-xl;
+    font-weight: $weight-semibold;
+  }
+
+  &__options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    &--grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  &__option {
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    gap: 0.75rem;
+    border: $border solid var(--line);
+    border-radius: $radius-sm;
+    padding: 0.75rem 1rem;
+    font-size: $text-lg;
+
+    &:has(:checked) {
+      border-color: var(--ink);
+      font-weight: $weight-semibold;
+    }
+
+    input {
+      width: 1.25rem;
+      height: 1.25rem;
+      margin: 0;
+      accent-color: currentColor;
+    }
+  }
+
+  &__reset {
+    width: 100%;
+    margin-top: 2rem;
+  }
+}

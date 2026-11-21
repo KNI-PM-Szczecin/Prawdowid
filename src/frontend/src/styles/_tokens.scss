@@ -1,0 +1,77 @@
+// Colour tokens as CSS custom properties, so the accessibility panel can swap them at runtime via <html data-contrast>.
+:root {
+  --page: #ffffff;
+  --ink: #111111;
+  --ink-soft: #3a3a3a;
+  --line: #8c8c8c;
+  --link: #0b4fc2;
+  --positive-soft: #defccc;
+  --positive-line: #8ccc6a;
+  --positive-strong: #1c7a30;
+  --negative-soft: #ffd3d3;
+  --negative-line: #e08f8f;
+  --negative-strong: #b3261e;
+  --warning-soft: #fff6b5;
+  --warning-line: #d9b700;
+  --warning-strong: #845c00;
+  --neutral-soft: #eceef2;
+  --neutral-line: #9aa1ab;
+  --neutral-strong: #374050;
+  --alert: #000000;
+  --alert-ink: #ffffff;
+  --alert-line: #000000;
+  --alert-ring: #555555;
+  --backdrop: rgb(0 0 0 / 50%);
+}
+
+:root[data-contrast="high-light"] {
+  --ink-soft: #000000;
+  --line: #000000;
+  --link: #00007a;
+  --positive-soft: #ffffff;
+  --positive-line: #000000;
+  --positive-strong: #005a1a;
+  --negative-soft: #ffffff;
+  --negative-line: #000000;
+  --negative-strong: #8a0000;
+  --warning-soft: #ffffff;
+  --warning-line: #000000;
+  --warning-strong: #5c3d00;
+  --neutral-soft: #ffffff;
+  --neutral-line: #000000;
+  --neutral-strong: #000000;
+  --alert-ring: #000000;
+}
+
+:root[data-contrast="high-dark"] {
+  --page: #000000;
+  --ink: #ffffff;
+  --ink-soft: #ffffff;
+  --line: #ffffff;
+  --link: #ffe14d;
+  --positive-soft: #000000;
+  --positive-line: #ffffff;
+  --positive-strong: #8dff9e;
+  --negative-soft: #000000;
+  --negative-line: #ffffff;
+  --negative-strong: #ffa3a3;
+  --warning-soft: #000000;
+  --warning-line: #ffe14d;
+  --warning-strong: #ffe14d;
+  --neutral-soft: #000000;
+  --neutral-line: #ffffff;
+  --neutral-strong: #ffffff;
+  --alert: #000000;
+  --alert-ink: #ffffff;
+  --alert-line: #ffffff;
+  --alert-ring: #ffffff;
+}
+
+// Tone modifiers expose one set of variables, so components style "the tone" instead of each colour.
+@each $tone in positive, negative, warning, neutral {
+  .tone--#{$tone} {
+    --tone-soft: var(--#{$tone}-soft);
+    --tone-line: var(--#{$tone}-line);
+    --tone-strong: var(--#{$tone}-strong);
+  }
+}

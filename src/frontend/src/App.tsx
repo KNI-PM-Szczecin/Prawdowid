@@ -44,19 +44,12 @@ export function App() {
   };
 
   return (
-    <div class="min-h-screen bg-page text-ink">
-      <a
-        href="#main"
-        class="sr-only rounded-md bg-ink px-4 py-2 text-page focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
-      >
+    <div class="app">
+      <a href="#main" class="skip-link">
         {texts.skipToContent}
       </a>
       <Header onHome={goHome} onOpenAccessibility={() => setAccessibilityOpen(true)} />
-      {IS_MOCK_MODE && (
-        <p class="border-b-2 border-warning-line bg-warning-soft px-4 py-3 text-center text-lg font-semibold">
-          {texts.demoBanner}
-        </p>
-      )}
+      {IS_MOCK_MODE && <p class="demo-banner">{texts.demoBanner}</p>}
       <main id="main" data-tone={view.kind === "result" ? view.result.summary?.level : undefined} class="page-glow">
         {view.kind === "form" && <CheckForm value={draft} onChange={setDraft} onSubmit={runCheck} />}
         {view.kind === "loading" && <LoadingView />}

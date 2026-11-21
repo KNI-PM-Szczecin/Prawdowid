@@ -3,33 +3,8 @@ import type { Claim, SummaryLevel } from "./types";
 
 export type Tone = "positive" | "negative" | "warning" | "neutral";
 
-// Static class strings so Tailwind can find them in the source.
-export const TONE_CLASSES: Record<Tone, { box: string; chip: string; icon: string; highlight: string }> = {
-  positive: {
-    box: "bg-positive-soft border-positive-line",
-    chip: "bg-positive-soft border-positive-line",
-    icon: "text-positive-strong",
-    highlight: "bg-positive-soft border-positive-strong",
-  },
-  negative: {
-    box: "bg-negative-soft border-negative-line",
-    chip: "bg-negative-soft border-negative-line",
-    icon: "text-negative-strong",
-    highlight: "bg-negative-soft border-negative-strong",
-  },
-  warning: {
-    box: "bg-warning-soft border-warning-line",
-    chip: "bg-warning-soft border-warning-line",
-    icon: "text-warning-strong",
-    highlight: "bg-warning-soft border-warning-strong",
-  },
-  neutral: {
-    box: "bg-neutral-soft border-neutral-line",
-    chip: "bg-neutral-soft border-neutral-line",
-    icon: "text-neutral-strong",
-    highlight: "bg-neutral-soft border-neutral-strong",
-  },
-};
+// Sets --tone-soft, --tone-line and --tone-strong for the element (styles/_tokens.scss).
+export const toneClass = (tone: Tone) => `tone--${tone}`;
 
 export const SUMMARY_TONE: Record<SummaryLevel, Tone> = {
   high: "positive",

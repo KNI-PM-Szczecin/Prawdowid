@@ -1,0 +1,3 @@
+# @parcel/watcher is an optional dependency of sass used only by its CLI watch mode; Vite does not need its native build.
+allowBuilds:
+  "@parcel/watcher": false

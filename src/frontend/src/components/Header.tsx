@@ -1,4 +1,5 @@
 import { texts } from "../lib/texts";
+import "./Header.scss";
 import { AccessibilityIcon } from "./Icons";
 
 interface HeaderProps {
@@ -7,26 +8,22 @@ interface HeaderProps {
 }
 
 export function Header({ onHome, onOpenAccessibility }: HeaderProps) {
+  const goHome = (event: MouseEvent) => {
+    event.preventDefault();
+    onHome();
+  };
   return (
-    <header class="border-b border-line bg-page">
-      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-8">
-        <a href="/" onClick={(event) => { event.preventDefault(); onHome(); }} class="text-2xl font-semibold text-ink no-underline">
+    <header class="header">
+      <div class="header__inner">
+        <a href="/" onClick={goHome} class="header__brand">
           {texts.appName}
         </a>
-        <nav aria-label={texts.nav.label} class="flex flex-wrap items-center gap-4 sm:gap-8">
-          <a
-            href="/"
-            onClick={(event) => { event.preventDefault(); onHome(); }}
-            class="text-lg text-ink underline underline-offset-4"
-          >
+        <nav aria-label={texts.nav.label} class="header__nav">
+          <a href="/" onClick={goHome} class="header__link">
             {texts.nav.home}
           </a>
-          <button
-            type="button"
-            onClick={onOpenAccessibility}
-            class="inline-flex items-center gap-2 rounded-lg border-2 border-ink px-3 py-1.5 text-lg text-ink hover:bg-neutral-soft"
-          >
-            <AccessibilityIcon class="h-5 w-5" />
+          <button type="button" onClick={onOpenAccessibility} class="header__accessibility">
+            <AccessibilityIcon class="header__accessibility-icon" />
             {texts.nav.accessibility}
           </button>
         </nav>

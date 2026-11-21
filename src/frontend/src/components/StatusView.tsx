@@ -2,6 +2,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { texts } from "../lib/texts";
 import type { CheckResult } from "../lib/types";
 import { InfoIcon } from "./Icons";
+import "./StatusView.scss";
 
 interface StatusViewProps {
   title: string;
@@ -17,33 +18,25 @@ export function StatusView({ title, message, note, onRetry, onBack }: StatusView
   useEffect(() => headingRef.current?.focus(), []);
 
   return (
-    <div class="mx-auto max-w-3xl px-4 py-16 sm:px-8">
-      <div role="alert" class="rounded-3xl border-2 border-ink bg-page p-6 sm:p-8">
-        <div class="flex items-start gap-4">
-          <InfoIcon class="h-10 w-10 shrink-0" />
+    <div class="status-view">
+      <div role="alert" class="status-view__card">
+        <div class="status-view__body">
+          <InfoIcon class="status-view__icon" />
           <div>
-            <h1 id="main-heading" ref={headingRef} tabIndex={-1} class="text-3xl font-semibold">
+            <h1 id="main-heading" ref={headingRef} tabIndex={-1} class="status-view__title">
               {title}
             </h1>
-            <p class="mt-3 text-xl">{message}</p>
-            {note && <p class="mt-2 text-xl font-semibold">{note}</p>}
+            <p class="status-view__message">{message}</p>
+            {note && <p class="status-view__note">{note}</p>}
           </div>
         </div>
-        <div class="mt-6 flex flex-wrap gap-3">
+        <div class="status-view__actions">
           {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              class="rounded-xl bg-ink px-6 py-3 text-lg font-semibold text-page hover:opacity-90"
-            >
+            <button type="button" onClick={onRetry} class="button button--primary">
               {texts.status.retry}
             </button>
           )}
-          <button
-            type="button"
-            onClick={onBack}
-            class="rounded-xl border-2 border-ink px-6 py-3 text-lg font-semibold hover:bg-neutral-soft"
-          >
+          <button type="button" onClick={onBack} class="button button--secondary">
             {texts.status.back}
           </button>
         </div>

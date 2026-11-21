@@ -1,0 +1,16 @@
+@use "../styles/mixins" as *;
+
+.badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+
+  &__item {
+    border: $border solid var(--line);
+    border-radius: $radius-pill;
+    background: var(--page);
+    padding: 0.375rem 1rem;
+    font-size: $text-lg;
+  }
+}
