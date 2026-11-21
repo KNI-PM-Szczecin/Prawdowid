@@ -166,16 +166,21 @@ async def sync_cases(
         try:
             offset = 0
             while offset < max_cases:
-                page = await client.fetch_cases(min(settings.euvsdisinfo_page_size, max_cases - offset), offset)
+                requested = min(settings.euvsdisinfo_page_size, max_cases - offset)
+                page = await client.fetch_cases(requested, offset)
                 sync_state.available = page.total
                 if page.incidents:
                     indexed += await index_incidents(page.incidents, models, incidents)
                 skipped += page.skipped
-                offset += settings.euvsdisinfo_page_size
+                # Advance by what actually arrived: a server-side page-size cap smaller than the request would
+                # otherwise silently skip the difference on every further page.
+                fetched = len(page.incidents) + page.skipped
+                offset += fetched
                 logger.info(
                     "EUvsDisinfo sync: %d indexed, %d skipped, offset %d of %d", indexed, skipped, offset, page.total
                 )
-                if offset >= page.total:
+                # A short page is the end of the list even when the server reports no total.
+                if fetched < requested or (page.total and offset >= page.total):
                     break
         except EuvsDisinfoError as error:
             sync_state.last_error = str(error)
