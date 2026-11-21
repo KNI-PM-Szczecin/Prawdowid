@@ -1,0 +1,40 @@
+# Prawdowid
+
+## Scope
+
+## Infrastruktura fizyczna
+
+## Techniczne założenia
+
+### Wybrany model SLM
+
+### Wybrany RAG
+
+### Wybrane języki front i backendu
+
+## Zestaw danych
+
+## Dostęp do aplikacji (UI, UX)
+
+### Wprowadzanie danych
+
+### Akceptowane domeny z linkami
+
+### Prezentacja wyników
+
+## Zagrożenia
+Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania architektury i stworzono ku nim prewencje.
+
+### prompt injection
+
+### sprzeczne dane ze zweryfikowanych źródeł
+
+### przeterminowanie dokumentów z bazy RAG
+
+### brak zweryfikowanych źródeł danych (świerze wydarzenia)
+
+## Proces weryfikacji
+
+### LLM as a judge
+
+### Weryfikacja manualna
