@@ -12,6 +12,14 @@ Pokazuje werdykt, źródła i granice wiedzy. Przy braku dowodów wstrzymuje si�
 
 Zasady pracy dla ludzi i agentów AI: `AGENTS.md`. Kontrakty między modułami: `CONTRACT.md`.
 
+## Wymagania
+Narzędzia do zainstalowania przed startem.
+
+ArchLinux:
+```
+sudo pacman -S nodejs npm
+```
+
 ## Start zespołu
 ```
 cp .env.example .env
@@ -19,8 +27,6 @@ cp .env.example .env
 
 ## Uruchomienie
 Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
-## potrzebne komendy:
-### ArchLinux:
-```sudo pacman -S nodejs npm```
+
 ## Zespół
 Uzupełnić.
