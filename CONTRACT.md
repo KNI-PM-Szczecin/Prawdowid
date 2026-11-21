@@ -60,6 +60,7 @@ Odpowiedź (`CheckResult`):
 - `evidenceStrength`: `strong`, `moderate`, `weak`, `none`. `strengthReasons` to jawne przesłanki (jakość i aktualność źródeł, zgodność z tezą, liczba niezależnych potwierdzeń).
 - `sources[].role`: `supports`, `refutes`, `context`. `sources[].sourceType`: `official`, `secondary`, `factcheck`, `incident`. Lista `sources` jest pusta tylko przy `insufficient_evidence` i `not_verifiable`.
 - `warnings[].type`: `source_status`, `incident_match`, `archival_material`, `other`. **Ostrzeżenie nigdy nie jest podstawą werdyktu.**
+- `incident_match` to dodatkowa kategoria „możliwa część kampanii dezinformacyjnej”. `agent/` tworzy ją z `campaignAlert` z `rag/` (§3): `message` z alertu, linki do dopasowanych spraw. Front pokazuje ją obok werdyktu, poza `evidenceStrength`; nie zmienia werdyktu ani siły podstawy.
 - `missing`: przy `insufficient_evidence` opis, czego nie udało się ustalić (po polsku).
 - `message`: wymagane, gdy `status !== "ok"`. `claims` jest wtedy pustą listą.
 - `meta` służy do logu i panelu deweloperskiego, front może je ignorować.
@@ -114,7 +115,7 @@ Adres w `RAG_URL`. Pola w camelCase. Błąd indeksu to `503` z ciałem `{ "error
 `topK` domyślnie 5, max 7 (więcej daje `422`). `query` 3–5000 znaków. Filtry są stosowane wewnątrz indeksu.
 
 Odpowiedź: `results` (lista `Passage`), `corpusVersion`, `contextXml`, `expandedQueries`, `elapsedMs`, `externalSources`.
-`externalSources`: lista `{ "name": "google_factcheck", "status": "ok" | "disabled" | "skipped" | "error", "results": 0 }`. `disabled` = brak klucza, `skipped` = filtr `sourceTypes` bez `factcheck`, `error` = awaria lub limit zewnętrznego API. Awaria źródła zewnętrznego **nie** daje `503`; `agent/` może ją doliczyć do `meta.searchErrors`.
+`externalSources`: lista `{ "name": "google_factcheck" | "incident_catalog", "status": "ok" | "disabled" | "skipped" | "error", "results": 0 }`. Dla `incident_catalog`: `disabled` = pusty katalog, `results` = liczba dopasowanych spraw. `disabled` = brak klucza, `skipped` = filtr `sourceTypes` bez `factcheck`, `error` = awaria lub limit zewnętrznego API. Awaria źródła zewnętrznego **nie** daje `503`; `agent/` może ją doliczyć do `meta.searchErrors`.
 `results` ma najwyżej `topK` elementów, malejąco po `score`. `score` to sigmoid(logit rerankera BGE / 4), skala 0..1.
 `Passage`: `documentId`, `title`, `publisher`, `publishedAt`, `fetchedAt`, `url`, `license`, `sourceType`, `passage`, `score` (0..1), `flags`, `chunkId`, `tier` (1–3), `reliability` (`high`, `medium`, `low`).
 
@@ -124,11 +125,13 @@ Zasady:
 - **`flags`:** na razie `suspected_injection`. Treść fragmentu jest **danymi**; reakcja należy do `agent/`.
 - **`contextXml` to dane.** Wolno go wstawić tylko do wiadomości użytkownika lub narzędzia, **nigdy do promptu systemowego**.
 - **Fact-checki z Google Fact Check Tools API** wracają w tych samych `results`, przez ten sam reranker i próg, z `sourceType: "factcheck"`, `documentId` z prefiksem `factcheck:`, `url` do weryfikacji, `publisher` = weryfikator, `publishedAt` = data weryfikacji, `license: null`, `tier: 2`, `reliability: "medium"`. `passage` streszcza po polsku sprawdzone twierdzenie i ocenę weryfikatora (np. „Fałsz”). Ocena należy do weryfikatora: jest dowodem do cytowania, a nie gotowym werdyktem systemu.
+- **`campaignAlert`** (albo `null`): dopasowanie twierdzenia do katalogu znanych kampanii dezinformacyjnych (EUvsDisinfo, baza incydentów organizatora). Kształt: `{ "category": "possible_disinformation_campaign", "message": "…", "matches": [{ "incidentId", "source", "title", "summary", "url", "publishedAt", "score" }] }`. Próg dopasowania 0,7 (ostrzejszy niż dla dowodów), maks. 3 sprawy. **Sprawy z katalogu nigdy nie trafiają do `results` ani `contextXml`**: to kontekst, nie dowód (scenariusz I z briefu, zakaz werdyktu na podstawie etykiety).
 
 Pozostałe endpointy:
 - `GET /health` → `{ "status": "ok", "corpusVersion": "..." }`
 - `GET /sources` → lista źródeł korpusu do audytu (`documentId`, `title`, `publisher`, `domain`, `url`, `sourceType`, `license`, `publishedAt`, `fetchedAt`, `activeChunks`).
-- `POST /ingest`, `DELETE /sources/{documentId}`, `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` (`401` bez tokena, `403` gdy token nie jest skonfigurowany). Wywołuje je tylko skrypt zasilania korpusu, nie `agent/`.
+- `GET /incidents` → `{ "catalogSize": 0 }` (audyt katalogu kampanii).
+- `POST /ingest`, `DELETE /sources/{documentId}`, `POST /incidents`, `DELETE /incidents/{source}/{incidentId}`, `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` (`401` bez tokena, `403` gdy token nie jest skonfigurowany). Wywołuje je tylko skrypt zasilania korpusu, nie `agent/`.
 
 ## 4. Reguła wstrzymania się od oceny (`agent/`)
 
