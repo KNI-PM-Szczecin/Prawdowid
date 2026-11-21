@@ -1,10 +1,22 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="RAG_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="RAG_",
+        env_file=("../.env", ".env"),
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
-    postgres_dsn: str = "postgresql://rag@localhost:5432/rag"
+    # DATABASE_URL is shared with backend/ (Supabase session pooler); RAG_POSTGRES_DSN overrides it for rag/ only.
+    postgres_dsn: str = Field(
+        default="postgresql://rag:rag@localhost:5432/rag",
+        validation_alias=AliasChoices("RAG_POSTGRES_DSN", "DATABASE_URL"),
+    )
+    # Supabase free tier caps pooler connections and backend/ uses the same database.
+    postgres_pool_max_size: int = 5
     qdrant_url: str = "http://localhost:6333"
     collection_name: str = "evidence_chunks"
     model_cache_dir: str = "/models"

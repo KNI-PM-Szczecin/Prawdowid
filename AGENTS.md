@@ -23,7 +23,7 @@ wdrożeniowość 20%, użyteczność 15%, innowacyjność 15%. Funkcje premiowan
 |---|---|---|
 | `spec/` | Markdown | Brief zadania, regulamin, wymagania. Agenci tylko czytają, chyba że człowiek poprosi o zmianę. |
 | `src/` | React 19 + TypeScript + Vite + Tailwind, pnpm | Frontend: responsywny interfejs WWW dla obywatela. Prosty język, kontrast, dostępność. Zostaje w `src/` w korzeniu, żeby agent widział go od razu. W kontraktach nazywany „front”. |
-| `backend/` | Go (biblioteka standardowa `net/http`), moduły Go | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
+| `backend/` | Go (biblioteka standardowa `net/http`), moduły Go | API, adaptery kanałów (WWW i drugi kanał), zapis przebiegu sprawdzeń, limity żądań, logi. |
 | `agent/` | Go, moduły Go | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
 | `rag/` | Python (FastAPI), uv | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
 
