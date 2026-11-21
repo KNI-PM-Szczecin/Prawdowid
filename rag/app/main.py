@@ -6,19 +6,21 @@ from urllib.parse import urlparse
 
 import asyncpg
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 from app import db
 from app.config import settings
 from app.embeddings import EmbeddingModels
+from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.incidents import incident_point_id, index_incidents
 from app.ingest import ingest_document
 from app.models import (
     DeletionReport,
+    EuvsDisinfoSyncStatus,
     EvictionReport,
     HealthResponse,
     IncidentCatalogSummary,
@@ -46,6 +48,8 @@ HTTP_SERVICE_UNAVAILABLE = 503
 HTTP_NOT_FOUND = 404
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
+HTTP_ACCEPTED = 202
+EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
 
 
 @asynccontextmanager
@@ -59,6 +63,9 @@ async def lifespan(app: FastAPI):
     await incidents.ensure_collection()
     app.state.incidents = incidents
     logger.info("Disinformation incident catalog: %d entries", await incidents.count())
+    euvsdisinfo = EuvsDisinfoClient()
+    app.state.euvsdisinfo = euvsdisinfo
+    logger.info("EUvsDisinfo import %s", "enabled" if euvsdisinfo.enabled else "disabled (no EUVSDISINFO_TOKEN)")
     factcheck = FactCheckClient()
     app.state.factcheck = factcheck
     logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
@@ -66,12 +73,20 @@ async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_eviction, "cron", hour=settings.eviction_cron_hour, args=[store])
     scheduler.add_job(store.optimize, "cron", hour=settings.optimize_cron_hour)
+    if euvsdisinfo.enabled:
+        scheduler.add_job(
+            sync_cases,
+            "cron",
+            hour=settings.euvsdisinfo_sync_cron_hour,
+            args=[euvsdisinfo, app.state.models, incidents, settings.euvsdisinfo_daily_sync_cases],
+        )
     scheduler.start()
     try:
         yield
     finally:
         scheduler.shutdown(wait=False)
         await factcheck.close()
+        await euvsdisinfo.close()
         await incidents.close()
         await store.close()
         await db.close()
@@ -149,9 +164,41 @@ async def ingest_incidents(request: IncidentIngestRequest) -> IncidentIngestResu
     return IncidentIngestResult(indexed=indexed, catalog_size=await app.state.incidents.count())
 
 
+def _euvsdisinfo_status() -> EuvsDisinfoSyncStatus:
+    return EuvsDisinfoSyncStatus(
+        enabled=app.state.euvsdisinfo.enabled,
+        running=sync_state.running,
+        last_finished_at=sync_state.last_finished_at,
+        last_indexed=sync_state.last_indexed,
+        last_skipped=sync_state.last_skipped,
+        last_error=sync_state.last_error,
+        available=sync_state.available,
+    )
+
+
 @app.get("/incidents", response_model=IncidentCatalogSummary)
 async def incident_catalog() -> IncidentCatalogSummary:
-    return IncidentCatalogSummary(catalog_size=await app.state.incidents.count())
+    return IncidentCatalogSummary(catalog_size=await app.state.incidents.count(), euvsdisinfo=_euvsdisinfo_status())
+
+
+@app.post(
+    "/admin/incidents/sync",
+    response_model=EuvsDisinfoSyncStatus,
+    status_code=HTTP_ACCEPTED,
+    dependencies=AdminOnly,
+)
+async def sync_euvsdisinfo(
+    background_tasks: BackgroundTasks,
+    max_cases: Annotated[
+        int, Query(alias="maxCases", ge=1, le=settings.euvsdisinfo_sync_max_cases)
+    ] = settings.euvsdisinfo_sync_default_cases,
+) -> EuvsDisinfoSyncStatus:
+    """Starts importing the newest `maxCases` EUvsDisinfo cases in the background; progress is in GET /incidents."""
+    if not app.state.euvsdisinfo.enabled:
+        raise HTTPException(status_code=HTTP_FORBIDDEN, detail=EUVSDISINFO_DISABLED_MESSAGE)
+    if not sync_state.running:
+        background_tasks.add_task(sync_cases, app.state.euvsdisinfo, app.state.models, app.state.incidents, max_cases)
+    return _euvsdisinfo_status()
 
 
 @app.delete("/incidents/{source}/{incident_id}", response_model=IncidentCatalogSummary, dependencies=AdminOnly)

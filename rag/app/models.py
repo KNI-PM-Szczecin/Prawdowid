@@ -122,8 +122,19 @@ class IncidentIngestResult(ApiModel):
     catalog_size: int
 
 
+class EuvsDisinfoSyncStatus(ApiModel):
+    enabled: bool
+    running: bool
+    last_finished_at: Timestamp | None
+    last_indexed: int
+    last_skipped: int
+    last_error: str | None
+    available: int | None
+
+
 class IncidentCatalogSummary(ApiModel):
     catalog_size: int
+    euvsdisinfo: EuvsDisinfoSyncStatus | None = None
 
 
 class IncidentMatch(ApiModel):

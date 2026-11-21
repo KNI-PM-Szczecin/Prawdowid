@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app import db
 from app.config import settings
 from app.embeddings import SparseVector
+from app.euvsdisinfo import EuvsDisinfoClient
 from app.factcheck import FactCheckResult, FactCheckReview
 from app.main import app
 from app.vector_store import RetrievedChunk
@@ -145,6 +146,7 @@ def client(monkeypatch):
     app.state.store = FakeStore([relevant, irrelevant])
     app.state.factcheck = FakeFactCheck(FactCheckResult(status="disabled", reviews=[]))
     app.state.incidents = FakeStore([])
+    app.state.euvsdisinfo = EuvsDisinfoClient()
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -258,4 +260,14 @@ def test_incident_endpoints_require_admin_token(client, monkeypatch):
     }
     assert client.post("/incidents", json={"incidents": [incident]}).status_code == 401
     assert client.delete("/incidents/euvsdisinfo/1").status_code == 401
-    assert client.get("/incidents").json() == {"catalogSize": 0}
+    assert client.get("/incidents").json()["catalogSize"] == 0
+
+
+def test_euvsdisinfo_sync_requires_admin_and_token(client, monkeypatch):
+    monkeypatch.setattr(settings, "admin_token", ADMIN_TOKEN)
+    assert client.post("/admin/incidents/sync").status_code == 401
+    monkeypatch.setattr(settings, "euvsdisinfo_token", "")
+    response = client.post("/admin/incidents/sync", headers={"X-Admin-Token": ADMIN_TOKEN})
+    assert response.status_code == 403
+    catalog = client.get("/incidents").json()
+    assert catalog["euvsdisinfo"]["enabled"] is False
