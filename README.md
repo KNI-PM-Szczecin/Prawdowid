@@ -47,7 +47,7 @@ cp .env.example .env
 
 Łączymy się bezpośrednio przez PostgreSQL, a nie przez API Supabase (`anon`/`service_role` nie są potrzebne). Front nigdy nie łączy się z bazą, tylko z `backend/`.
 `rag/` tworzy swoje tabele sam przy starcie (`rag/app/schema.sql`) i włącza na nich RLS bez polityk, więc publiczne REST API Supabase ich nie odczyta.
-Bez Supabase (offline, demo bez sieci): zostaw `DATABASE_URL` puste i uruchom lokalny Postgres z `rag/` przez `docker compose --profile local-db`, a backendowi ustaw `DATABASE_URL=postgresql://rag:rag@localhost:5432/rag`.
+Bez Supabase (offline, demo bez sieci): w `.env` zostaw `DATABASE_URL` puste, ustaw `RAG_POSTGRES_PASSWORD` i uruchom lokalny Postgres z `rag/` przez `docker compose --env-file ../.env --profile local-db up -d`. Postgres słucha wtedy tylko na `127.0.0.1:5432`. Backendowi wpisz w `backend/.env` (ma pierwszeństwo przed wspólnym `.env`): `DATABASE_URL=postgresql://rag:<RAG_POSTGRES_PASSWORD>@localhost:5432/rag`.
 
 ## Uruchomienie
 Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
