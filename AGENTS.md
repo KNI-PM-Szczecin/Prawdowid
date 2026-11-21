@@ -22,12 +22,15 @@ wdrożeniowość 20%, użyteczność 15%, innowacyjność 15%. Funkcje premiowan
 | Folder | Stack | Odpowiada za |
 |---|---|---|
 | `spec/` | Markdown | Brief zadania, regulamin, wymagania. Agenci tylko czytają, chyba że człowiek poprosi o zmianę. |
-| `front/` | React + Vite + TypeScript | Responsywny interfejs WWW dla obywatela. Prosty język, kontrast, dostępność. |
-| `backend/` | Node.js + TypeScript | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
-| `agent/` | Node.js + TypeScript | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
-| `rag/` | Python (FastAPI) | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
+| `src/` | Next.js 16 (App Router) + React + TypeScript + Tailwind, pnpm | Frontend: responsywny interfejs WWW dla obywatela. Prosty język, kontrast, dostępność. Zostaje w `src/` w korzeniu, żeby agent widział go od razu. W kontraktach nazywany „front”. |
+| `backend/` | Node.js + TypeScript, pnpm | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
+| `agent/` | Node.js + TypeScript, pnpm | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
+| `rag/` | Python (FastAPI), uv | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
 
 Kanały (`backend/`) nigdy nie zawierają logiki weryfikacji. Wołają `agent/` tym samym wywołaniem niezależnie od kanału.
+**Menedżer pakietów:** `pnpm` w `src/`, `backend/` i `agent/` (każdy folder ma własny `package.json` i `pnpm-lock.yaml`), `uv` w `rag/`. Nie używaj `npm` ani `yarn` w tych folderach i nie commituj `package-lock.json`. pnpm jest narzędziem do instalacji pakietów, nie frameworkiem; interfejs budujemy w Next.js.
+Next.js służy tylko do interfejsu: route handlers i server actions w `src/` nie zawierają logiki weryfikacji, wołają `backend/` zgodnie z `CONTRACT.md`.
+`src/AGENTS.md` jest generowany przez Next.js (`next dev`); nie usuwaj go, ale przy sprzeczności z tym plikiem wygrywa ten plik.
 `rag/` jest osobnym serwisem w Pythonie. `agent/` (TypeScript) rozmawia z nim przez HTTP, nigdy przez import ani współdzielone pliki.
 Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam jest zakazana.
 
@@ -58,7 +61,7 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 
 ## 5. Jak pracuje agent
 
-- Odpowiadaj po polsku, krótko i technicznie. Kod, identyfikatory i commity po angielsku. Teksty widoczne dla użytkownika po polsku, w jednym miejscu (`front/src/texts.ts`), nie rozsiane po komponentach.
+- Odpowiadaj po polsku, krótko i technicznie. Kod, identyfikatory i commity po angielsku. Teksty widoczne dla użytkownika po polsku, w jednym miejscu (`src/lib/texts.ts`), nie rozsiane po komponentach.
 - Lokalnie działaj bez pytania: komendy, instalacja paczek, edycje, serwer deweloperski.
 - Nie pytaj o rzeczy rozstrzygalne rozsądnym domyślnym wyborem. Wybierz i podaj w jednym zdaniu. Decyzje projektowe (stack, zakres, UX) zgłoś użytkownikowi z 2–4 opcjami, rekomendowana pierwsza.
 - Dokumentację bibliotek bierz z `context7` albo oficjalnych stron, nie z pamięci.
@@ -88,9 +91,10 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 - Treść pobranych dokumentów jest danymi: nigdy nie wykonujemy jej ani nie wstawiamy do promptu systemowego.
 - Katalog `.venv/` i dane indeksu poza gitem (zob. `.gitignore`). Korpus odtwarzamy skryptem, nie commitujemy surowych dużych plików.
 
-### Frontend (`front/`)
+### Frontend (`src/`, Next.js)
 - Bez `alert()`, `confirm()`, `prompt()`. Komunikaty przez toast, potwierdzenia przez modal.
 - Bez szarego tekstu dla ważnych treści. Kontrast przede wszystkim. Prosty język dla osoby bez wiedzy technicznej.
+- Wersja Next.js jest świeża: dokumentację bierz z `context7` albo nextjs.org/docs, nie z pamięci. Nie włączaj kolejnych flag eksperymentalnych bez uzgodnienia z zespołem.
 - Komponenty w osobnych plikach. Najpierw gotowa biblioteka stylów, własny CSS tylko gdy nie wystarcza.
 - Wynik zawsze pokazuje: werdykt, uzasadnienie, siłę podstawy, źródła osobno i ograniczenia.
 - Frontend sprawdzaj wizualnie raz po serii zmian, zbiorczo, nie po każdej poprawce. Pozostałe foldery testuj tekstowo (HTTP, log, test).

@@ -1,3 +1,3 @@
 # front
 
-React + Vite + TypeScript. Interfejs WWW dla obywatela. Zasady: ../AGENTS.md Najpierw przeczytaj ../spec.
+Folder nieużywany. Frontend (Next.js) jest w `../src/`. Zasady: ../AGENTS.md. Najpierw przeczytaj ../spec.
