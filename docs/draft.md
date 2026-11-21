@@ -2,6 +2,13 @@
 
 ## Scope
 
+Podstawa (MVP) jest w `spec/requirements.md`. Poniżej źródła i integracje ustalone z mentorem MSZ (Piotr Sosnowski). Statusy: [ZAIMPLEMENTOWANE] działa w repo, [ZAPLANOWANE] jest w planie.
+
+### Źródła korpusu
+- [ZAPLANOWANE] **Domeny rządowe i urzędowe** z listy mentora (RCB, ostrzeżenia gov.pl, GIS, KG PSP, MSWiA, MSZ, policja, CERT Polska, IMGW, GDDKiA, ULC i in.). To przykłady, nie wszystkie muszą trafić do korpusu. Zasilanie przez skrypt ingest w `rag/` (odpowiada Dominik). Typ źródła: `official`.
+- [ZAPLANOWANE] **Google Fact Check Tools API** jako baza weryfikatorów faktów (typ źródła: `factcheck`). Wymaga klucza API, który trzymamy w `.env`, nigdy w repo. Odpowiada zespół (założenie klucza, test na polskich zapytaniach, opis limitów i kosztów do dokumentacji).
+- [ZAPLANOWANE, funkcja premiowana] **EUvsDisinfo**: sprawdzenie, czy podobne twierdzenie pojawiło się we wrogich operacjach informacyjnych. Wynik pokazujemy jako kontekst (`incident_match`), nigdy jako podstawę werdyktu (zakaz z briefu, scenariusz I). Robimy dopiero po spełnieniu wymagań podstawowych. Token dostępowy: od mentora (PW) albo przez formularz EUvsDisinfo, trzymany w `.env`.
+
 ## Infrastruktura fizyczna
 
 ## Techniczne założenia
