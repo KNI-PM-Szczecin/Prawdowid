@@ -20,22 +20,10 @@
   }
 
   &__brand {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
     color: var(--ink);
-    text-decoration: none;
-  }
-
-  &__name {
     font-size: $text-2xl;
     font-weight: $weight-semibold;
-    line-height: 1.2;
-  }
-
-  &__tagline {
-    font-size: $text-base;
-    color: var(--ink-soft);
+    text-decoration: none;
   }
 
   &__accessibility {

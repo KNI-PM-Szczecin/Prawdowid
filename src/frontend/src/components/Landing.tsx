@@ -3,7 +3,8 @@ import type { SourceType, Verdict } from "../lib/types";
 import { CheckForm } from "./CheckForm";
 import "./Landing.scss";
 import { StatusIcon } from "./StatusIcon";
-import type { Tone } from "../lib/presentation";
+import "./VerdictChip.scss";
+import { toneClass, type Tone } from "../lib/presentation";
 
 interface LandingProps {
   value: string;
@@ -21,6 +22,8 @@ const VERDICT_ORDER: { verdict: Verdict; tone: Tone }[] = [
 
 const SOURCE_ORDER: SourceType[] = ["official", "factcheck", "secondary", "incident"];
 
+const SAMPLE_TONE: Record<"confirmed" | "conflicting", Tone> = { confirmed: "positive", conflicting: "warning" };
+
 export function Landing({ value, onChange, onSubmit }: LandingProps) {
   return (
     <div class="landing">
@@ -30,6 +33,33 @@ export function Landing({ value, onChange, onSubmit }: LandingProps) {
         </h1>
         <p class="landing__lead">{texts.form.lead}</p>
         <CheckForm value={value} onChange={onChange} onSubmit={onSubmit} />
+      </section>
+
+      <section class="landing__section landing__section--sample" aria-labelledby="sample-title">
+        <h2 id="sample-title" class="landing__section-title">
+          {texts.landing.sampleTitle}
+          <span class="landing__section-subtitle">{texts.landing.sampleNote}</span>
+        </h2>
+        <div class="landing__sample">
+          <p class="landing__sample-text">
+            {texts.landing.sampleSentence.before}
+            <mark class={`landing__mark ${toneClass("positive")}`}>{texts.landing.sampleSentence.confirmed}</mark>
+            {texts.landing.sampleSentence.middle}
+            <mark class={`landing__mark ${toneClass("warning")}`}>{texts.landing.sampleSentence.conflicting}</mark>
+            {texts.landing.sampleSentence.after}
+          </p>
+          <ul class="landing__sample-claims">
+            {texts.landing.sampleClaims.map((claim) => (
+              <li key={claim.verdict} class="landing__sample-claim">
+                <span class={`verdict-chip ${toneClass(SAMPLE_TONE[claim.verdict])}`}>
+                  <StatusIcon tone={SAMPLE_TONE[claim.verdict]} size="small" />
+                  {claim.label}
+                </span>
+                <span class="landing__sample-claim-text">{claim.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       <section class="landing__section" aria-labelledby="process-title">

@@ -2,7 +2,6 @@ import type { Badge, EvidenceStrength, SourceRole, SourceType, SummaryLevel, Ver
 
 export const texts = {
   appName: "Prawdowid",
-  tagline: "Sprawdzanie informacji w wiarygodnych źródłach",
   skipToContent: "Przejdź do treści",
   nav: {
     label: "Nawigacja główna",
@@ -24,6 +23,27 @@ export const texts = {
     examplesTitle: "Wypróbuj przykład",
   },
   landing: {
+    sampleTitle: "Tak wygląda wynik",
+    sampleNote: "Przykład na fikcyjnych danych.",
+    sampleSentence: {
+      before: "Most nad rzeką Przykładówką ",
+      confirmed: "otwarto 15 listopada 2026 r.",
+      middle: " Budowa ",
+      conflicting: "kosztowała 120 mln zł",
+      after: ". To najdłuższa przeprawa w powiecie.",
+    },
+    sampleClaims: [
+      {
+        verdict: "confirmed",
+        label: "Prawda",
+        text: "Potwierdza komunikat urzędu miasta z 15 listopada 2026 r., z cytatem.",
+      },
+      {
+        verdict: "conflicting",
+        label: "Sprzeczne źródła",
+        text: "Urząd podaje 98 mln zł, dziennik 120 mln zł. Pokazujemy oba źródła i nie rozstrzygamy.",
+      },
+    ],
     processTitle: "Co dzieje się po naciśnięciu „Sprawdź”",
     steps: [
       {

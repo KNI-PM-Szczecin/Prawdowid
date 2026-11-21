@@ -79,14 +79,14 @@
     &::before {
       content: "";
       position: absolute;
-      top: -10rem;
-      right: -10rem;
+      top: -16rem;
+      right: -16rem;
       z-index: -1;
-      width: 30rem;
-      height: 30rem;
-      border-radius: 50%;
-      background: var(--tone-blob);
-      filter: blur(60px);
+      width: 44rem;
+      height: 44rem;
+      background-color: var(--tone-blob);
+      -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgb(0 0 0 / 55%) 45%, transparent 100%);
+      mask-image: radial-gradient(closest-side, #000 0%, rgb(0 0 0 / 55%) 45%, transparent 100%);
       pointer-events: none;
       transition: background-color 500ms ease;
     }

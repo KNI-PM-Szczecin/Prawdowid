@@ -42,6 +42,10 @@
     border-top: 1px solid var(--line);
     padding-top: 2.5rem;
 
+    &--sample {
+      margin-top: 4rem;
+    }
+
     @include from-sm {
       display: grid;
       grid-template-columns: 14rem 1fr;
@@ -57,10 +61,71 @@
 
     @include from-sm {
       grid-row: 1 / span 3;
-      position: sticky;
-      top: 1.5rem;
       align-self: start;
     }
+  }
+
+  &__section-subtitle {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: $text-base;
+    font-weight: $weight-regular;
+    color: var(--ink-soft);
+  }
+
+  // Sample result
+  &__sample {
+    margin-top: 1.5rem;
+    border: $border solid var(--line);
+    border-radius: $radius-lg;
+    background: var(--page);
+    padding: 1.5rem;
+
+    @include from-sm {
+      margin-top: 0;
+      padding: 2rem;
+    }
+  }
+
+  &__sample-text {
+    font-size: $text-xl;
+    line-height: 1.9;
+
+    @include from-sm {
+      font-size: $text-2xl;
+    }
+  }
+
+  &__mark {
+    color: inherit;
+    border-bottom: 4px solid var(--tone-strong);
+    border-radius: $radius-sm;
+    background: var(--tone-soft);
+    padding: 0 0.25rem;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  &__sample-claims {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1.25rem;
+    list-style: none;
+  }
+
+  &__sample-claim {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+
+    + .landing__sample-claim {
+      margin-top: 0.75rem;
+    }
+  }
+
+  &__sample-claim-text {
+    font-size: $text-lg;
   }
 
   &__section-lead {

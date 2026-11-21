@@ -19,8 +19,7 @@ export function Header({ onHome, onOpenAccessibility }: HeaderProps) {
           }}
           class="header__brand"
         >
-          <span class="header__name">{texts.appName}</span>
-          <span class="header__tagline">{texts.tagline}</span>
+          {texts.appName}
         </a>
         <nav aria-label={texts.nav.label}>
           <button type="button" onClick={onOpenAccessibility} class="header__accessibility">
