@@ -26,6 +26,7 @@ wdrożeniowość 20%, użyteczność 15%, innowacyjność 15%. Funkcje premiowan
 | `backend/` | Go (biblioteka standardowa `net/http`), moduły Go | API, adaptery kanałów (WWW, Discord/inny), zapis przebiegu sprawdzeń, limity żądań, logi. |
 | `agent/` | Go, moduły Go | Logika weryfikacji: wykrywanie twierdzeń, werdykt, uzasadnienie, ochrona przed prompt injection, abstrakcja nad dostawcą modelu. |
 | `rag/` | Python (FastAPI), uv | Korpus źródeł, pobieranie, indeksowanie, wyszukiwanie, metadane (tytuł, wydawca, data publikacji i pobrania, licencja, link). |
+| `eval/` | Python | Zestaw własnych przypadków testowych (scenariusze A–J z `spec/brief.md`, min. 30), skrypt liczący metryki z `spec/requirements.md` i raport wyników do prezentacji. Służy też do strojenia progu wstrzymania się z `CONTRACT.md`. |
 
 Kanały (`backend/`) nigdy nie zawierają logiki weryfikacji. Wołają `agent/` tym samym wywołaniem niezależnie od kanału (`backend/` importuje pakiet z `agent/`, oba moduły spina `go.work` w korzeniu).
 **Menedżer pakietów:** `pnpm` w `src/` (własny `package.json` i `pnpm-lock.yaml`), moduły Go w `backend/` i `agent/` (`go.mod`, `go.sum`; zależności przez `go get`, porządek przez `go mod tidy`), `uv` w `rag/`. Nie używaj `npm` ani `yarn` i nie commituj `package-lock.json`.
