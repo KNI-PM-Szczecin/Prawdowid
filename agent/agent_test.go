@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -26,6 +28,7 @@ type fakeProvider struct {
 	judge   string
 	extract string
 	err     error
+	mu      sync.Mutex
 	calls   []string
 	// Tokens one call reports; the cost test checks that they reach meta.estimatedCostUsd.
 	inputTokens  int
@@ -40,12 +43,16 @@ func (f *fakeProvider) Generate(_ context.Context, system, user string) (Complet
 	}
 	completion := Completion{InputTokens: f.inputTokens, OutputTokens: f.outputTokens}
 	if strings.Contains(system, "Wyodrębniasz") {
+		f.mu.Lock()
 		f.calls = append(f.calls, "extract")
+		f.mu.Unlock()
 		completion.Text = f.extract
 		return completion, nil
 	}
 	if strings.Contains(system, "<dostepne_zrodla>") && strings.Contains(user, "<dostepne_zrodla>") {
+		f.mu.Lock()
 		f.calls = append(f.calls, "judge")
+		f.mu.Unlock()
 		completion.Text = f.judge
 		return completion, nil
 	}
@@ -88,7 +95,21 @@ type ragStub struct {
 	searchStatus int
 	fetch        FetchResponse
 	fetchStatus  int
+	mu           sync.Mutex
 	queries      []string
+}
+
+// callList and queryList are safe to read while claims are being checked in parallel.
+func (f *fakeProvider) callList() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.calls...)
+}
+
+func (s *ragStub) queryList() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.queries...)
 }
 
 func (s *ragStub) server(t *testing.T) *httptest.Server {
@@ -97,7 +118,9 @@ func (s *ragStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("POST /search", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		s.mu.Lock()
 		s.queries = append(s.queries, body["query"].(string))
+		s.mu.Unlock()
 		if s.searchStatus != 0 && s.searchStatus != http.StatusOK {
 			w.WriteHeader(s.searchStatus)
 			_, _ = w.Write([]byte(`{"error":{"code":"index_unavailable","message":"x"}}`))
@@ -179,11 +202,13 @@ func TestConfirmedWithOfficialSourceAndVerbatimQuote(t *testing.T) {
 	if len(claim.Sources) != 1 || claim.Sources[0].Role != RoleSupports || claim.Sources[0].ID != officialChunk {
 		t.Fatalf("sources: %+v", claim.Sources)
 	}
-	if provider.calls[0] != "judge" || len(provider.calls) != 1 {
-		t.Fatalf("single statement must skip extraction, calls=%v", provider.calls)
+	calls := provider.callList()
+	if calls[0] != "judge" || len(calls) != 1 {
+		t.Fatalf("single statement must skip extraction, calls=%v", calls)
 	}
-	if rag.queries[0] != claimSejm || *result.Meta.CorpusVersion != "corpus-test" || result.Meta.Abstained {
-		t.Fatalf("meta/query: %+v %v", result.Meta, rag.queries)
+	queries := rag.queryList()
+	if queries[0] != claimSejm || *result.Meta.CorpusVersion != "corpus-test" || result.Meta.Abstained {
+		t.Fatalf("meta/query: %+v %v", result.Meta, queries)
 	}
 }
 
@@ -300,11 +325,11 @@ func TestLongTextGoesThroughExtractionAndReportsSkippedClaims(t *testing.T) {
 	longText := "Kadencja Sejmu trwa 4 lata. Senat ma 100 senatorów. Poza tym wczoraj padał deszcz. Myślę, że będzie lepiej."
 	result := verify(t, newTestAgent(t, provider, rag), longText, InputTypeText)
 
-	if len(result.Claims) != 2 || provider.calls[0] != "extract" {
-		t.Fatalf("expected 2 claims via extraction, got %d (%v)", len(result.Claims), provider.calls)
+	if calls := provider.callList(); len(result.Claims) != 2 || calls[0] != "extract" {
+		t.Fatalf("expected 2 claims via extraction, got %d (%v)", len(result.Claims), calls)
 	}
-	if rag.queries[1] != "Senat ma 100 senatorów." {
-		t.Fatalf("second query: %q", rag.queries[1])
+	if queries := rag.queryList(); !slices.Contains(queries, "Senat ma 100 senatorów.") || len(queries) != 2 {
+		t.Fatalf("queries: %q", queries)
 	}
 	if len(result.Limitations) == 0 || !strings.Contains(result.Limitations[0], "Sprawdzono 2") {
 		t.Fatalf("expected skipped-claims limitation, got %v", result.Limitations)
