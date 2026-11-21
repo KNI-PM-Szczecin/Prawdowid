@@ -69,10 +69,13 @@ func run(logger *slog.Logger) error {
 		now:       time.Now,
 	}
 
+	demo := newChannelHandler(checks, demoAdapter{})
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler(logger, pool))
 	mux.HandleFunc("POST /api/check", checks.check)
 	mux.HandleFunc("DELETE /api/checks/{requestId}", checks.deleteCheck)
+	mux.HandleFunc("POST /api/channels/demo", demo.handle)
 
 	server := &http.Server{
 		Addr:              ":" + config.Port,

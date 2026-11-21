@@ -55,16 +55,9 @@ type checkHandlers struct {
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
-	requestID, err := newRequestID()
-	if err != nil {
-		h.logger.Error("generate request id failed", "error", err)
-		h.reply(writer, http.StatusServiceUnavailable, h.nonMerit("", agent.StatusTechnicalError, messageInternalError))
-		return
-	}
-
-	if !h.limiter.allow(clientAddress(request)) {
-		h.logger.Warn("rate limit exceeded", "requestId", requestID)
-		h.reply(writer, http.StatusTooManyRequests, h.nonMerit(requestID, agent.StatusTechnicalError, messageRateLimited))
+	requestID, early, statusCode, ok := h.beginCheck(request, webChannel)
+	if !ok {
+		h.reply(writer, statusCode, early)
 		return
 	}
 
@@ -73,31 +66,53 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&body); err != nil {
 		h.logger.Warn("invalid check body", "requestId", requestID, "error", err)
-		h.reply(writer, http.StatusBadRequest, h.nonMerit(requestID, agent.StatusTechnicalError, messageBadBody))
+		h.reply(writer, http.StatusBadRequest, h.nonMerit(requestID, webChannel, agent.StatusTechnicalError, messageBadBody))
 		return
 	}
 
 	if message := validateCheck(body); message != "" {
-		h.reply(writer, http.StatusOK, h.nonMerit(requestID, agent.StatusNeedsClarification, message))
+		h.reply(writer, http.StatusOK, h.nonMerit(requestID, webChannel, agent.StatusNeedsClarification, message))
 		return
 	}
 
+	result, statusCode := h.runCheck(request.Context(), requestID, webChannel, body.Input, body.InputType)
+	h.reply(writer, statusCode, result)
+}
+
+// beginCheck reserves a request id and a rate-limit slot for every channel.
+// When ok is false, early is the non-merit answer to send with statusCode.
+func (h *checkHandlers) beginCheck(request *http.Request, channel string) (requestID string, early agent.CheckResult, statusCode int, ok bool) {
+	requestID, err := newRequestID()
+	if err != nil {
+		h.logger.Error("generate request id failed", "error", err)
+		return "", h.nonMerit("", channel, agent.StatusTechnicalError, messageInternalError), http.StatusServiceUnavailable, false
+	}
+
+	if !h.limiter.allow(clientAddress(request)) {
+		h.logger.Warn("rate limit exceeded", "requestId", requestID)
+		return requestID, h.nonMerit(requestID, channel, agent.StatusTechnicalError, messageRateLimited), http.StatusTooManyRequests, false
+	}
+	return requestID, agent.CheckResult{}, http.StatusOK, true
+}
+
+// runCheck is the shared pipeline for every channel: mask personal data, call the agent,
+// normalize the result, store the run without failing the answer and log the outcome.
+func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input, inputType string) (agent.CheckResult, int) {
 	verifyRequest := agent.VerifyRequest{
 		RequestID: requestID,
-		Channel:   webChannel,
-		Input:     maskPersonalData(strings.TrimSpace(body.Input)),
-		InputType: body.InputType,
+		Channel:   channel,
+		Input:     maskPersonalData(strings.TrimSpace(input)),
+		InputType: inputType,
 	}
-	result, err := h.verify(request.Context(), verifyRequest)
+	result, err := h.verify(ctx, verifyRequest)
 	if err != nil {
 		h.logger.Error("verify failed", "requestId", requestID, "error", err)
-		h.reply(writer, http.StatusServiceUnavailable, h.nonMerit(requestID, agent.StatusTechnicalError, messageInternalError))
-		return
+		return h.nonMerit(requestID, channel, agent.StatusTechnicalError, messageInternalError), http.StatusServiceUnavailable
 	}
 	result = normalizeResult(result)
 
 	// A failed audit write must not break the answer (AGENTS.md section 6).
-	if err := h.saveRun(context.WithoutCancel(request.Context()), verifyRequest, result); err != nil {
+	if err := h.saveRun(context.WithoutCancel(ctx), verifyRequest, result); err != nil {
 		h.logger.Error("save check run failed", "requestId", requestID, "error", err)
 	}
 	h.logger.Info("check finished",
@@ -110,23 +125,23 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 	if result.Status == agent.StatusTechnicalError {
 		statusCode = http.StatusServiceUnavailable
 	}
-	h.reply(writer, statusCode, result)
+	return result, statusCode
 }
 
 func (h *checkHandlers) deleteCheck(writer http.ResponseWriter, request *http.Request) {
 	requestID := request.PathValue("requestId")
 	if !requestIDPattern.MatchString(requestID) {
-		h.reply(writer, http.StatusBadRequest, h.nonMerit(requestID, agent.StatusTechnicalError, messageBadRequestID))
+		h.reply(writer, http.StatusBadRequest, h.nonMerit(requestID, webChannel, agent.StatusTechnicalError, messageBadRequestID))
 		return
 	}
 	deleted, err := h.deleteRun(request.Context(), requestID)
 	if err != nil {
 		h.logger.Error("delete check run failed", "requestId", requestID, "error", err)
-		h.reply(writer, http.StatusServiceUnavailable, h.nonMerit(requestID, agent.StatusTechnicalError, messageInternalError))
+		h.reply(writer, http.StatusServiceUnavailable, h.nonMerit(requestID, webChannel, agent.StatusTechnicalError, messageInternalError))
 		return
 	}
 	if !deleted {
-		h.reply(writer, http.StatusNotFound, h.nonMerit(requestID, agent.StatusTechnicalError, messageRunNotFound))
+		h.reply(writer, http.StatusNotFound, h.nonMerit(requestID, webChannel, agent.StatusTechnicalError, messageRunNotFound))
 		return
 	}
 	h.logger.Info("check run deleted", "requestId", requestID)
@@ -138,12 +153,12 @@ func (h *checkHandlers) reply(writer http.ResponseWriter, statusCode int, result
 }
 
 // nonMerit builds a CheckResult without verdicts: claims is an empty list and message is set (CONTRACT.md section 1).
-func (h *checkHandlers) nonMerit(requestID, status, message string) agent.CheckResult {
+func (h *checkHandlers) nonMerit(requestID, channel, status, message string) agent.CheckResult {
 	return normalizeResult(agent.CheckResult{
 		RequestID: requestID,
 		Status:    status,
 		Message:   &message,
-		Meta:      agent.RunMeta{Channel: webChannel, ReceivedAt: h.now().UTC().Format(time.RFC3339)},
+		Meta:      agent.RunMeta{Channel: channel, ReceivedAt: h.now().UTC().Format(time.RFC3339)},
 	})
 }
 
