@@ -37,8 +37,8 @@ Model proponuje, Go rozstrzyga. Odpowiedź modelu jest odrzucana albo obniżana,
 
 ## Przepływ `Verify`
 
-1. Wejście: `text` albo `url`. Dla `url` pobranie strony i wyciągnięcie tekstu (ten sam parser co w `rag/app/fetcher.py`, do ustalenia: port do Go albo endpoint w `rag/`). Maskowanie danych osobowych robi backend przed `Verify`.
-2. **Ekstrakcja**: gdy wejście ma jedno zdanie (≤ 300 znaków, bez podwójnych odstępów), twierdzeniem jest samo wejście, bez modelu. Inaczej `extract` → lista twierdzeń (maks. 3). Pusta lista → `needs_clarification`.
+1. Wejście: `text` albo `url`. Dla `url` agent woła `POST /fetch` w `rag/` (ten sam parser co przy zasilaniu korpusu; decyzja zespołu: pobieranie zostaje w rag), dostaje tytuł i tekst strony. Maskowanie danych osobowych robi backend przed `Verify`.
+2. **Ekstrakcja**: gdy wejście ma jedno zdanie (≤ 300 znaków, bez podwójnych odstępów), twierdzeniem jest samo wejście, bez modelu. Inaczej `extract` → maks. 3 najważniejsze twierdzenia (główna teza i te z liczbami, datami, nazwami); gdy model zgłosi `pominiete > 0`, do `limitations` trafia „Sprawdzono 3 najważniejsze twierdzenia z N w tekście.” Pusta lista → `needs_clarification`.
 3. Dla każdego twierdzenia: `POST /search` w `rag/` (`topK` 5) → reguła 7 albo `judge` → walidacja 1–6 → `Claim`.
 4. Złożenie `CheckResult`: `limitations`, `meta` (model, czas, `corpusVersion`, `injectionAttempts`, `abstained`).
 
