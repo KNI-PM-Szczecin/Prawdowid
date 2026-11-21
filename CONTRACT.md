@@ -12,5 +12,5 @@ TODO: jedna funkcja `verify(input)` wywoływana tak samo przez każdy kanał.
 TODO: `search(claim)` zwraca fragmenty z metadanymi (tytuł, wydawca, data publikacji, data pobrania, licencja, link).
 
 ## Statusy
-Werdykty: `potwierdzone`, `falszywe`, `wprowadzajace_w_blad`, `brak_wystarczajacych_dowodow`, `nie_podlega_weryfikacji`.
-Statusy niemerytoryczne (nie są werdyktem): `blad_techniczny`, `wymaga_doprecyzowania`, `poza_zakresem`.
+Werdykty: `confirmed`, `false`, `misleading`, `insufficient_evidence`, `not_verifiable`.
+Statusy niemerytoryczne (nie są werdyktem): `technical_error`, `needs_clarification`, `out_of_scope`.
