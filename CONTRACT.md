@@ -104,7 +104,7 @@ interface ChannelAdapter {
 ```ts
 type SearchRequest = {
   query: string;                // jedno twierdzenie
-  topK: number;                 // domyślnie 8
+  topK?: number;                // domyślnie 5, maks. 7; wartość > 7 daje 422 (rag nie tnie po cichu)
   filters?: {
     sourceTypes?: SourceRef["sourceType"][];
     publishedAfter?: string;    // ISO 8601
@@ -121,12 +121,12 @@ type Passage = {
   license: string | null;
   sourceType: SourceRef["sourceType"];
   passage: string;              // fragment tekstu
-  score: number;                // 0..1, im wyżej tym trafniej
+  score: number;                // 0..1 (sigmoid logitu rerankera BGE / 4); rag zwraca tylko score >= 0.5
   flags: string[];              // np. "suspected_injection"; decyzja o reakcji należy do agent/
 };
 
 type SearchResponse = {
-  results: Passage[];           // pusta lista = brak wyników (to nie błąd)
+  results: Passage[];           // maks. topK, malejąco po score; pusta lista = brak trafnych dowodów (to nie błąd)
   corpusVersion: string;
 };
 ```
