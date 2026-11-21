@@ -6,35 +6,52 @@ Python (FastAPI). Korpus źródeł, indeksowanie i wyszukiwanie z metadanymi. Os
 
 Wymaga tylko Dockera. Zależności są w `pyproject.toml` i `uv.lock`, a obraz instaluje je przez `uv sync --frozen`.
 
+W `../.env` ustaw `RAG_POSTGRES_PASSWORD` (bez niego compose nie wystartuje) i `RAG_ADMIN_TOKEN` (bez niego endpointy administracyjne są wyłączone). Oba wygenerujesz poleceniem `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+
 ```
 cd rag
 docker compose --env-file ../.env up -d --build
 ```
 
-Lokalnie bez Dockera (Postgres i Qdrant nadal z compose): `uv sync`, potem `uv run uvicorn app.main:app --port 8001` z `RAG_POSTGRES_DSN`, `RAG_QDRANT_URL` i `RAG_MODEL_CACHE_DIR` w `.env`. Nową paczkę dodajesz przez `uv add <paczka>`.
-
-Serwis: `http://localhost:8001` (OpenAPI: `/docs`). Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
+Serwis: `http://127.0.0.1:8001` (OpenAPI: `/docs`). Słucha tylko na localhost, a Postgres i Qdrant nie są wystawione na hosta. Pierwszy start pobiera modele (ok. 3 GB) do wolumenu `model_cache`, kolejne starty trwają kilka sekund.
 
 Test dymny na fikcyjnych danych:
 ```
-curl -X POST localhost:8001/ingest -H "Content-Type: application/json" --data-binary @tests/smoke_documents.json
+curl -X POST localhost:8001/ingest -H "X-Admin-Token: $RAG_ADMIN_TOKEN" -H "Content-Type: application/json" --data-binary @tests/smoke_documents.json
 ```
 Polskie znaki w `curl -d '...'` w Git Bash na Windows psują kodowanie, więc ciało zapytania wysyłaj z pliku UTF-8 (`--data-binary @plik.json`).
+
+## Testy i lint
+
+```
+uv sync
+uv run ruff check . && uv run ruff format --check .
+uv run pytest
+```
+Testy nie wymagają Dockera ani modeli: czyste funkcje (chunking, stemmer, ekspansja, eviction, wykrywanie prompt injection) oraz kształt `/search` na atrapach (wyniki, pusta lista, 503, 422, token). Zestaw prób prompt injection w `tests/test_injection.py` napisaliśmy sami, więc to test regresji, a nie niezależna miara skuteczności.
+
+## Bezpieczeństwo
+
+- `POST /ingest`, `DELETE /sources/{documentId}` i `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` równego `RAG_ADMIN_TOKEN`. Bez tokena zwracają 401, a gdy token nie jest skonfigurowany, 403.
+- `POST /search`, `GET /sources` i `GET /health` są otwarte, bo służą do odczytu.
+- Każdy nieobsłużony błąd zwraca `503 index_unavailable`, nigdy pustą listę udającą brak dowodów.
 
 ## Architektura
 
 | Element | Rola |
 |---|---|
-| Qdrant | Statyczny tekst fragmentu i wektory: dense (BGE-M3, 1024) + sparse (BM25 z IDF). Payload: `chunk_id`, `source_id`, `text`, `topic_tag`. |
-| PostgreSQL | `sources` (tytuł, wydawca, link, daty, licencja, typ) i `document_metadata` (tier, wiarygodność, ochrona, `read_count`, soft delete). Stan zmienny jest tu, nie w Qdrancie. |
+| Qdrant | Statyczny tekst fragmentu i wektory: dense (BGE-M3, 1024) + sparse (BM25 z IDF). Payload: `chunk_id`, `source_id`, `text`, `topic_tag`, `source_type`, `published_at` (dwa ostatnie z indeksem do filtrów). |
+| PostgreSQL | `sources` (tytuł, wydawca, link, daty `TIMESTAMPTZ`, licencja, typ) i `document_metadata` (tier, wiarygodność, ochrona, `read_count`, soft delete). Stan zmienny jest tu, nie w Qdrancie. |
 | FastEmbed (ONNX, CPU) | BGE-M3 dense, BM25 sparse, `bge-reranker-v2-m3` (int8). Wszystko w kontenerze, bez GPU. |
 | APScheduler | Eviction codziennie o 3:00, optymalizacja segmentów Qdranta o 4:00. |
 
-Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30) → pula 30 unikalnych → reranking cross-encoderem względem oryginału → `score = sigmoid(logit / 4)` w skali 0..1, odcięcie poniżej 0,5 → filtry `sourceTypes` i `publishedAfter` → top 5 (max 7) → złączenie z metadanymi z Postgresa → blok `<dostepne_zrodla>` → w tle `read_count + 1`.
+Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30, z filtrami `sourceTypes` i `publishedAfter` wewnątrz Qdranta) → pula 30 unikalnych → reranking cross-encoderem względem oryginału → `score = sigmoid(logit / 4)` w skali 0..1, odcięcie poniżej 0,5 → `topK` wyników (domyślnie 5, maksymalnie 7, więcej daje 422) → złączenie z metadanymi z Postgresa → blok `<dostepne_zrodla>` → w tle `read_count + 1`.
 
-Pola API są w camelCase zgodnie z `../CONTRACT.md` (sekcja 3). Poza kontraktem odpowiedź ma dodatkowo `contextXml`, `expandedQueries`, `elapsedMs`, a każdy `Passage` ma też `chunkId`, `tier` i `reliability`.
+Pola API są w camelCase zgodnie z `../CONTRACT.md` (sekcja 3). Daty są znacznikami czasu ISO 8601; wartość bez strefy jest traktowana jako UTC. Poza kontraktem odpowiedź ma dodatkowo `contextXml`, `expandedQueries`, `elapsedMs`, a każdy `Passage` ma też `chunkId`, `tier` i `reliability`.
 
 Ekspansja zapytań: domyślnie regułowa. Gdy ustawione jest `RAG_EXPANSION_LLM_URL` (np. FastFlowLM: `http://host.docker.internal:52625/v1`), używa modelu. Przy błędzie wraca do reguł i loguje WARNING.
+
+Prompt injection: przed dopasowaniem tekst jest normalizowany (NFKC, usunięcie znaków niewidocznych, małe litery, bez diakrytyków). Wzorce PL i EN są w `app/context.py`. Wykryty fragment ma flagę `suspected_injection` i trafia do logu, ale nadal jest zwracany jako dane.
 
 ## Język
 
@@ -48,6 +65,7 @@ Korpus domyślnie po polsku (`RAG_CORPUS_LANGUAGE=pl`). BM25 z FastEmbed nie ma 
 
 Usuwa tylko wtedy, gdy liczba aktywnych fragmentów przekracza `RAG_EVICTION_MAX_ACTIVE_CHUNKS`, i tylko nadwyżkę. Kandydaci: `tier > 1` i po upływie ochrony.
 `score = wiek_dni × (2.0 dla tier 3) × 0.4 − read_count × 0.6 (+30, gdy temat zajmuje > 30% bazy)`.
+Nigdy nie schodzi poniżej `RAG_EVICTION_MIN_DOCUMENTS` (100) dokumentów ani `RAG_EVICTION_MIN_DOMAINS` (10) domen, czyli minimum korpusu z briefu.
 Soft delete w Postgresie i hard delete w Qdrancie są w jednej transakcji: gdy Qdrant zawiedzie, Postgres się wycofuje.
 
 Konfiguracja: zmienne `RAG_*` (pełna lista w `app/config.py`).

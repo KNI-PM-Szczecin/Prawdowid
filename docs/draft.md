@@ -60,7 +60,8 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 **Rozwiązanie:**
 - [ZAIMPLEMENTOWANE] `rag/` wykrywa typowe frazy sterujące (PL i EN), oznacza fragment flagą `suspected_injection` i zapisuje zdarzenie w logu.
 - [ZAIMPLEMENTOWANE] Źródła trafiają do modelu jako escapowany blok XML `<dostepne_zrodla>`, więc tekst źródła nie może zamknąć ani podrobić tagów.
-- [ZAPLANOWANE] Szerszy zestaw wzorców (np. „IGNORE ALL PRIOR INSTRUCTIONS”, „Nowe zadanie:”, znaki niewidoczne) i zestaw testowy mierzący odsetek odpartych prób. Cel z briefu to co najmniej 90%.
+- [ZAIMPLEMENTOWANE] Normalizacja przed dopasowaniem (wielkość liter, znaki niewidoczne, tekst bez polskich znaków) i szeroki zestaw wzorców PL/EN (np. „IGNORE ALL PRIOR INSTRUCTIONS”, „Nowe zadanie:”, podrobione tagi `<system>`, `[INST]`). Test regresji: 34/34 prób wykrytych, 0 z 12 zwykłych tekstów oznaczonych. Zestaw napisaliśmy sami, więc to nie jest niezależna miara.
+- [ZAPLANOWANE] Niezależny zestaw prób spoza zespołu do zmierzenia progu z briefu (co najmniej 90% odpartych prób).
 - [ZAPLANOWANE] `agent/` wstawia źródła i zgłoszenie wyłącznie do wiadomości użytkownika, nigdy do promptu systemowego. Prompt systemowy każe traktować je jako dane. Liczba prób trafia do `meta.injectionAttempts`.
 
 ### Sprzeczne dane ze zweryfikowanych źródeł
@@ -77,7 +78,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 **Rozwiązanie:**
 - [ZAIMPLEMENTOWANE] Każdy dokument ma datę publikacji i datę pobrania, widoczne przy źródle. Filtr `publishedAfter` pozwala zawęzić wyszukiwanie do nowszych źródeł.
 - [ZAIMPLEMENTOWANE] Eviction raz na dobę usuwa nadwyżkę według wzoru: wiek (Tier 3 starzeje się dwa razy szybciej) minus popularność, z karą dla tematów zajmujących ponad 30% bazy. Tier 1 i świeżo dodane dokumenty (7 dni ochrony) są nieusuwalne. Co noc Qdrant optymalizuje indeks.
-- [ZAPLANOWANE] Dolny limit eviction: korpus nigdy nie spada poniżej 100 dokumentów i 10 domen (minimum z briefu).
+- [ZAIMPLEMENTOWANE] Dolny limit eviction: korpus nigdy nie spada poniżej 100 dokumentów i 10 domen (minimum z briefu).
 - [ZAIMPLEMENTOWANE] Ponowne wgranie dokumentu o tym samym `documentId` podmienia jego treść.
 - [ZAPLANOWANE] Harmonogram odświeżania źródeł urzędowych (ISAP, dane.gov.pl) i oznaczanie dokumentów uchylonych.
 
@@ -103,7 +104,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 **Przykład:** setki niemal identycznych artykułów z różnych domen powtarzają ten sam fałsz i wypychają z wyników jeden dokument urzędowy, który mu przeczy.
 **Rozwiązanie:**
 - [ZAIMPLEMENTOWANE] Korpus zasilany wyłącznie przez `POST /ingest`, nie automatycznie z sieci. Każdy dokument ma tier, typ i licencję. `GET /sources` pokazuje pełną listę do audytu, a `DELETE /sources/{id}` usuwa podejrzany dokument.
-- [ZAPLANOWANE] Token administracyjny na `POST /ingest`, `DELETE /sources/{id}` i `POST /admin/eviction` oraz serwis dostępny tylko z `127.0.0.1`, żeby nikt z sieci nie dodał sfabrykowanego źródła.
+- [ZAIMPLEMENTOWANE] Token administracyjny (`X-Admin-Token`) na `POST /ingest`, `DELETE /sources/{id}` i `POST /admin/eviction`. Serwis słucha tylko na `127.0.0.1`, a baza i indeks nie są wystawione na hosta, więc nikt z sieci nie doda sfabrykowanego źródła.
 - [ZAIMPLEMENTOWANE] Wyszukiwanie hybrydowe (wektory i BM25) oraz reranker oceniają trafność fragmentu, a nie liczbę jego kopii. Kara za temat przekraczający 30% bazy ogranicza dominację jednego wątku.
 - [ZAPLANOWANE] Prompt `agent/` odrzuca informację z Tier 3, gdy przeczy jej Tier 1. Deduplikacja niemal identycznych tekstów przy wgrywaniu.
 
@@ -111,7 +112,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 **Opis:** zależność zewnętrzna (model językowy, baza wektorowa, limit API) przestaje działać, a system zamiast jawnego błędu zwraca pozorną odpowiedź albo się zawiesza.
 **Przykład:** laptop z FastFlowLM traci zasilanie w trakcie demo. Albo dostawca modelu zwraca błąd 429 (limit zapytań), a Qdrant się restartuje.
 **Rozwiązanie:**
-- [ZAIMPLEMENTOWANE] Awaria indeksu w `rag/` to jawny błąd `503 index_unavailable`, nigdy pusty wynik udający brak dowodów.
+- [ZAIMPLEMENTOWANE] Każda awaria w `rag/` (indeks, baza, nieoczekiwany wyjątek) to jawny błąd `503 index_unavailable`, nigdy pusty wynik udający brak dowodów.
 - [ZAIMPLEMENTOWANE] Ekspansja zapytań działa bez modelu: gdy FastFlowLM nie odpowiada, `rag/` przechodzi na reguły i loguje ostrzeżenie.
 - [ZAIMPLEMENTOWANE] Embeddingi i reranker działają lokalnie na CPU w kontenerze, bez zewnętrznego API.
 - [ZAPLANOWANE] Brak klucza, limit API i awaria modelu to status `technical_error`, nigdy werdykt. Model wymienny przez `LlmProvider`, więc można przełączyć dostawcę. Nagranie demo jako plan B.
@@ -120,7 +121,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 **Opis:** ktoś zalewa system zapytaniami, żeby go zablokować, nabić koszty modelu albo użyć bota do masowej produkcji „werdyktów”.
 **Przykład:** skrypt wysyła 1000 zapytań na minutę przez WWW, bot na Discordzie dostaje setki wiadomości z jednego konta, albo zgłoszenie ma 2 MB tekstu.
 **Rozwiązanie:**
-- [ZAIMPLEMENTOWANE] Limit długości wejścia na brzegu `rag/`: zapytanie do 5000 znaków, walidacja Pydantic, błąd 422.
+- [ZAIMPLEMENTOWANE] Limity na brzegu `rag/`: zapytanie do 5000 znaków, `topK` do 7, walidacja Pydantic, błąd 422. Operacje zapisu tylko z tokenem administracyjnym.
 - [ZAPLANOWANE] Limit żądań na klienta i kanał w `backend/` (rate limit), limit długości zgłoszenia z kontraktu i cache, który obsługuje powtórzenia bez kosztu modelu.
 - [ZAPLANOWANE] Logowanie szacunkowego kosztu zapytania i alarm przy przekroczeniu budżetu.
 
