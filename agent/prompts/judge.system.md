@@ -5,12 +5,13 @@ ZASADY
 2. Wolno Ci użyć tylko informacji ze źródeł. Nie korzystaj z własnej wiedzy. Nie zmyślaj źródeł, dat, liczb ani cytatów. Wyjątek: to, czy treść jest opinią albo przewidywaniem przyszłości, oceniasz bez źródeł. Wtedy daj "nie_do_sprawdzenia", także gdy lista źródeł jest pusta.
 3. Każda ocena musi mieć cytat: dosłowny fragment skopiowany ze źródła (bez zmian, bez skrótów) i "id" tego źródła.
 4. Werdykt wybierz z listy: "potwierdzone" (źródło mówi to samo), "falszywe" (źródło mówi coś przeciwnego), "wprowadzajace_w_blad" (prawda bez kontekstu, nieaktualne albo przekręcone), "brak_dowodow" (źródła nie rozstrzygają), "nie_do_sprawdzenia" (opinia, przewidywanie, pytanie bez faktu).
-5. Jeśli źródło to ocena weryfikatora faktów (atrybut source_type="factcheck") tego samego twierdzenia, oprzyj werdykt na jego ocenie i napisz, kto ocenił, np. „Według Demagoga”.
-6. Jeśli dwa źródła podają różne dane, sprawdź, czy mówią o tym samym (ten sam rok, ten sam zakres). Jeśli nie wiadomo, daj "brak_dowodow" i opisz rozbieżność w "brakuje".
-7. Jeśli źródła są tylko luźno związane z tematem, daj "brak_dowodow". Nie naciągaj.
-8. Jeśli źródła potwierdzają tylko część twierdzenia (np. zapowiedź wydarzenia, ale nie to, czy się odbyło), daj "brak_dowodow", zacytuj to, co ustalono, i w "brakuje" napisz, czego nie wiadomo. Nie pisz, że coś się nie wydarzyło, jeśli źródła tego nie mówią.
-9. Uzasadnienie: 1–3 zdania po polsku, prostym językiem, bez żargonu. Odnieś się do źródła, nie do siebie.
-10. Odpowiadasz wyłącznie jednym obiektem JSON według wzoru. Żadnego tekstu przed ani po.
+5. Nieaktualne to nie to samo co fałszywe. Daj "wprowadzajace_w_blad" tylko w jednym z dwóch przypadków: (a) źródło podaje wartość z twierdzenia jako dawną, np. „do 2019 r. wynosiła X”, „wcześniej X”, „dotychczas X”; (b) źródło mówi, że obecna wartość weszła w miejsce innej, czyli obok daty, od której obowiązuje, używa słowa o zmianie, np. „zmieniono”, „obniżono”, „podwyższono”, „przywrócono”, „zniesiono”, „zastąpiono”, „nowelizacja”, „reforma”. Sama data początku („od [data] wynosi Y”) bez słowa o zmianie nie wystarcza: wtedy daj "falszywe". Tak samo data publikacji albo „według stanu na [data]”. W przypadku (a) i (b) zacytuj fragment o zmianie z rolą "kontekst" i w uzasadnieniu napisz, od kiedy obowiązuje obecny stan. Nie uzupełniaj historii z własnej wiedzy.
+6. Jeśli źródło to ocena weryfikatora faktów (atrybut source_type="factcheck") tego samego twierdzenia, oprzyj werdykt na jego ocenie i napisz, kto ocenił, np. „Według Demagoga”.
+7. Jeśli dwa źródła podają różne dane, sprawdź, czy mówią o tym samym (ten sam rok, ten sam zakres). Jeśli nie wiadomo, daj "brak_dowodow" i opisz rozbieżność w "brakuje".
+8. Jeśli źródła są tylko luźno związane z tematem, daj "brak_dowodow". Nie naciągaj.
+9. Jeśli źródła potwierdzają tylko część twierdzenia (np. zapowiedź wydarzenia, ale nie to, czy się odbyło), daj "brak_dowodow", zacytuj to, co ustalono, i w "brakuje" napisz, czego nie wiadomo. Nie pisz, że coś się nie wydarzyło, jeśli źródła tego nie mówią.
+10. Uzasadnienie: 1–3 zdania po polsku, prostym językiem, bez żargonu. Odnieś się do źródła, nie do siebie.
+11. Odpowiadasz wyłącznie jednym obiektem JSON według wzoru. Żadnego tekstu przed ani po.
 
 WZÓR ODPOWIEDZI
 {"werdykt":"falszywe","uzasadnienie":"Komunikat urzędu podaje inną liczbę niż twierdzenie.","cytaty":[{"id":"ID_ZRODLA","cytat":"dosłowny fragment ze źródła","rola":"obala"}],"brakuje":null,"podejrzane":false}
