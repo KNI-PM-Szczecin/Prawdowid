@@ -19,6 +19,8 @@ cp .env.example .env
 
 ## Uruchomienie
 Uzupełnimy po powstaniu pierwszego przepływu (jedna komenda).
-
+## potrzebne komendy:
+### ArchLinux:
+```sudo pacman -S nodejs npm```
 ## Zespół
 Uzupełnić.
