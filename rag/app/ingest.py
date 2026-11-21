@@ -1,8 +1,10 @@
 import asyncio
+import hashlib
 import re
 from uuid import uuid4
 
 from app import db
+from app.catalog import qualify
 from app.config import settings
 from app.embeddings import EmbeddingModels
 from app.models import DocumentIn, IngestResult
@@ -10,6 +12,19 @@ from app.vector_store import ChunkPoint, VectorStore
 
 PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
 WHITESPACE = re.compile(r"\s+")
+
+
+class DuplicateDocumentError(ValueError):
+    """Another active document already holds exactly this text (whitespace and case ignored)."""
+
+    def __init__(self, document_id: str, duplicate_of: str) -> None:
+        super().__init__(f"Document {document_id} duplicates {duplicate_of}")
+        self.document_id = document_id
+        self.duplicate_of = duplicate_of
+
+
+def content_hash(text: str) -> str:
+    return hashlib.sha256(WHITESPACE.sub(" ", text).strip().casefold().encode("utf-8")).hexdigest()
 
 
 def _split_long(text: str, max_chars: int, overlap: int) -> list[str]:
@@ -47,7 +62,11 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
     Chunks, embeds and indexes one document. Re-ingesting a document_id replaces its previous chunks
     after the new ones are stored, so search never sees a document with zero chunks.
     """
-    source = document.source
+    source = qualify(document.source)
+    text_hash = content_hash(document.text)
+    duplicate_of = await db.find_duplicate_document(text_hash, source.document_id)
+    if duplicate_of is not None:
+        raise DuplicateDocumentError(source.document_id, duplicate_of)
     previous_ids = await db.active_chunk_ids_for_document(source.document_id)
 
     texts = chunk_text(document.text, settings.chunk_max_chars, settings.chunk_overlap_chars)
@@ -69,12 +88,15 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
             for chunk_id, text, dense, sparse in zip(chunk_ids, texts, dense_vectors, sparse_vectors, strict=True)
         ]
     )
-    await db.upsert_source_with_chunks(source, chunk_ids)
+    await db.upsert_source_with_chunks(source, text_hash, chunk_ids)
 
     if previous_ids:
         await store.delete(previous_ids)
         await db.mark_chunks_deleted(previous_ids)
 
     return IngestResult(
-        document_id=source.document_id, chunks_indexed=len(chunk_ids), chunks_replaced=len(previous_ids)
+        document_id=source.document_id,
+        chunks_indexed=len(chunk_ids),
+        chunks_replaced=len(previous_ids),
+        in_catalog=source.in_catalog,
     )

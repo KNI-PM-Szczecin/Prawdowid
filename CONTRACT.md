@@ -149,7 +149,9 @@ Zasady:
 
 Pozostałe endpointy:
 - `GET /health` → `{ "status": "ok", "corpusVersion": "..." }`
-- `GET /sources` → lista źródeł korpusu do audytu (`documentId`, `title`, `publisher`, `domain`, `url`, `sourceType`, `license`, `publishedAt`, `fetchedAt`, `activeChunks`).
+- `GET /sources` → lista źródeł korpusu do audytu (`documentId`, `title`, `publisher`, `domain`, `url`, `sourceType`, `license`, `publishedAt`, `fetchedAt`, `activeChunks`, `inCatalog`).
+- `GET /sources/catalog` → katalog zaufanych źródeł z regułami kwalifikacji (`version`, `note`, `rules`, `entries[]` z `publisher`, `domains`, `sourceType`, `tier`, `reliability`, `qualification`). Plik danych `rag/app/data/sources_catalog.json`, wymienny bez zmian w kodzie. Backend może nim zasilać `badges` (`input_source_in_catalog`) zamiast listą wgranych dokumentów.
+- `POST /ingest`: `sourceType`, `tier` i `reliability` można pominąć dla domeny z katalogu (rag uzupełnia je z katalogu); dla domeny spoza katalogu są wymagane, inaczej `422`. Dokument o tej samej treści co inny aktywny dokument daje `409` i nie jest wgrywany (ochrona przed zalewaniem korpusu kopiami).
 - `GET /incidents` → `{ "catalogSize": 0, "euvsdisinfo": { "enabled", "running", "lastFinishedAt", "lastIndexed", "lastSkipped", "lastError", "available" } }` (audyt katalogu kampanii i stan importu z EUvsDisinfo).
 - `POST /admin/incidents/sync?maxCases=1000` → `202` i stan jak wyżej; uruchamia w tle import najnowszych spraw z serwera MCP EUvsDisinfo do katalogu (`403`, gdy brak `EUVSDISINFO_TOKEN`). Ten sam import działa automatycznie raz na dobę.
 - `POST /ingest`, `DELETE /sources/{documentId}`, `POST /incidents`, `DELETE /incidents/{source}/{incidentId}`, `POST /admin/incidents/sync`, `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` (`401` bez tokena, `403` gdy token nie jest skonfigurowany). Wywołuje je tylko skrypt zasilania korpusu, nie `agent/`.

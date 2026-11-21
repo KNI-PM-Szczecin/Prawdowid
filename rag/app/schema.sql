@@ -27,5 +27,8 @@ CREATE TABLE IF NOT EXISTS document_metadata (
 ALTER TABLE sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_metadata ENABLE ROW LEVEL SECURITY;
 
+-- SHA-256 of the normalized text; two active documents with the same text are a poisoning or operator error.
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS content_hash CHAR(64);
+
 CREATE INDEX IF NOT EXISTS idx_document_metadata_active
     ON document_metadata (is_deleted, tier, protected_until);
