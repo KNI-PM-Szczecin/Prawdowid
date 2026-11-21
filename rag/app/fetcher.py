@@ -17,6 +17,10 @@ BLOCK_ELEMENTS = {
 WHITESPACE = re.compile(r"[^\S\n]+")
 
 
+# Titles of anti-bot interstitials (Incapsula, Cloudflare, Akamai): HTTP 200 with no page content behind them.
+BOT_WALL_TITLES = ("pardon our interruption", "just a moment", "access denied", "attention required", "請稍候")
+
+
 class FetchError(Exception):
     """The page could not be fetched or is not HTML; the URL is skipped and counted, never half-indexed."""
 
@@ -86,4 +90,6 @@ async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
     title, text = extract_text(response.text)
     if not text:
         raise FetchError("no visible text (JavaScript-only page?)")
+    if title.casefold().startswith(BOT_WALL_TITLES):
+        raise FetchError(f"anti-bot wall: {title}")
     return FetchedPage(url=str(response.url), title=title, text=text)
