@@ -77,7 +77,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 - [ZAIMPLEMENTOWANE] `rag/` wykrywa typowe frazy sterujące (PL i EN), oznacza fragment flagą `suspected_injection` i zapisuje zdarzenie w logu.
 - [ZAIMPLEMENTOWANE] Źródła trafiają do modelu jako escapowany blok XML `<dostepne_zrodla>`, więc tekst źródła nie może zamknąć ani podrobić tagów.
 - [ZAIMPLEMENTOWANE] Normalizacja przed dopasowaniem (wielkość liter, znaki niewidoczne, tekst bez polskich znaków) i szeroki zestaw wzorców PL/EN (np. „IGNORE ALL PRIOR INSTRUCTIONS”, „Nowe zadanie:”, podrobione tagi `<system>`, `[INST]`). Test regresji: 34/34 prób wykrytych, 0 z 12 zwykłych tekstów oznaczonych. Zestaw napisaliśmy sami, więc to nie jest niezależna miara.
-- [ZAPLANOWANE] Niezależny zestaw prób spoza zespołu do zmierzenia progu z briefu (co najmniej 90% odpartych prób).
+- [ZAPLANOWANE] Niezależny zestaw prób spoza zespołu do zmierzenia progu z briefu (co najmniej 90% odpartych prób). Test jest gotowy (`RAG_INJECTION_EVAL_FILE`, jedna próba na linię), brakuje samego zestawu, np. od mentora.
 - [ZAPLANOWANE] `agent/` wstawia źródła i zgłoszenie wyłącznie do wiadomości użytkownika, nigdy do promptu systemowego. Prompt systemowy każe traktować je jako dane. Liczba prób trafia do `meta.injectionAttempts`.
 
 ### Sprzeczne dane ze zweryfikowanych źródeł
@@ -123,7 +123,8 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 - [ZAIMPLEMENTOWANE] Token administracyjny (`X-Admin-Token`) na `POST /ingest`, `DELETE /sources/{id}` i `POST /admin/eviction`. Serwis słucha tylko na `127.0.0.1`, a baza i indeks nie są wystawione na hosta, więc nikt z sieci nie doda sfabrykowanego źródła.
 - [ZAIMPLEMENTOWANE] Wyszukiwanie hybrydowe (wektory i BM25) oraz reranker oceniają trafność fragmentu, a nie liczbę jego kopii. Kara za temat przekraczający 30% bazy ogranicza dominację jednego wątku.
 - [ZAIMPLEMENTOWANE] Katalog zaufanych źródeł decyduje o tier i wiarygodności przy wgrywaniu; dokument spoza katalogu wymaga jawnych metadanych i jest oznaczony w audycie. Dokładne kopie treści pod innym identyfikatorem są odrzucane (`409`).
-- [ZAPLANOWANE] Prompt `agent/` odrzuca informację z Tier 3, gdy przeczy jej Tier 1. Wykrywanie niemal identycznych tekstów (parafraz) przy wgrywaniu.
+- [ZAIMPLEMENTOWANE] Kopie z drobnymi zmianami przy wgrywaniu: gdy większość fragmentów nowego dokumentu wskazuje wektorowo ten sam inny dokument (udział ≥ 0,7, średnie podobieństwo ≥ 0,87, progi zmierzone na korpusie), dokument jest odrzucany (`409`). Nie łapie krótkich tekstów z edycją w połowie fragmentów.
+- [ZAPLANOWANE] Prompt `agent/` odrzuca informację z Tier 3, gdy przeczy jej Tier 1.
 
 ### Dostępność
 **Opis:** zależność zewnętrzna (model językowy, baza wektorowa, limit API) przestaje działać, a system zamiast jawnego błędu zwraca pozorną odpowiedź albo się zawiesza.
