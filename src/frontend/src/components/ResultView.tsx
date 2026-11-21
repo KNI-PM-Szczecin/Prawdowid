@@ -11,6 +11,11 @@ import "./ResultView.scss";
 import { SummaryBox } from "./SummaryBox";
 import { TechnicalDetails } from "./TechnicalDetails";
 
+function isInViewport(element: HTMLElement): boolean {
+  const rect = element.getBoundingClientRect();
+  return rect.bottom > 0 && rect.top < window.innerHeight;
+}
+
 interface ResultViewProps {
   result: CheckResult;
   submittedInput: string;
@@ -47,18 +52,24 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
     if (shift !== 0) window.scrollBy({ top: shift });
   }, [selectedClaimId]);
 
+  // The element that opened the drawer: focus returns to it on close.
+  const triggerRef = useRef<HTMLElement | null>(null);
+
   const selectClaim = (claimId: string, trigger: HTMLElement) => {
+    triggerRef.current = trigger;
     anchorTo(trigger);
     setSelectedClaimId(claimId);
   };
 
   const closePanel = () => {
-    const claimId = selectedClaimId;
-    anchorTo(window.document.querySelector<HTMLElement>(`[data-claim-trigger="${claimId}"]`));
+    const listTrigger = window.document.querySelector<HTMLElement>(`[data-claim-trigger="${selectedClaimId}"]`);
+    const trigger = triggerRef.current?.isConnected ? triggerRef.current : listTrigger;
+    triggerRef.current = null;
+    // The page must not move on close: only a trigger still on screen is held in place through the reflow.
+    anchorTo(trigger && isInViewport(trigger) ? trigger : null);
     setSelectedClaimId(null);
     window.requestAnimationFrame(() => {
-      const trigger = window.document.querySelector<HTMLElement>(`[data-claim-trigger="${claimId}"]`);
-      (trigger ?? headingRef.current)?.focus();
+      (trigger ?? headingRef.current)?.focus({ preventScroll: true });
     });
   };
 
