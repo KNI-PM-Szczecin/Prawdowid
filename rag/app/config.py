@@ -82,6 +82,14 @@ class Settings(BaseSettings):
     # Team scraper writes pages into this table of the shared database (id, date YYYYMMDD, site, title, content).
     corpus_scraped_table: str = "ScrappedData"
     corpus_sync_max_documents: int = 5000
+    # Dziennik Ustaw acts from the scraper (id, date YYYYMMDD, docid = Dz.U. position, doctitle, rule = one article).
+    # POST /admin/corpus/law imports the acts listed in app/data/law_acts.json up to a text budget: embedding on CPU
+    # costs about 8 min per 500k chars, so the default fits one coffee break and a rerun continues where it stopped.
+    corpus_law_table: str = "Law"
+    law_import_default_max_chars: int = 4_000_000
+    law_import_max_chars: int = 50_000_000
+    # Below DOCUMENT_MAX_CHARS of the ingest model; longer acts are split on article boundaries.
+    law_part_max_chars: int = 450_000
     # A line present in at least this share of scraped pages is navigation boilerplate, not content.
     corpus_boilerplate_share: float = 0.3
     corpus_boilerplate_min_documents: int = 3

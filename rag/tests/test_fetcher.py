@@ -18,6 +18,16 @@ def test_extract_text_keeps_visible_blocks_and_title():
     assert text.splitlines() == ["Menu", "Alert RCB", "Trening syren 21.11.", "Drugi akapit tekstu."]
 
 
+def test_extract_text_ignores_svg_titles_of_inline_icons():
+    html = (
+        "<html><head><title>Nie, szczepionki nie powodują autyzmu</title></head><body>"
+        "<div><svg><title>Narzędzie dostępności</title></svg>Zwiększ tekst</div><p>Treść.</p></body></html>"
+    )
+    title, text = extract_text(html)
+    assert title == "Nie, szczepionki nie powodują autyzmu"
+    assert "Narzędzie dostępności" not in text
+
+
 def test_extract_published_at_prefers_opengraph_then_json_ld_then_time():
     og = '<meta property="article:published_time" content="2024-03-12T10:00:00+01:00">'
     json_ld = '<script type="application/ld+json">{"datePublished":"2024-04-05T09:24:13+00:00"}</script>'

@@ -109,3 +109,12 @@ async def ingest_document(
         chunks_replaced=len(previous_ids),
         in_catalog=source.in_catalog,
     )
+
+
+async def delete_document_chunks(document_id: str, store: VectorStore) -> int:
+    """Hard delete in Qdrant, soft delete in Postgres; returns how many chunks were active (0 = nothing to delete)."""
+    chunk_ids = await db.active_chunk_ids_for_document(document_id)
+    if chunk_ids:
+        await store.delete(chunk_ids)
+        await db.mark_chunks_deleted(chunk_ids)
+    return len(chunk_ids)

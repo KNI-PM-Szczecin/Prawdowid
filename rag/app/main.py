@@ -14,7 +14,7 @@ from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedR
 from app import db
 from app.catalog import SourceOutsideCatalogError, load_catalog, resolve_entry
 from app.config import settings
-from app.corpus_sync import fetch_corpus, fetch_state, seed_urls, sync_corpus
+from app.corpus_sync import fetch_corpus, fetch_state, prune_corpus, seed_urls, sync_corpus
 from app.corpus_sync import sync_state as corpus_sync_state
 from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
@@ -22,7 +22,8 @@ from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.fetcher import FetchError, fetch_page
 from app.incidents import incident_point_id, index_incidents, load_seed_incidents
-from app.ingest import DuplicateDocumentError, ingest_document
+from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
+from app.law_import import import_law, law_state
 from app.models import (
     CorpusFetchRequest,
     CorpusSyncStatus,
@@ -38,6 +39,7 @@ from app.models import (
     IncidentIngestResult,
     IngestRequest,
     IngestResult,
+    PruneReport,
     SearchRequest,
     SearchResponse,
     SourceAuditEntry,
@@ -270,13 +272,11 @@ async def sources() -> list[SourceAuditEntry]:
 
 @app.delete("/sources/{document_id}", response_model=DeletionReport, dependencies=AdminOnly)
 async def delete_document(document_id: str) -> DeletionReport:
-    chunk_ids = await db.active_chunk_ids_for_document(document_id)
-    if not chunk_ids:
+    chunks_deleted = await delete_document_chunks(document_id, app.state.store)
+    if not chunks_deleted:
         raise HTTPException(status_code=HTTP_NOT_FOUND, detail=DOCUMENT_NOT_FOUND_MESSAGE)
-    await app.state.store.delete(chunk_ids)
-    await db.mark_chunks_deleted(chunk_ids)
-    logger.info("document %s deleted on request (%d chunks)", document_id, len(chunk_ids))
-    return DeletionReport(document_id=document_id, chunks_deleted=len(chunk_ids))
+    logger.info("document %s deleted on request (%d chunks)", document_id, chunks_deleted)
+    return DeletionReport(document_id=document_id, chunks_deleted=chunks_deleted)
 
 
 @app.post("/incidents", response_model=IncidentIngestResult, dependencies=AdminOnly)
@@ -335,7 +335,9 @@ def _corpus_status(state) -> CorpusSyncStatus:
         last_finished_at=state.last_finished_at,
         available=state.available,
         indexed=state.indexed,
+        already_present=state.already_present,
         skipped_duplicates=state.skipped_duplicates,
+        skipped_excluded=state.skipped_excluded,
         skipped_outside_catalog=state.skipped_outside_catalog,
         failed=state.failed,
         last_error=state.last_error,
@@ -378,6 +380,30 @@ async def start_corpus_sync(
     if not corpus_sync_state.running:
         background_tasks.add_task(sync_corpus, app.state.models, app.state.store, max_documents)
     return _corpus_sync_status()
+
+
+@app.post("/admin/corpus/prune", response_model=PruneReport, dependencies=AdminOnly)
+async def prune() -> PruneReport:
+    """Removes indexed documents that app/data/corpus_rules.json excludes (listing pages, home pages, police news)."""
+    return await prune_corpus(app.state.store)
+
+
+@app.get("/corpus/law", response_model=CorpusSyncStatus)
+async def corpus_law_status() -> CorpusSyncStatus:
+    return _corpus_status(law_state)
+
+
+@app.post("/admin/corpus/law", response_model=CorpusSyncStatus, status_code=HTTP_ACCEPTED, dependencies=AdminOnly)
+async def start_law_import(
+    background_tasks: BackgroundTasks,
+    max_chars: Annotated[
+        int, Query(alias="maxChars", ge=1, le=settings.law_import_max_chars)
+    ] = settings.law_import_default_max_chars,
+) -> CorpusSyncStatus:
+    """Imports the acts from app/data/law_acts.json out of the scraper's Law table; GET /corpus/law shows progress."""
+    if not law_state.running:
+        background_tasks.add_task(import_law, app.state.models, app.state.store, max_chars, settings.law_part_max_chars)
+    return _corpus_status(law_state)
 
 
 @app.post("/admin/eviction", response_model=EvictionReport, dependencies=AdminOnly)

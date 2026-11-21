@@ -107,12 +107,15 @@ class _TextExtractor(HTMLParser):
         self.title_parts: list[str] = []
         self.parts: list[str] = []
         self._skip_depth = 0
+        self._svg_depth = 0
         self._in_title = False
 
     def handle_starttag(self, tag: str, attrs) -> None:
         if tag in SKIPPED_ELEMENTS:
             self._skip_depth += 1
-        elif tag == "title":
+            self._svg_depth += tag == "svg"
+        elif tag == "title" and not self._svg_depth:
+            # Only the document title: <title> inside inline SVG icons (accessibility widgets) is not the page title.
             self._in_title = True
         elif tag in BLOCK_ELEMENTS:
             self.parts.append("\n")
@@ -120,7 +123,8 @@ class _TextExtractor(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag in SKIPPED_ELEMENTS and self._skip_depth:
             self._skip_depth -= 1
-        elif tag == "title":
+            self._svg_depth -= tag == "svg" and self._svg_depth > 0
+        elif tag == "title" and not self._svg_depth:
             self._in_title = False
         elif tag in BLOCK_ELEMENTS:
             self.parts.append("\n")

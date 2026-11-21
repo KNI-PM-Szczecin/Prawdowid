@@ -1,0 +1,22 @@
+{
+  "note": "Reguły wykluczania stron z korpusu dowodów. Stosowane przy każdym imporcie (POST /admin/corpus/sync, POST /admin/corpus/fetch, POST /admin/corpus/law) oraz przez POST /admin/corpus/prune, które usuwa z indeksu już wgrane dokumenty pasujące do reguł. Strony-listy (aktualności, komunikaty, strony główne portali i ministerstw) zawierają same nagłówki bez daty i nie nadają się na dowód; lokalne kroniki policyjne i Straży Ochrony Kolei rzadko dotyczą twierdzeń obywateli. Wzorce to wyrażenia regularne bez rozróżniania wielkości liter, dopasowywane do adresu albo do tytułu strony po zwinięciu białych znaków. Wykluczenie nie jest oceną wydawcy: konkretną stronę z tych serwisów nadal można wgrać przez POST /ingest.",
+  "excludeHosts": [
+    "policja.pl",
+    "policja.gov.pl",
+    "kgsok.pl"
+  ],
+  "excludeUrlPatterns": [
+    "^https?://[^/]+/?$",
+    "^https?://www\\.gov\\.pl/web/[^/]+/?$",
+    "/(aktualnosci|wydarzenia|komunikaty|ostrzezenia|wiadomosci|fake_news|wypowiedzi|informacje-drogowe)/?$"
+  ],
+  "excludeTitlePatterns": [
+    "^(Aktualności|Wydarzenia|Komunikaty|Wiadomości|Ostrzeżenia|Decyzje rządu|Strona główna|Filmy|Nabór|Ogłoszenia|Kronika wydarzeń|Statystyki|Obchody święta|Ujęcie|Pamiętamy!)\\b",
+    "\\barchiwum\\b",
+    "^Regionalny System Ostrzegania$",
+    "^System ostrzeżeń$",
+    "^Premier - Kancelaria Prezesa Rady Ministrów",
+    "^Komunikaty nawigacyjne",
+    "^Ocena jakości powietrza - Bieżące dane"
+  ]
+}

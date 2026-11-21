@@ -27,8 +27,8 @@ PAGES = [
         "scrapped:1", "https://www.gov.pl/web/mswia/rso", "Strefa buforowa", f"{NAV}\nStrefa przedłużona.\nStopka", NOW
     ),
     Page("scrapped:2", "https://policja.pl/pol/aktualnosci", "Aktualności", f"{NAV}\nZatrzymano 3 osoby.\nStopka", NOW),
-    Page("scrapped:3", "https://kgsok.pl/", "SOK", f"{NAV}\nKontrola na dworcu.\nStopka", NOW),
-    Page("scrapped:4", "https://kgsok.pl/", "SOK kopia", f"{NAV}\nKontrola na dworcu.\nStopka", NOW),
+    Page("scrapped:3", "https://www.gov.pl/web/rcb/kontrola", "RCB", f"{NAV}\nKontrola na dworcu.\nStopka", NOW),
+    Page("scrapped:4", "https://www.gov.pl/web/rcb/kopia", "RCB kopia", f"{NAV}\nKontrola na dworcu.\nStopka", NOW),
     Page("scrapped:5", "https://blog.example.net/x", "Spoza katalogu", "Tekst spoza katalogu.", NOW),
 ]
 
@@ -90,7 +90,7 @@ def test_to_document_keeps_publication_date_from_the_page():
     assert to_document(page, "Treść.").source.published_at == datetime(2024, 3, 12, tzinfo=UTC)
 
 
-def test_sync_counts_indexed_duplicates_outside_and_continues(fake_ingest, monkeypatch):
+def test_sync_counts_indexed_duplicates_excluded_outside_and_continues(fake_ingest, monkeypatch):
     async def fetch_scraped_pages(limit):
         return [
             {"id": index + 1, "date": 20261116, "site": page.url, "title": page.title, "content": page.content}
@@ -100,10 +100,11 @@ def test_sync_counts_indexed_duplicates_outside_and_continues(fake_ingest, monke
     monkeypatch.setattr(db, "fetch_scraped_pages", fetch_scraped_pages)
     state = asyncio.run(sync_corpus(models=None, store=None, max_documents=100))
 
-    assert (state.indexed, state.skipped_duplicates, state.skipped_outside_catalog, state.failed) == (3, 1, 1, 0)
+    assert (state.indexed, state.skipped_duplicates, state.skipped_outside_catalog, state.failed) == (2, 1, 1, 0)
+    assert state.skipped_excluded == 1  # policja.pl listing page, see app/data/corpus_rules.json
     assert state.available == len(PAGES)
     assert state.last_error is None and state.running is False
-    assert fake_ingest == ["scrapped:1", "scrapped:2", "scrapped:3"]
+    assert fake_ingest == ["scrapped:1", "scrapped:3"]
 
 
 def test_fetch_indexes_html_pages_and_counts_failures(fake_ingest):

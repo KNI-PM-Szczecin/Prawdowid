@@ -13,6 +13,17 @@ logger = logging.getLogger(__name__)
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 EMPTY_CORPUS_VERSION = "empty"
+# Dziennik Ustaw positions are four-digit numbers; the scraper's Law table also holds a few corrupted ids (16181618).
+MAX_LAW_POSITION = 100_000
+YEAR_DIVISOR = 10_000  # the scraper stores dates as YYYYMMDD integers
+
+
+def _table(name: str) -> str:
+    """A table name from configuration is validated before it is quoted into SQL."""
+    if not IDENTIFIER.fullmatch(name):
+        raise ValueError(f"Invalid corpus table name: {name!r}")
+    return f'"{name}"'
+
 
 _pool: asyncpg.Pool | None = None
 
@@ -90,10 +101,43 @@ async def active_chunk_ids_for_document(document_id: str) -> list[UUID]:
 
 async def fetch_scraped_pages(limit: int) -> list[asyncpg.Record]:
     """Rows of the scraper's table in the shared database; the table name is configuration, so it is validated."""
-    table = settings.corpus_scraped_table
-    if not IDENTIFIER.fullmatch(table):
-        raise ValueError(f"Invalid corpus table name: {table!r}")
-    return await pool().fetch(f'SELECT id, date, site, title, content FROM "{table}" ORDER BY id LIMIT $1', limit)
+    table = _table(settings.corpus_scraped_table)
+    return await pool().fetch(f"SELECT id, date, site, title, content FROM {table} ORDER BY id LIMIT $1", limit)
+
+
+async def fetch_law_acts() -> list[asyncpg.Record]:
+    """One row per act in the scraper's Law table: Dz.U. position and year, announcement date, title."""
+    table = _table(settings.corpus_law_table)
+    return await pool().fetch(
+        f"""
+        SELECT docid AS position, date / {YEAR_DIVISOR} AS year, MAX(date) AS date, MIN(doctitle) AS title
+        FROM {table}
+        WHERE docid < $1 AND doctitle IS NOT NULL
+        GROUP BY docid, date / {YEAR_DIVISOR}
+        """,
+        MAX_LAW_POSITION,
+    )
+
+
+async def fetch_law_rules(position: int, year: int) -> list[str]:
+    """Articles of one act in the order the scraper stored them."""
+    table = _table(settings.corpus_law_table)
+    rows = await pool().fetch(
+        f"SELECT rule FROM {table} WHERE docid = $1 AND date / {YEAR_DIVISOR} = $2 ORDER BY id", position, year
+    )
+    return [row["rule"] for row in rows if row["rule"]]
+
+
+async def active_document_url(document_id: str) -> str | None:
+    """URL of a document that still has active chunks, or None (missing or fully deleted)."""
+    return await pool().fetchval(
+        """
+        SELECT s.url FROM sources s
+        WHERE s.document_id = $1
+          AND EXISTS (SELECT 1 FROM document_metadata m WHERE m.source_id = s.document_id AND NOT m.is_deleted)
+        """,
+        document_id,
+    )
 
 
 async def find_duplicate_document(content_hash: str, document_id: str) -> str | None:
