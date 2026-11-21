@@ -71,6 +71,8 @@ Walidacja wejścia: nieznany `inputType`, pusty albo za długi `input` daje `200
 
 `DELETE /api/checks/{requestId}` usuwa zapisany przebieg i dane z pamięci podręcznej (wymóg „usunięcia sesji demo”). Odpowiedź: `204` po usunięciu, `404` gdy takiego przebiegu nie ma, `400` dla identyfikatora, który nie jest UUID v4 (ciało błędu ma kształt `CheckResult` ze statusem `technical_error`). Przebiegi starsze niż `CHECK_RETENTION_DAYS` (domyślnie 30) backend usuwa sam. Backend maskuje oczywiste dane osobowe (e-mail, telefon, PESEL) w `input` **przed** zapisem przebiegu.
 
+`GET /livez` → `200 {"status":"ok"}` bez zapytania do bazy (sonda żywotności, np. dla Railway; `GET /health` zostaje sondą gotowości i daje `503` przy awarii bazy). Limit żądań liczy adres klienta z wpisu `X-Forwarded-For` o numerze `TRUSTED_PROXY_HOPS` liczonym od prawej (domyślnie 1), z powrotem do adresu połączenia. Treść za duża (ponad 64 KB) daje `200 needs_clarification`, a dane po obiekcie JSON dają `400`.
+
 ### 1a. Rozszerzenia pod projekt UI (Figma) — PROPOZYCJA, do akceptacji
 
 Status: propozycja z gałęzi `docs/api-proposal` (przykłady i mapowanie na ekrany w `docs/api.md`). Do czasu akceptacji wszystkie pola poniżej są **opcjonalne**: front działa bez nich, backend może ich nie zwracać. Żadne z nich nie zmienia werdyktu ani `evidenceStrength`.

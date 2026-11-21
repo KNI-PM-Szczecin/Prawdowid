@@ -16,6 +16,7 @@ const (
 	defaultRetentionDays    = 30
 	defaultArchivalDays     = 365
 	defaultRagURL           = "http://localhost:8001"
+	defaultTrustedProxyHops = 1
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -34,6 +35,8 @@ type Config struct {
 	ArchivalDays int
 	// RagURL is the rag service address, the same variable the agent reads.
 	RagURL string
+	// TrustedProxyHops is how many proxies append to X-Forwarded-For before the backend; the rate limiter reads that entry from the right.
+	TrustedProxyHops int
 }
 
 func loadConfig() (Config, error) {
@@ -67,6 +70,11 @@ func loadConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	trustedProxyHops, err := intFromEnv("TRUSTED_PROXY_HOPS", defaultTrustedProxyHops)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Port:               stringFromEnv("PORT", defaultPort),
 		DatabaseURL:        databaseURL,
@@ -75,6 +83,7 @@ func loadConfig() (Config, error) {
 		RetentionDays:      retentionDays,
 		ArchivalDays:       archivalDays,
 		RagURL:             stringFromEnv("RAG_URL", defaultRagURL),
+		TrustedProxyHops:   trustedProxyHops,
 	}, nil
 }
 

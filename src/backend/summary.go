@@ -33,7 +33,11 @@ const (
 	roundingOffset = 0.5
 )
 
-const dateOnlyLayout = "2006-01-02"
+const (
+	dateOnlyLayout = "2006-01-02"
+	// dateTimeNoZoneLayout is an ISO date-time without a zone, which CONTRACT.md defines as UTC (time.Parse assumes UTC).
+	dateTimeNoZoneLayout = "2006-01-02T15:04:05"
+)
 
 // Summary is the deterministic overall rating of a submission (CONTRACT.md §1a). It is never produced by a model.
 type Summary struct {
@@ -146,13 +150,15 @@ func countOfficialSources(claims []agent.Claim) int {
 
 // buildBadges returns neutral labels derived only from source dates and source types, never from domain reputation.
 // A source whose publishedAt is missing or unparsable counts as neither fresh nor archival.
+// The freshness badge looks at the newest dated source of each claim: archival_material when any claim is older
+// than the threshold, fresh_material otherwise.
 func buildBadges(result agent.CheckResult, now time.Time, archivalAfter time.Duration) []string {
 	badges := []string{}
-	var newest time.Time
 	var sourceCount int
-	var officialPresent bool
+	var officialPresent, anyDated, anyArchival bool
 
 	for _, claim := range result.Claims {
+		var newest time.Time
 		for _, source := range claim.Sources {
 			sourceCount++
 			if source.SourceType == agent.SourceTypeOfficial {
@@ -162,14 +168,21 @@ func buildBadges(result agent.CheckResult, now time.Time, archivalAfter time.Dur
 				newest = published
 			}
 		}
+		if newest.IsZero() {
+			continue
+		}
+		anyDated = true
+		if now.Sub(newest) > archivalAfter {
+			anyArchival = true
+		}
 	}
 
-	if !newest.IsZero() {
-		if now.Sub(newest) > archivalAfter {
-			badges = append(badges, badgeArchivalMaterial)
-		} else {
-			badges = append(badges, badgeFreshMaterial)
-		}
+	// One claim resting on old material is enough to warn, even when another claim has a fresh source.
+	switch {
+	case anyArchival:
+		badges = append(badges, badgeArchivalMaterial)
+	case anyDated:
+		badges = append(badges, badgeFreshMaterial)
 	}
 	if sourceCount > 0 {
 		if officialPresent {
@@ -185,7 +198,7 @@ func parsePublishedAt(value *string) (time.Time, bool) {
 	if value == nil {
 		return time.Time{}, false
 	}
-	for _, layout := range []string{time.RFC3339, dateOnlyLayout} {
+	for _, layout := range []string{time.RFC3339, dateTimeNoZoneLayout, dateOnlyLayout} {
 		if parsed, err := time.Parse(layout, *value); err == nil {
 			return parsed, true
 		}

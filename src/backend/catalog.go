@@ -14,7 +14,9 @@ import (
 
 const (
 	// catalogFetchTimeout bounds a single GET /sources/catalog call, on top of the caller's context.
-	catalogFetchTimeout = 5 * time.Second
+	catalogFetchTimeout = 2 * time.Second
+	// catalogFailureWindow is how long a failed fetch is remembered, so a rag outage does not add a timeout to every check.
+	catalogFailureWindow = 30 * time.Second
 	// catalogCacheTTL is how long the fetched catalog is reused before rag is asked again.
 	catalogCacheTTL = 10 * time.Minute
 	// maxCatalogBodyBytes caps the response size so a broken rag cannot exhaust memory.
@@ -47,9 +49,12 @@ type sourceCatalog struct {
 	// now is injectable so tests can move time forward past the TTL.
 	now func() time.Time
 
+	// mu guards the fields below and is never held during a fetch.
 	mu        sync.Mutex
 	domains   map[string]struct{}
 	fetchedAt time.Time
+	failedAt  time.Time
+	failure   error
 }
 
 func newSourceCatalog(ragBaseURL string, fetchTimeout time.Duration) *sourceCatalog {
@@ -69,7 +74,7 @@ func (c *sourceCatalog) badgeForURL(ctx context.Context, rawURL string) (badge s
 	if parseErr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" {
 		return "", false, nil
 	}
-	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
+	host := normalizeDomain(parsed.Hostname())
 
 	domains, fetchErr := c.catalogDomains(ctx)
 	if fetchErr != nil {
@@ -83,20 +88,48 @@ func (c *sourceCatalog) badgeForURL(ctx context.Context, rawURL string) (badge s
 	return badgeInputSourceOutsideCatalog, true, nil
 }
 
-// catalogDomains returns the set of catalog domains, fetching from rag when the cache is empty or stale.
+// normalizeDomain makes a host and a catalog domain comparable: lower case, no trailing dot, no www. prefix.
+func normalizeDomain(domain string) string {
+	domain = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
+	return strings.TrimPrefix(domain, "www.")
+}
+
+// catalogDomains returns the set of catalog domains, fetching from rag when the cache is empty or expired.
+// When a fetch fails, the stale catalog is served if there is one; otherwise the failure is remembered for
+// catalogFailureWindow and returned at once.
 func (c *sourceCatalog) catalogDomains(ctx context.Context) (map[string]struct{}, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.domains != nil && c.now().Sub(c.fetchedAt) < c.ttl {
-		return c.domains, nil
+	current := c.now()
+	if c.domains != nil && current.Sub(c.fetchedAt) < c.ttl {
+		domains := c.domains
+		c.mu.Unlock()
+		return domains, nil
 	}
+	if c.failure != nil && current.Sub(c.failedAt) < catalogFailureWindow {
+		domains, failure := c.domains, c.failure
+		c.mu.Unlock()
+		if domains != nil {
+			return domains, nil
+		}
+		return nil, failure
+	}
+	c.mu.Unlock()
 
 	fetched, err := c.fetch(ctx)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if err != nil {
+		c.failedAt = c.now()
+		c.failure = err
+		if c.domains != nil {
+			return c.domains, nil
+		}
 		return nil, err
 	}
 	c.domains = fetched
 	c.fetchedAt = c.now()
+	c.failure = nil
 	return c.domains, nil
 }
 
@@ -130,7 +163,7 @@ func (c *sourceCatalog) fetch(ctx context.Context) (map[string]struct{}, error) 
 	domains := make(map[string]struct{}, len(payload.Entries))
 	for _, entry := range payload.Entries {
 		for _, domain := range entry.Domains {
-			domains[strings.ToLower(domain)] = struct{}{}
+			domains[normalizeDomain(domain)] = struct{}{}
 		}
 	}
 	return domains, nil

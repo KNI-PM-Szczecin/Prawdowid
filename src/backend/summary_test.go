@@ -167,6 +167,16 @@ func TestBuildBadges(t *testing.T) {
 			source(agent.SourceTypeSecondary, strPtr("2015-01-01")),
 			source(agent.SourceTypeFactcheck, strPtr("2026-05-20T10:00:00Z"))),
 			[]string{badgeFreshMaterial, badgeOfficialAbsent}},
+		{"date-time without zone is read as UTC", resultWith(source(agent.SourceTypeSecondary, strPtr("2026-05-20T10:00:00"))),
+			[]string{badgeFreshMaterial, badgeOfficialAbsent}},
+		{"archival claim is not hidden by a fresh claim", agent.CheckResult{Claims: []agent.Claim{
+			{Sources: []agent.SourceRef{source(agent.SourceTypeSecondary, strPtr("2015-01-01"))}},
+			{Sources: []agent.SourceRef{source(agent.SourceTypeSecondary, strPtr("2026-05-20"))}},
+		}}, []string{badgeArchivalMaterial, badgeOfficialAbsent}},
+		{"fresh when every dated claim is fresh and another has no date", agent.CheckResult{Claims: []agent.Claim{
+			{Sources: []agent.SourceRef{source(agent.SourceTypeSecondary, nil)}},
+			{Sources: []agent.SourceRef{source(agent.SourceTypeSecondary, strPtr("2026-05-20"))}},
+		}}, []string{badgeFreshMaterial, badgeOfficialAbsent}},
 		{"missing dates give neither", resultWith(source(agent.SourceTypeOfficial, nil)),
 			[]string{badgeOfficialPresent}},
 		{"unparsable date gives neither", resultWith(source(agent.SourceTypeSecondary, strPtr("wczoraj"))),

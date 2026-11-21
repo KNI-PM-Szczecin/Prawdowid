@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -56,6 +58,8 @@ type checkHandlers struct {
 	archivalAfter time.Duration
 	// catalog is optional: without it the input_source_* badges are simply not shown.
 	catalog *sourceCatalog
+	// trustedProxyHops tells the rate limiter which X-Forwarded-For entry (counted from the right) is ours.
+	trustedProxyHops int
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
@@ -66,9 +70,12 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 	}
 
 	var body checkRequest
-	decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, maxBodyBytes))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&body); err != nil {
+	if err := decodeCheckBody(http.MaxBytesReader(writer, request.Body, maxBodyBytes), &body); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			h.reply(writer, http.StatusOK, h.nonMerit(requestID, webChannel, agent.StatusNeedsClarification, messageInputTooLong))
+			return
+		}
 		h.logger.Warn("invalid check body", "requestId", requestID, "error", err)
 		h.reply(writer, http.StatusBadRequest, h.nonMerit(requestID, webChannel, agent.StatusTechnicalError, messageBadBody))
 		return
@@ -85,6 +92,22 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 		response.Badges = h.addCatalogBadge(request.Context(), response.Badges, body.Input)
 	}
 	writeJSON(h.logger, writer, statusCode, response)
+}
+
+// decodeCheckBody reads exactly one JSON object with known fields; trailing data is an error.
+func decodeCheckBody(body io.Reader, target *checkRequest) error {
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("decode check body: %w", err)
+	}
+	if err := decoder.Decode(&json.RawMessage{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("unexpected data after the JSON value")
+		}
+		return fmt.Errorf("read after the JSON value: %w", err)
+	}
+	return nil
 }
 
 // addCatalogBadge appends the neutral input_source_* badge; when the catalog is unavailable no badge is added.
@@ -127,7 +150,7 @@ func (h *checkHandlers) beginCheck(request *http.Request, channel string) (reque
 		return "", h.nonMerit("", channel, agent.StatusTechnicalError, messageInternalError), http.StatusServiceUnavailable, false
 	}
 
-	if !h.limiter.allow(clientAddress(request)) {
+	if !h.limiter.allow(clientAddress(request, h.trustedProxyHops)) {
 		h.logger.Warn("rate limit exceeded", "requestId", requestID)
 		return requestID, h.nonMerit(requestID, channel, agent.StatusTechnicalError, messageRateLimited), http.StatusTooManyRequests, false
 	}
@@ -136,12 +159,19 @@ func (h *checkHandlers) beginCheck(request *http.Request, channel string) (reque
 
 // runCheck is the shared pipeline for every channel: mask personal data, call the agent,
 // normalize the result, store the run without failing the answer and log the outcome.
+// A URL goes to the agent unchanged, because masking would rewrite the address the agent has to fetch;
+// only the stored copy is masked.
 func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input, inputType string) (agent.CheckResult, int) {
-	verifyRequest := agent.VerifyRequest{
+	trimmed := strings.TrimSpace(input)
+	storedRequest := agent.VerifyRequest{
 		RequestID: requestID,
 		Channel:   channel,
-		Input:     maskPersonalData(strings.TrimSpace(input)),
+		Input:     maskPersonalData(trimmed),
 		InputType: inputType,
+	}
+	verifyRequest := storedRequest
+	if inputType == agent.InputTypeURL {
+		verifyRequest.Input = trimmed
 	}
 	result, err := h.verify(ctx, verifyRequest)
 	if err != nil {
@@ -149,9 +179,10 @@ func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input,
 		return h.nonMerit(requestID, channel, agent.StatusTechnicalError, messageInternalError), http.StatusServiceUnavailable
 	}
 	result = normalizeResult(result)
+	result.RequestID = requestID
 
 	// A failed audit write must not break the answer (AGENTS.md section 6).
-	if err := h.saveRun(context.WithoutCancel(ctx), verifyRequest, result); err != nil {
+	if err := h.saveRun(context.WithoutCancel(ctx), storedRequest, maskResultForStorage(result)); err != nil {
 		h.logger.Error("save check run failed", "requestId", requestID, "error", err)
 	}
 	h.logger.Info("check finished",
@@ -234,6 +265,26 @@ func normalizeResult(result agent.CheckResult) agent.CheckResult {
 			claim.Warnings = []agent.Warning{}
 		}
 	}
+	return result
+}
+
+// maskResultForStorage returns a copy of the result with personal data hidden in the free text that is stored
+// (claim text, justification, source title and quote); the answer sent to the user is not changed.
+func maskResultForStorage(result agent.CheckResult) agent.CheckResult {
+	claims := make([]agent.Claim, len(result.Claims))
+	for claimIndex, claim := range result.Claims {
+		claim.Text = maskPersonalData(claim.Text)
+		claim.Justification = maskPersonalData(claim.Justification)
+		sources := make([]agent.SourceRef, len(claim.Sources))
+		for sourceIndex, source := range claim.Sources {
+			source.Title = maskPersonalData(source.Title)
+			source.Quote = maskPersonalData(source.Quote)
+			sources[sourceIndex] = source
+		}
+		claim.Sources = sources
+		claims[claimIndex] = claim
+	}
+	result.Claims = claims
 	return result
 }
 

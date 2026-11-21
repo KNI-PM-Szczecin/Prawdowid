@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,7 +12,11 @@ import (
 	"prawdowid/agent"
 )
 
-const storeTimeout = 5 * time.Second
+const (
+	storeTimeout = 5 * time.Second
+	// migrationLockKey identifies the advisory lock that serializes CREATE TABLE between starting instances.
+	migrationLockKey = 7351002
+)
 
 const createCheckRunsSQL = `
 CREATE TABLE IF NOT EXISTS check_runs (
@@ -38,7 +43,26 @@ type runStore struct {
 func newRunStore(ctx context.Context, pool *pgxpool.Pool) (*runStore, error) {
 	migrateCtx, cancel := context.WithTimeout(ctx, storeTimeout)
 	defer cancel()
-	if _, err := pool.Exec(migrateCtx, createCheckRunsSQL); err != nil {
+
+	// The lock is per session, so the lock, the migration and the unlock must share one connection.
+	connection, err := pool.Acquire(migrateCtx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire connection for migration: %w", err)
+	}
+	defer connection.Release()
+	if _, err := connection.Exec(migrateCtx, `SELECT pg_advisory_lock($1)`, migrationLockKey); err != nil {
+		return nil, fmt.Errorf("lock migration: %w", err)
+	}
+	defer func() {
+		unlockCtx, unlockCancel := context.WithTimeout(context.WithoutCancel(ctx), storeTimeout)
+		defer unlockCancel()
+		// An unlock failure only matters until the connection is released, which also drops the session lock.
+		if _, err := connection.Exec(unlockCtx, `SELECT pg_advisory_unlock($1)`, migrationLockKey); err != nil {
+			slog.Warn("unlock migration failed", "error", err)
+		}
+	}()
+
+	if _, err := connection.Exec(migrateCtx, createCheckRunsSQL); err != nil {
 		return nil, fmt.Errorf("create check_runs: %w", err)
 	}
 	return &runStore{pool: pool}, nil
@@ -74,11 +98,11 @@ func (s *runStore) delete(ctx context.Context, requestID string) (bool, error) {
 	return tag.RowsAffected() > 0, nil
 }
 
-// purgeOlderThan enforces the retention period and returns how many runs were removed.
-func (s *runStore) purgeOlderThan(ctx context.Context, age time.Duration) (int64, error) {
+// purgeOlderThan enforces the retention period (runs created before cutoff) and returns how many runs were removed.
+func (s *runStore) purgeOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
 	purgeCtx, cancel := context.WithTimeout(ctx, storeTimeout)
 	defer cancel()
-	tag, err := s.pool.Exec(purgeCtx, `DELETE FROM check_runs WHERE created_at < now() - $1::interval`, age.String())
+	tag, err := s.pool.Exec(purgeCtx, `DELETE FROM check_runs WHERE created_at < $1`, cutoff)
 	if err != nil {
 		return 0, fmt.Errorf("purge check runs: %w", err)
 	}

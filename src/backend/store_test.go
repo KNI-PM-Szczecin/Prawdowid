@@ -208,7 +208,7 @@ func TestRunStorePurgeOlderThan(t *testing.T) {
 		t.Fatalf("back-date old run: %v", err)
 	}
 
-	removed, err := store.purgeOlderThan(ctx, purgeTestRetention)
+	removed, err := store.purgeOlderThan(ctx, time.Now().Add(-purgeTestRetention))
 	if err != nil {
 		t.Fatalf("purgeOlderThan: %v", err)
 	}

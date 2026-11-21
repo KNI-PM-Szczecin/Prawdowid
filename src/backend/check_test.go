@@ -25,7 +25,7 @@ func newTestHandlers(verify verifyFunc, limit int) (*checkHandlers, *[]agent.Ver
 			return nil
 		},
 		deleteRun:     func(_ context.Context, requestID string) (bool, error) { return requestID != "", nil },
-		limiter:       newRateLimiter(limit, time.Minute),
+		limiter:       newRateLimiter(limit, time.Minute, slog.New(slog.NewTextHandler(io.Discard, nil))),
 		now:           time.Now,
 		archivalAfter: 365 * 24 * time.Hour,
 	}
@@ -194,24 +194,9 @@ func TestDeleteCheck(t *testing.T) {
 	}
 }
 
-func TestMaskPersonalData(t *testing.T) {
-	tests := map[string]string{
-		"mail: a.b@firma.pl":             "mail: [ukryto]",
-		"PESEL 44051401359 koniec":       "PESEL [ukryto] koniec",
-		"tel 600 700 800":                "tel [ukryto]",
-		"tel +48 600-700-800":            "tel [ukryto]",
-		"W 2026 roku wzrost o 12,5 proc": "W 2026 roku wzrost o 12,5 proc",
-	}
-	for input, want := range tests {
-		if got := maskPersonalData(input); got != want {
-			t.Errorf("maskPersonalData(%q) = %q, want %q", input, got, want)
-		}
-	}
-}
-
 func TestRateLimiterWindowResets(t *testing.T) {
 	current := time.Now()
-	limiter := newRateLimiter(1, time.Minute)
+	limiter := newRateLimiter(1, time.Minute, nil)
 	limiter.now = func() time.Time { return current }
 	if !limiter.allow("a") || limiter.allow("a") {
 		t.Fatal("second request in the window must be rejected")

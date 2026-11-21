@@ -19,10 +19,13 @@ import (
 
 const (
 	readHeaderTimeout = 10 * time.Second
-	shutdownTimeout   = 10 * time.Second
-	rateLimitWindow   = time.Minute
-	purgeInterval     = time.Hour
-	hoursPerDay       = 24
+	idleTimeout       = 60 * time.Second
+	// writeTimeout must exceed the agent verification budget (25 s) so a slow check can still be answered.
+	writeTimeout    = 40 * time.Second
+	shutdownTimeout = 30 * time.Second
+	rateLimitWindow = time.Minute
+	purgeInterval   = time.Hour
+	hoursPerDay     = 24
 )
 
 func main() {
@@ -58,22 +61,33 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	retention := time.Duration(config.RetentionDays) * hoursPerDay * time.Hour
-	go purgeLoop(ctx, logger, store, retention)
+	purgeDone := make(chan struct{})
+	go func() {
+		defer close(purgeDone)
+		purgeLoop(ctx, logger, store, retention)
+	}()
+	// Registered after pool.Close, so it runs first: the purge must finish before the pool closes.
+	defer func() {
+		stop()
+		<-purgeDone
+	}()
 
 	checks := &checkHandlers{
-		logger:        logger,
-		verify:        verifier.Verify,
-		saveRun:       store.save,
-		deleteRun:     store.delete,
-		limiter:       newRateLimiter(config.RateLimitPerMinute, rateLimitWindow),
-		now:           time.Now,
-		archivalAfter: time.Duration(config.ArchivalDays) * hoursPerDay * time.Hour,
-		catalog:       newSourceCatalog(config.RagURL, catalogFetchTimeout),
+		logger:           logger,
+		verify:           verifier.Verify,
+		saveRun:          store.save,
+		deleteRun:        store.delete,
+		limiter:          newRateLimiter(config.RateLimitPerMinute, rateLimitWindow, logger),
+		now:              time.Now,
+		archivalAfter:    time.Duration(config.ArchivalDays) * hoursPerDay * time.Hour,
+		catalog:          newSourceCatalog(config.RagURL, catalogFetchTimeout),
+		trustedProxyHops: config.TrustedProxyHops,
 	}
 
 	demo := newChannelHandler(checks, demoAdapter{})
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /livez", livenessHandler(logger))
 	mux.HandleFunc("GET /health", healthHandler(logger, pool))
 	mux.HandleFunc("POST /api/check", checks.check)
 	mux.HandleFunc("DELETE /api/checks/{requestId}", checks.deleteCheck)
@@ -83,6 +97,8 @@ func run(logger *slog.Logger) error {
 		Addr:              ":" + config.Port,
 		Handler:           mux,
 		ReadHeaderTimeout: readHeaderTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 
 	serverErrors := make(chan error, 1)
@@ -107,6 +123,13 @@ func run(logger *slog.Logger) error {
 type healthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database"`
+}
+
+// livenessHandler answers without touching the database, so a short database outage does not get the process restarted.
+func livenessHandler(logger *slog.Logger) http.HandlerFunc {
+	return func(writer http.ResponseWriter, _ *http.Request) {
+		writeJSON(logger, writer, http.StatusOK, map[string]string{"status": "ok"})
+	}
 }
 
 func healthHandler(logger *slog.Logger, pool *pgxpool.Pool) http.HandlerFunc {
@@ -135,7 +158,7 @@ func purgeLoop(ctx context.Context, logger *slog.Logger, store *runStore, retent
 	ticker := time.NewTicker(purgeInterval)
 	defer ticker.Stop()
 	for {
-		removed, err := store.purgeOlderThan(ctx, retention)
+		removed, err := store.purgeOlderThan(ctx, time.Now().Add(-retention))
 		if err != nil {
 			logger.Error("purge check runs failed", "error", err)
 		} else if removed > 0 {
