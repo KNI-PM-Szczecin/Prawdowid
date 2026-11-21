@@ -2,9 +2,9 @@
 FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /app
-COPY src/package.json src/pnpm-lock.yaml ./
+COPY src/frontend/package.json src/frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
-COPY src ./
+COPY src/frontend ./
 RUN pnpm build
 
 FROM caddy:2-alpine
