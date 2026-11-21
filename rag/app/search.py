@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import logging
 import math
 import time
@@ -19,6 +21,27 @@ logger = logging.getLogger(__name__)
 
 MILLISECONDS_PER_SECOND = 1000
 INJECTION_FLAG = "suspected_injection"
+
+_cache: dict[str, tuple[float, str, SearchResponse]] = {}
+
+
+def _cache_key(request: SearchRequest) -> str:
+    return hashlib.sha256(json.dumps(request.model_dump(mode="json"), sort_keys=True).encode()).hexdigest()
+
+
+def _cached(key: str, corpus_version: str) -> SearchResponse | None:
+    entry = _cache.get(key)
+    if entry is None or entry[0] < time.monotonic() or entry[1] != corpus_version:
+        return None
+    return entry[2]
+
+
+def _remember(key: str, corpus_version: str, response: SearchResponse) -> None:
+    if len(_cache) >= settings.search_cache_max_entries:
+        _cache.pop(next(iter(_cache)))
+    _cache[key] = (time.monotonic() + settings.search_cache_ttl_seconds, corpus_version, response)
+
+
 FACTCHECK_SOURCE_TYPE = "factcheck"
 FACTCHECK_DOCUMENT_PREFIX = "factcheck:"
 
@@ -117,6 +140,13 @@ async def search_passages(
     Read counters are not updated here, the caller schedules db.register_reads for the returned corpus chunks.
     """
     started_at = time.perf_counter()
+    corpus_version = await db.corpus_version()
+    cache_key = _cache_key(request)
+    cached = _cached(cache_key, corpus_version)
+    if cached is not None:
+        elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
+        logger.info("search served from cache in %d ms", elapsed_ms)
+        return cached.model_copy(update={"elapsed_ms": elapsed_ms})
     filters = request.filters
     payload_filter = build_filter(
         filters.source_types if filters else None, filters.published_after if filters else None
@@ -140,6 +170,9 @@ async def search_passages(
     reviews = [review for review in factcheck_result.reviews if _within_date_filter(review, filters)]
     candidates: list[Candidate] = [*_merge_candidates(list(result_sets), settings.candidate_pool_size), *reviews]
 
+    corpus_candidates = [candidate for candidate in candidates if isinstance(candidate, RetrievedChunk)]
+    metadata_task = asyncio.create_task(db.fetch_passage_metadata([chunk.chunk_id for chunk in corpus_candidates]))
+
     passages: list[Passage] = []
     campaign_alert = None
     if candidates or incident_hits:
@@ -159,10 +192,8 @@ async def search_passages(
             key=lambda pair: pair[1],
             reverse=True,
         )
-        metadata = await db.fetch_passage_metadata(
-            [candidate.chunk_id for candidate, _ in ranked if isinstance(candidate, RetrievedChunk)]
-        )
         fetched_at = datetime.now(UTC)
+        metadata = await metadata_task
         for candidate, score in ranked:
             if isinstance(candidate, FactCheckReview):
                 passages.append(_factcheck_passage(candidate, score, fetched_at))
@@ -170,6 +201,8 @@ async def search_passages(
                 passages.append(_corpus_passage(candidate, row, score))
             if len(passages) == request.top_k:
                 break
+    else:
+        await metadata_task
 
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     logger.info(
@@ -187,12 +220,14 @@ async def search_passages(
         status="ok" if catalog_size else "disabled",
         results=len(campaign_alert.matches) if campaign_alert else 0,
     )
-    return SearchResponse(
+    response = SearchResponse(
         results=passages,
-        corpus_version=await db.corpus_version(),
+        corpus_version=corpus_version,
         context_xml=build_context_xml(passages),
         expanded_queries=queries,
         elapsed_ms=elapsed_ms,
         external_sources=[factcheck_result.as_status(), catalog_status],
         campaign_alert=campaign_alert,
     )
+    _remember(cache_key, corpus_version, response)
+    return response
