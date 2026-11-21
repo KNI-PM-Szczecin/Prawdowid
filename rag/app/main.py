@@ -27,6 +27,7 @@ from app.models import (
     DeletionReport,
     EuvsDisinfoSyncStatus,
     EvictionReport,
+    ExternalSourceInfo,
     HealthResponse,
     IncidentCatalogSummary,
     IncidentIngestRequest,
@@ -58,6 +59,7 @@ HTTP_ACCEPTED = 202
 HTTP_CONFLICT = 409
 HTTP_UNPROCESSABLE = 422
 DUPLICATE_MESSAGE = "Dokument {document_id} ma tę samą treść co {duplicate_of}. Nie wgrano."
+NEAR_DUPLICATE_MESSAGE = "Dokument {document_id} ma niemal tę samą treść co {duplicate_of} (parafraza). Nie wgrano."
 EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
 
 
@@ -182,11 +184,30 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
         except SourceOutsideCatalogError as error:
             raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=str(error)) from error
         except DuplicateDocumentError as error:
+            message = NEAR_DUPLICATE_MESSAGE if error.near else DUPLICATE_MESSAGE
             raise HTTPException(
                 status_code=HTTP_CONFLICT,
-                detail=DUPLICATE_MESSAGE.format(document_id=error.document_id, duplicate_of=error.duplicate_of),
+                detail=message.format(document_id=error.document_id, duplicate_of=error.duplicate_of),
             ) from error
     return results
+
+
+@app.get("/sources/external", response_model=list[ExternalSourceInfo])
+async def sources_external() -> list[ExternalSourceInfo]:
+    """Live services and imported registers used beside the corpus, with what they get and their current state."""
+    runtime = {
+        "google_factcheck": {"enabled": app.state.factcheck.enabled},
+        "euvsdisinfo": {
+            "enabled": app.state.euvsdisinfo.enabled,
+            "catalogSize": await app.state.incidents.count(),
+            "lastSyncFinishedAt": sync_state.last_finished_at.isoformat() if sync_state.last_finished_at else None,
+            "lastSyncIndexed": sync_state.last_indexed,
+        },
+    }
+    return [
+        ExternalSourceInfo(**entry.model_dump(), **runtime.get(entry.name, {"enabled": False}))
+        for entry in load_catalog().external
+    ]
 
 
 @app.get("/sources/catalog", response_model=SourceCatalog)

@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
@@ -148,6 +149,42 @@ class VectorStore:
             )
             for point in response.points
         ]
+
+    async def near_duplicate_document(self, dense_vectors: list[list[float]], source_id: str) -> str | None:
+        """
+        Id of another document that most of the given chunks point to as their nearest neighbour, with a high mean
+        cosine: a re-fetched or lightly edited copy that the exact content hash cannot catch. Chunk boundaries of
+        the copy may be shifted, so the rule uses the mean over all chunks, not a per-chunk threshold.
+        """
+        if not dense_vectors:
+            return None
+        other_documents = models.Filter(
+            must_not=[models.FieldCondition(key="source_id", match=models.MatchValue(value=source_id))]
+        )
+        matches: Counter[str] = Counter()
+        best_scores: list[float] = []
+        for vector in dense_vectors:
+            response = await self._client.query_points(
+                self._collection,
+                query=vector,
+                using=DENSE_VECTOR_NAME,
+                query_filter=other_documents,
+                limit=1,
+                with_payload=["source_id"],
+            )
+            if response.points:
+                matches[response.points[0].payload["source_id"]] += 1
+                best_scores.append(response.points[0].score)
+            else:
+                best_scores.append(0.0)
+        if not matches:
+            return None
+        document_id, count = matches.most_common(1)[0]
+        share = count / len(dense_vectors)
+        mean_cosine = sum(best_scores) / len(best_scores)
+        if share >= settings.near_duplicate_min_share and mean_cosine >= settings.near_duplicate_min_mean_cosine:
+            return document_id
+        return None
 
     async def delete(self, chunk_ids: list[UUID]) -> None:
         await self._client.delete(

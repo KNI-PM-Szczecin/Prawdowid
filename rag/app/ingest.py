@@ -15,12 +15,13 @@ WHITESPACE = re.compile(r"\s+")
 
 
 class DuplicateDocumentError(ValueError):
-    """Another active document already holds exactly this text (whitespace and case ignored)."""
+    """Another active document already holds this text: exactly (hash) or nearly (embedding similarity)."""
 
-    def __init__(self, document_id: str, duplicate_of: str) -> None:
-        super().__init__(f"Document {document_id} duplicates {duplicate_of}")
+    def __init__(self, document_id: str, duplicate_of: str, near: bool = False) -> None:
+        super().__init__(f"Document {document_id} {'nearly ' if near else ''}duplicates {duplicate_of}")
         self.document_id = document_id
         self.duplicate_of = duplicate_of
+        self.near = near
 
 
 def content_hash(text: str) -> str:
@@ -71,6 +72,9 @@ async def ingest_document(document: DocumentIn, models: EmbeddingModels, store: 
 
     texts = chunk_text(document.text, settings.chunk_max_chars, settings.chunk_overlap_chars)
     dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_documents, texts)
+    near_duplicate_of = await store.near_duplicate_document(dense_vectors, source.document_id)
+    if near_duplicate_of is not None:
+        raise DuplicateDocumentError(source.document_id, near_duplicate_of, near=True)
     chunk_ids = [uuid4() for _ in texts]
 
     await store.upsert(

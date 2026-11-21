@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-21.2",
+  "version": "2026-11-21.3",
   "note": "Katalog zaufanych źródeł: lista domen rządowych od mentora MSZ (aktualności i ostrzeżenia), rekomendacje briefu (spec/brief.md §7) i weryfikatorzy faktów. Dopasowanie po domenie URL (domena lub jej poddomena, najdłuższa wygrywa). Obecność domeny w katalogu nigdy nie jest podstawą werdyktu, tylko domyślnych metadanych i neutralnej informacji o statusie źródła.",
   "rules": {
     "official": "Organ władzy publicznej, instytucja państwowa lub unijna. Dokumenty pierwotne: akty prawne, komunikaty, dane. Tier 1, wiarygodność wysoka.",
@@ -381,6 +381,26 @@
       "tier": 2,
       "reliability": "high",
       "qualification": "Rozkłady i utrudnienia na kolei; spółka Skarbu Państwa. Lista mentora."
+    }
+  ],
+  "external": [
+    {
+      "name": "google_factcheck",
+      "provider": "Google Fact Check Tools API (claims:search)",
+      "url": "https://developers.google.com/fact-check/tools/api",
+      "role": "Oceny weryfikatorów faktów (ClaimReview) pobierane na żywo przy każdym wyszukiwaniu; wracają jako sourceType factcheck, tier 2.",
+      "dataSent": "Treść jednego twierdzenia (po maskowaniu danych osobowych w backendzie) w dwóch wariantach: pełne zdanie i słowa kluczowe. Dostawca spoza EOG.",
+      "terms": "Google API Terms of Service. Dokumentacja nie podaje limitów ani cennika; API w wersji v1alpha1. Klucz w nagłówku, nigdy w URL i logach.",
+      "env": "FACTCHECK_API_KEY"
+    },
+    {
+      "name": "euvsdisinfo",
+      "provider": "EUvsDisinfo (EEAS East StratCom Task Force), serwer MCP",
+      "url": "https://euvsdisinfo.eu/",
+      "role": "Rejestr spraw dezinformacji importowany do lokalnego katalogu kampanii; dopasowanie daje tylko campaignAlert (kontekst), nigdy dowód ani werdykt.",
+      "dataSent": "Nic z treści zgłoszeń. Rag pobiera sprawy stronami (narzędzie cases) i porównuje twierdzenia lokalnie.",
+      "terms": "Token dostępowy wydany przez EUvsDisinfo (dla zespołu przez mentora). Sprawy przechowywane z notą o źródle, bez treści artykułów.",
+      "env": "EUVSDISINFO_TOKEN"
     }
   ]
 }

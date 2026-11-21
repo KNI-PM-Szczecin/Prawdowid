@@ -23,6 +23,12 @@ DOCUMENT = {
 
 
 class FakeStore:
+    def __init__(self, near_duplicate_of: str | None = None):
+        self.near_duplicate_of = near_duplicate_of
+
+    async def near_duplicate_document(self, dense_vectors, source_id):
+        return self.near_duplicate_of
+
     async def upsert(self, points):
         return None
 
@@ -95,3 +101,28 @@ def test_catalog_endpoint_is_public(client):
     body = client.get("/sources/catalog").json()
     assert body["rules"]["official"]
     assert any(entry["domains"] == ["demagog.org.pl"] for entry in body["entries"])
+
+
+def test_paraphrased_copy_is_rejected_409_with_near_message(client):
+    app.state.store = FakeStore(near_duplicate_of="gov-1")
+    copy = {**DOCUMENT, "source": {**DOCUMENT["source"], "documentId": "gov-3"}, "text": "Inne słowa, ta sama treść."}
+    response = client.post("/ingest", json={"documents": [copy]}, headers=HEADERS)
+    assert response.status_code == 409
+    assert "parafraza" in response.json()["detail"] and "gov-1" in response.json()["detail"]
+
+
+def test_external_sources_describe_data_sent_and_state(client):
+    from app.euvsdisinfo import EuvsDisinfoClient
+    from app.factcheck import FactCheckClient
+
+    class EmptyCatalog:
+        async def count(self):
+            return 0
+
+    app.state.factcheck = FactCheckClient()
+    app.state.euvsdisinfo = EuvsDisinfoClient()
+    app.state.incidents = EmptyCatalog()
+    body = client.get("/sources/external").json()
+    assert [entry["name"] for entry in body] == ["google_factcheck", "euvsdisinfo"]
+    assert all(entry["dataSent"] and entry["terms"] and entry["env"] for entry in body)
+    assert body[1]["catalogSize"] == 0

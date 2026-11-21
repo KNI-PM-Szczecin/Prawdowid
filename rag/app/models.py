@@ -64,11 +64,29 @@ class CatalogEntry(ApiModel):
     qualification: str
 
 
+class ExternalSourceEntry(ApiModel):
+    name: str
+    provider: str
+    url: str
+    role: str
+    data_sent: str
+    terms: str
+    env: str
+
+
+class ExternalSourceInfo(ExternalSourceEntry):
+    enabled: bool
+    catalog_size: int | None = None
+    last_sync_finished_at: Timestamp | None = None
+    last_sync_indexed: int | None = None
+
+
 class SourceCatalog(ApiModel):
     version: str
     note: str
     rules: dict[str, str]
     entries: list[CatalogEntry]
+    external: list[ExternalSourceEntry] = Field(default_factory=list)
 
 
 class DocumentIn(ApiModel):

@@ -115,8 +115,9 @@ async def list_sources() -> list[asyncpg.Record]:
         """
         SELECT s.*, COUNT(m.chunk_id) FILTER (WHERE NOT m.is_deleted) AS active_chunks
         FROM sources s
-        LEFT JOIN document_metadata m ON m.source_id = s.document_id
+        JOIN document_metadata m ON m.source_id = s.document_id
         GROUP BY s.document_id
+        HAVING COUNT(m.chunk_id) FILTER (WHERE NOT m.is_deleted) > 0
         ORDER BY s.document_id
         """
     )
