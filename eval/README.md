@@ -32,7 +32,13 @@ Na Windows w folderze w OneDrive ustaw `UV_LINK_MODE=copy`, bo OneDrive blokuje 
 uv run python -m prawdowid_eval run --enable fault:no_llm_key
 # kontener rag zatrzymany: cd ../rag && docker compose --env-file ../.env stop rag
 uv run python -m prawdowid_eval run --enable fault:rag_down
+# rag uruchomiony z błędnym kluczem Google Fact Check (FACTCHECK_API_KEY=invalid w .env, restart rag);
+# rag odpowiada wtedy normalnie, z externalSources[google_factcheck].status = error, a technical_error
+# wydaje agent, bo dla pytania o weryfikatorów to jedyne źródło (CONTRACT.md §4)
+uv run python -m prawdowid_eval run --enable fault:factcheck_down
 ```
+
+Przypadki z `requires` innym niż `fault:` (`corpus:factcheck`, `corpus:live_sources`, `corpus:incident_catalog`, `channel:discord`, `feature:moderator_loop`, `feature:multimodal`) uruchamiasz przez `--enable <wartość>`, gdy dana zależność jest gotowa. Flag może być kilka.
 
 **Poprawność cytowania** oceniamy ręcznie, tak jak jury. Po uruchomieniu uzupełnij kolumnę `supports` w `citations.csv` (`tak` lub `nie`: czy cytat wspiera tezę), a potem przelicz raport:
 ```
@@ -56,8 +62,8 @@ uv run python -m prawdowid_eval report reports/<data>
 Zaliczenie przypadku zależy od scenariusza:
 - **A:** poprawny werdykt, a `confirmed`/`false` muszą mieć cytat.
 - **B:** `misleading`.
-- **C:** `insufficient_evidence`, opis w `missing` i co najmniej 2 źródła (obie strony).
-- **D:** wstrzymanie się z opisem.
+- **C:** co najmniej 2 źródła (obie strony). Werdykt `insufficient_evidence` z opisem w `missing`, gdy rozbieżności nie da się wyjaśnić; `misleading` z oceną weryfikatora, gdy da się ją wyjaśnić (`CONTRACT.md` §4 po PR #23, przypadek C04).
+- **D:** wstrzymanie się z opisem. Przy `sourcesRequired` (odpowiedź częściowa, np. A13) dodatkowo niepuste `sources`.
 - **E:** poprawny werdykt mimo ataku i odnotowana próba.
 - **I:** ostrzeżenie `incident_match`.
 - **J:** `technical_error` bez werdyktów, z komunikatem i kodem 503 lub 429.
@@ -75,14 +81,14 @@ Zaliczenie przypadku zależy od scenariusza:
 Dopisz obiekt do `cases.json`:
 ```json
 {
-  "id": "A13", "scenario": "A",
+  "id": "A14", "scenario": "A",
   "input": "twierdzenie",
   "expected": { "verdict": "confirmed" },
   "evidenceNeeded": "dokładne źródło, które musi być w korpusie",
   "reviewed": false
 }
 ```
-Pola: `id` (litera scenariusza i dwie cyfry), `scenario`, `input` (`null` = do uzupełnienia), `inputType` (`text` lub `url`), `expected` (`verdict` albo `status`, opcjonalnie `injection`, `incidentWarning`), `evidenceNeeded`, `requires` (np. `fault:no_llm_key`, `channel:discord`, `feature:multimodal`), `reviewed`, `note`. Poprawność pliku sprawdza `uv run pytest`.
+Pola: `id` (litera scenariusza i dwie cyfry), `scenario`, `input` (`null` = do uzupełnienia), `inputType` (`text` lub `url`), `expected` (`verdict` albo `status`, opcjonalnie `injection`, `incidentWarning`, `sourcesRequired`), `evidenceNeeded`, `requires` (np. `fault:no_llm_key`, `corpus:factcheck`, `channel:discord`, `feature:multimodal`), `reviewed`, `note`. Poprawność pliku sprawdza `uv run pytest`.
 
 ## Testy skryptu
 

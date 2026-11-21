@@ -69,6 +69,26 @@ Odpowiedź (`CheckResult`):
 
 `DELETE /api/checks/{requestId}` usuwa zapisany przebieg i dane z pamięci podręcznej (wymóg „usunięcia sesji demo”). Backend maskuje oczywiste dane osobowe (e-mail, telefon, PESEL) w `input` **przed** zapisem przebiegu.
 
+### 1a. Rozszerzenia pod projekt UI (Figma) — PROPOZYCJA, do akceptacji
+
+Status: propozycja z gałęzi `docs/api-proposal` (przykłady i mapowanie na ekrany w `docs/api.md`). Do czasu akceptacji wszystkie pola poniżej są **opcjonalne**: front działa bez nich, backend może ich nie zwracać. Żadne z nich nie zmienia werdyktu ani `evidenceStrength`.
+
+```json
+{
+  "document": { "title": "tytuł albo null", "text": "zamaskowany tekst zgłoszenia lub pobranej strony", "url": null, "publisher": null, "fetchedAt": null },
+  "summary": { "level": "high", "score": 81, "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym 1 źródło urzędowe"] },
+  "badges": ["official_source_present", "fresh_material", "input_source_outside_catalog"],
+  "campaignAlert": null,
+  "claims": [{ "span": { "start": 101, "end": 134 }, "conflict": null }]
+}
+```
+
+- `document`: to, co front pokazuje jako tekst z podświetleniami. Dla `inputType: url` treść pobranej strony przycięta do limitu `input`. `claims[].span` wskazuje twierdzenie w `document.text` w **code points** (runy w Go, `Array.from(text)` w JS), `end` wyłączny; `null`, gdy twierdzenie jest parafrazą.
+- `summary`: zbiorcza ocena całego zgłoszenia liczona **deterministycznie w backendzie** z werdyktów i `evidenceStrength`, nigdy przez model. `level`: `high`, `mixed`, `low`, `unknown`. Gdy żadne twierdzenie nie ma `confirmed`, `false` ani `misleading` → `level: "unknown"`, `score: null` (wstrzymanie się nie jest „50% prawdy”). `reasons` to jawne przesłanki po polsku.
+- `badges`: etykiety wyliczone z jawnych przesłanek, nigdy z opinii modelu: `fresh_material` / `archival_material` z `publishedAt` źródeł (próg wieku w konfiguracji), `official_source_present` / `official_source_absent` z `sourceType` użytych źródeł, `input_source_in_catalog` / `input_source_outside_catalog` z dopasowania domeny zgłoszonego URL do `GET /sources` z `rag/` (tylko dla `inputType: url`). To neutralna informacja o statusie źródła, nie ocena jego „reputacji”.
+- `campaignAlert`: alert na poziomie całej odpowiedzi, przepisany z `campaignAlert` z `rag/` (§3) bez `score`; `warnings[].type: incident_match` przy twierdzeniu zostaje. Kontekst, nie dowód.
+- `claims[].conflict`: `{ "summary": "opis rozbieżności po polsku" }`, gdy źródła mają role `supports` i `refutes` i rozbieżności nie da się wyjaśnić (§4); wtedy werdykt to `insufficient_evidence`. Przy rozbieżności wyjaśnialnej `conflict` jest `null`, a wyjaśnienie idzie do `justification`.
+
 ## 2. backend ↔ agent (Go, ten sam proces)
 
 `backend/` importuje pakiet z `agent/`; oba moduły spina `go.work` w korzeniu. Każdy kanał woła tę samą funkcję.
