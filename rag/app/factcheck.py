@@ -1,5 +1,7 @@
+import asyncio
 import hashlib
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -8,6 +10,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 import httpx
 
 from app.config import settings
+from app.languages import load_profile
 from app.models import ExternalSourceStatus
 
 logger = logging.getLogger(__name__)
@@ -17,6 +20,9 @@ API_KEY_HEADER = "X-Goog-Api-Key"
 # Google indexes ClaimReview markup from any publisher, not only IFCN signatories: trusted tier, medium reliability.
 FACTCHECK_TIER = 2
 FACTCHECK_RELIABILITY = "medium"
+# Google's claim search matched short keyword queries best in tests on Polish claims.
+FACTCHECK_MAX_KEYWORDS = 6
+WORD = re.compile(r"\w+", re.UNICODE)
 
 
 @dataclass(frozen=True)
@@ -95,6 +101,23 @@ def parse_reviews(payload: dict, max_reviews: int) -> list[FactCheckReview]:
     return reviews
 
 
+def query_variants(query: str) -> list[str]:
+    """The claim as given plus its keywords (corpus-language stopwords removed), without duplicates."""
+    stopwords = load_profile(settings.corpus_language).stopwords
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for word in WORD.findall(query):
+        folded = word.casefold()
+        if folded not in stopwords and folded not in seen:
+            seen.add(folded)
+            keywords.append(word)
+    keyword_query = " ".join(keywords[:FACTCHECK_MAX_KEYWORDS])
+    variants = [query.strip()]
+    if keyword_query and keyword_query.casefold() != variants[0].casefold():
+        variants.append(keyword_query)
+    return variants
+
+
 class FactCheckClient:
     """Live Google Fact Check Tools claims:search; never raises, failures become an explicit `error` status."""
 
@@ -123,11 +146,26 @@ class FactCheckClient:
         self._cache[self._cache_key(query)] = (time.monotonic() + settings.factcheck_cache_ttl_seconds, reviews)
 
     async def search(self, query: str) -> FactCheckResult:
+        """
+        Sends the full claim and its keyword form in parallel: Google matches short keyword queries far better
+        (measured on Polish claims), while the full claim keeps exact phrasings. Results are merged by review URL.
+        """
         if not self.enabled:
             return FactCheckResult(status="disabled", reviews=[])
+        outcomes = await asyncio.gather(*(self._search_one(variant) for variant in query_variants(query)))
+        successful = [reviews for reviews in outcomes if reviews is not None]
+        if not successful:
+            return FactCheckResult(status="error", reviews=[])
+        merged: dict[UUID, FactCheckReview] = {}
+        for reviews in successful:
+            for review in reviews:
+                merged.setdefault(review.review_id, review)
+        return FactCheckResult(status="ok", reviews=list(merged.values())[: settings.factcheck_max_reviews])
+
+    async def _search_one(self, query: str) -> list[FactCheckReview] | None:
         cached = self._cached(query)
         if cached is not None:
-            return FactCheckResult(status="ok", reviews=cached)
+            return cached
         try:
             response = await self._client.get(
                 settings.factcheck_url,
@@ -143,12 +181,12 @@ class FactCheckClient:
         except httpx.HTTPStatusError as error:
             # No exc_info: the request URL carries the user's claim, which must not land in logs.
             logger.warning("Google Fact Check search failed with HTTP %d", error.response.status_code)
-            return FactCheckResult(status="error", reviews=[])
+            return None
         except (httpx.HTTPError, ValueError) as error:
             logger.warning("Google Fact Check search failed: %s", type(error).__name__)
-            return FactCheckResult(status="error", reviews=[])
+            return None
         self._remember(query, reviews)
-        return FactCheckResult(status="ok", reviews=reviews)
+        return reviews
 
     async def close(self) -> None:
         await self._client.aclose()

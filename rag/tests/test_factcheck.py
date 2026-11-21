@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.config import settings
-from app.factcheck import API_KEY_HEADER, FactCheckClient, parse_reviews
+from app.factcheck import API_KEY_HEADER, FactCheckClient, parse_reviews, query_variants
 
 API_KEY = "test-factcheck-key"
 MAX_REVIEWS = 10
@@ -65,15 +65,39 @@ def test_sends_key_in_header_not_url_and_caches(monkeypatch):
         return httpx.Response(200, json=PAYLOAD)
 
     client = _client(handler)
-    first = asyncio.run(client.search("polexit"))
-    second = asyncio.run(client.search("polexit"))
+    first = asyncio.run(client.search("Czy Polska wystąpi z Unii?"))
+    second = asyncio.run(client.search("Czy Polska wystąpi z Unii?"))
 
     assert first.status == second.status == "ok"
     assert len(first.reviews) == 1
-    assert len(requests) == 1
-    assert requests[0].headers[API_KEY_HEADER] == API_KEY
-    assert API_KEY not in str(requests[0].url)
-    assert requests[0].url.params["languageCode"] == "pl"
+    assert sorted(request.url.params["query"] for request in requests) == [
+        "Czy Polska wystąpi z Unii?",
+        "Polska wystąpi Unii",
+    ]
+    assert all(request.headers[API_KEY_HEADER] == API_KEY for request in requests)
+    assert all(API_KEY not in str(request.url) for request in requests)
+    assert all(request.url.params["languageCode"] == "pl" for request in requests)
+
+
+def test_query_variants_add_keyword_form_once():
+    assert query_variants("Czy sieć 5G powoduje koronawirusa?") == [
+        "Czy sieć 5G powoduje koronawirusa?",
+        "sieć 5G powoduje koronawirusa",
+    ]
+    assert query_variants("polexit") == ["polexit"]
+
+
+def test_one_failing_variant_still_returns_results(monkeypatch):
+    monkeypatch.setattr(settings, "factcheck_api_key", API_KEY)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "?" in request.url.params["query"]:
+            return httpx.Response(503)
+        return httpx.Response(200, json=PAYLOAD)
+
+    result = asyncio.run(_client(handler).search("Czy Polska wystąpi z Unii?"))
+    assert result.status == "ok"
+    assert len(result.reviews) == 1
 
 
 @pytest.mark.parametrize(
