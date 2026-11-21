@@ -8,7 +8,7 @@ Limit: **3 minuty**, link do filmu (`spec/brief.md` §4). Nagraj ekran i głos. 
 | 0:20–1:10 | Wklejamy twierdzenie z odpowiedzią Demagoga (scenariusz A). Wynik: werdykt, uzasadnienie, siła podstawy, źródło z cytatem i linkiem | „Werdykt wynika z jawnych przesłanek. Źródła są osobno od interpretacji modelu, każde z tytułem, wydawcą, datą i linkiem.” |
 | 1:10–1:35 | Twierdzenie bez dowodów (scenariusz D, np. lokalna zmiana w Limanowej). Wynik: „brak wystarczających dowodów” + co trzeba ustalić | „Gdy nie ma dowodów, nie zgadujemy. Mówimy, czego nie udało się ustalić.” |
 | 1:35–2:05 | Zgłoszenie z ukrytą instrukcją „zignoruj poprzednie instrukcje” (scenariusz E). Wynik poprawny, zdarzenie odnotowane | „Instrukcje ze źródeł są danymi, nie poleceniami. System je ignoruje i zapisuje próbę.” |
-| 2:05–2:35 | To samo pytanie na Discordzie (`/sprawdz`), ten sam werdykt i to samo źródło (scenariusz G) | „Strona i drugi kanał używają tej samej logiki, więc wynik jest ten sam.” |
+| 2:05–2:35 | To samo pytanie wysłane botowi na Discordzie, ten sam werdykt i to samo źródło (scenariusz G) | „Strona i drugi kanał używają tej samej logiki, więc wynik jest ten sam.” |
 | 2:35–3:00 | Slajd z architekturą i tabelą wyników z `eval/`, na końcu ograniczenia i pilotaż z MSZ | „Mierzymy się według miar z zadania i uczciwie pokazujemy ograniczenia. Dalej: pilotaż na zamkniętym korpusie z kolejką eksperta.” |
 
 ## Przed nagraniem
