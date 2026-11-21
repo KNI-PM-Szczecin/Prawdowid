@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -50,9 +51,15 @@ func NewFromEnv(logger *slog.Logger) (*Agent, error) {
 }
 
 type run struct {
+	claimRun
+	startedAt time.Time
+	result    CheckResult
+}
+
+// claimRun holds what one claim contributes to the answer; claims run in parallel, so each one writes here
+// and the results are merged in claim order afterwards.
+type claimRun struct {
 	request      VerifyRequest
-	startedAt    time.Time
-	result       CheckResult
 	limitations  []string
 	injections   int
 	searchErrs   int
@@ -64,6 +71,10 @@ type run struct {
 	campaign     *CampaignAlert
 }
 
+// claimConcurrency caps parallel claims: each one is a rag search plus a model call, and three is both the
+// default claim limit and enough to use the rag replica without flooding it.
+const claimConcurrency = 3
+
 // tokenUsage is what the model billed for one or more calls; it feeds meta.estimatedCostUsd.
 type tokenUsage struct {
 	input  int
@@ -74,9 +85,25 @@ func usageOf(completion Completion) tokenUsage {
 	return tokenUsage{input: completion.InputTokens, output: completion.OutputTokens}
 }
 
-func (r *run) addUsage(usage tokenUsage) {
+func (r *claimRun) addUsage(usage tokenUsage) {
 	r.inputTokens += usage.input
 	r.outputTokens += usage.output
+}
+
+func (r *run) mergeClaim(claim claimRun) {
+	r.passages += claim.passages
+	r.inputTokens += claim.inputTokens
+	r.outputTokens += claim.outputTokens
+	r.injections += claim.injections
+	r.searchErrs += claim.searchErrs
+	r.abstained = r.abstained || claim.abstained
+	if claim.corpus != nil {
+		r.corpus = claim.corpus
+	}
+	r.limitations = append(r.limitations, claim.limitations...)
+	if r.campaign == nil && claim.campaign != nil {
+		r.campaign = claim.campaign
+	}
 }
 
 // estimateCost turns token counts into USD; both prices are per 1M tokens and 0 means a free local model.
@@ -125,14 +152,52 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		r.limitations = append(r.limitations, fmt.Sprintf(limitationClaimsSkipped, len(claims), len(claims)+omitted))
 	}
 
-	for index, claimText := range claims {
-		claim, err := a.checkClaim(ctx, r, fmt.Sprintf("c%d", index+1), claimText)
-		if err != nil {
-			return a.technicalError(r, err), nil
-		}
-		r.result.Claims = append(r.result.Claims, claim)
+	checked, err := a.checkClaims(ctx, r.request, claims)
+	if err != nil {
+		return a.technicalError(r, err), nil
+	}
+	for index := range checked {
+		r.mergeClaim(checked[index].run)
+		r.result.Claims = append(r.result.Claims, checked[index].claim)
 	}
 	return a.finish(r, StatusOK, ""), nil
+}
+
+type checkedClaim struct {
+	claim Claim
+	run   claimRun
+}
+
+// checkClaims runs one claim per worker, at most claimConcurrency at a time, and returns the results in claim order.
+// The answer therefore does not depend on which search finishes first (CONTRACT.md §2: the same input must give the
+// same verdict). A failure surfaces after every worker stops, so a technical_error never carries partial claims.
+func (a *Agent) checkClaims(ctx context.Context, request VerifyRequest, claims []string) ([]checkedClaim, error) {
+	results := make([]checkedClaim, len(claims))
+	errs := make([]error, len(claims))
+	semaphore := make(chan struct{}, claimConcurrency)
+	var wait sync.WaitGroup
+	for index, claimText := range claims {
+		wait.Add(1)
+		go func(index int, claimText string) {
+			defer wait.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			local := claimRun{request: request}
+			claim, err := a.checkClaim(ctx, &local, fmt.Sprintf("c%d", index+1), claimText)
+			if err != nil {
+				errs[index] = err
+				return
+			}
+			results[index] = checkedClaim{claim: claim, run: local}
+		}(index, claimText)
+	}
+	wait.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+	return results, nil
 }
 
 // resolveInput returns the text to check and, for URLs, the fetched document.
@@ -190,7 +255,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 }
 
 // checkClaim runs search, the judge and the rules for one claim.
-func (a *Agent) checkClaim(ctx context.Context, r *run, claimID, claimText string) (Claim, error) {
+func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText string) (Claim, error) {
 	search, err := a.rag.Search(ctx, claimText, a.config.SearchTopK)
 	if err != nil {
 		return Claim{}, err
@@ -269,7 +334,7 @@ func (a *Agent) checkClaim(ctx context.Context, r *run, claimID, claimText strin
 	return claim, nil
 }
 
-func (a *Agent) noteSearch(r *run, search SearchResponse) {
+func (a *Agent) noteSearch(r *claimRun, search SearchResponse) {
 	r.passages += len(search.Results)
 	if search.CorpusVersion != "" {
 		r.corpus = stringPtr(search.CorpusVersion)

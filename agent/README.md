@@ -19,7 +19,7 @@ Model: dowolny serwer zgodny z OpenAI `/v1/chat/completions` (FastFlowLM, Ollama
 
 1. Pusty input → `needs_clarification`. URL → `POST /fetch` w `rag/` (422 → `needs_clarification`, „nie da się odczytać strony”).
 2. Jedno zdanie → to jest twierdzenie, bez modelu. Dłuższy tekst → prompt `extract` → maks. 3 najważniejsze twierdzenia; pominięte trafiają do `limitations`.
-3. Dla każdego twierdzenia `POST /search` (`topK` 5). Brak wyników → `insufficient_evidence` bez wołania modelu.
+3. Dla każdego twierdzenia `POST /search` (`topK` 5), maks. 3 twierdzenia równolegle. Wyniki są scalane w kolejności ekstrakcji, więc równoległość nie zmienia treści ani kolejności odpowiedzi. Brak wyników → `insufficient_evidence` bez wołania modelu.
 4. Prompt `judge` dostaje twierdzenie i `contextXml` w wiadomości użytkownika; prompt systemowy nigdy nie zawiera treści źródeł.
 5. Reguły (`rules.go`, `CONTRACT.md` §4) rozstrzygają: cytat musi być dosłownie we fragmencie o podanym `id`, `confirmed`/`false` wymaga mocnej podstawy (źródło urzędowe, ocena weryfikatora albo dwa niezależne wtórne) i cytatu o pasującej roli, ocena weryfikatora faktów w cytowanym fragmencie wygrywa z modelem, alert kampanii z `rag/` i flagi injection idą do `warnings`/`meta`, nigdy do werdyktu.
 6. `evidenceStrength` i `strengthReasons` liczone z przesłanek (typ i niezależność źródeł, wiek), nie z opinii modelu.
