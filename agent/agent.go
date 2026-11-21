@@ -1,0 +1,316 @@
+package agent
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+)
+
+// Agent wires the model, rag/ and the rules; create one with New and share it between channels.
+type Agent struct {
+	config   Config
+	provider LLMProvider
+	rag      *RagClient
+	prompts  promptSet
+	logger   *slog.Logger
+	now      func() time.Time
+}
+
+// New builds an Agent for the given provider; the rag client is created from config.RagURL.
+func New(config Config, provider LLMProvider, logger *slog.Logger) (*Agent, error) {
+	prompts, err := loadPrompts()
+	if err != nil {
+		return nil, err
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Agent{
+		config:   config,
+		provider: provider,
+		rag:      NewRagClient(config.RagURL, config.RagTimeout),
+		prompts:  prompts,
+		logger:   logger,
+		now:      time.Now,
+	}, nil
+}
+
+// NewFromEnv is the one-call constructor for the backend: config and provider from the environment.
+func NewFromEnv(logger *slog.Logger) (*Agent, error) {
+	config, err := ConfigFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	provider := NewOpenAICompatibleProvider(config.LLMBaseURL, config.LLMAPIKey, config.LLMModel, config.LLMTimeout)
+	return New(config, provider, logger)
+}
+
+type run struct {
+	request     VerifyRequest
+	startedAt   time.Time
+	result      CheckResult
+	limitations []string
+	injections  int
+	searchErrs  int
+	passages    int
+	corpus      *string
+	abstained   bool
+	campaign    *CampaignAlert
+}
+
+// Verify checks one submission from any channel (CONTRACT.md §2). Dependency failures become
+// status technical_error; the error return is reserved for programming mistakes.
+func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, a.config.VerifyTimeout)
+	defer cancel()
+	r := &run{request: request, startedAt: a.now()}
+	r.result = CheckResult{
+		RequestID:   request.RequestID,
+		Status:      StatusOK,
+		Claims:      []Claim{},
+		Limitations: []string{},
+	}
+
+	input := strings.TrimSpace(request.Input)
+	if input == "" {
+		return a.finish(r, StatusNeedsClarification, msgEmptyInput), nil
+	}
+
+	text, document, err := a.resolveInput(ctx, request)
+	if err != nil {
+		if errors.Is(err, ErrFetchRejected) {
+			a.logger.Warn("page unreadable", "requestId", request.RequestID, "error", err.Error())
+			return a.finish(r, StatusNeedsClarification, msgPageUnreadable), nil
+		}
+		return a.technicalError(r, err), nil
+	}
+	r.result.Document = document
+
+	claims, omitted, err := a.extractClaims(ctx, text)
+	if err != nil {
+		return a.technicalError(r, err), nil
+	}
+	if len(claims) == 0 {
+		return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
+	}
+	if omitted > 0 {
+		r.limitations = append(r.limitations, fmt.Sprintf(limitationClaimsSkipped, len(claims), len(claims)+omitted))
+	}
+
+	for index, claimText := range claims {
+		claim, err := a.checkClaim(ctx, r, fmt.Sprintf("c%d", index+1), claimText)
+		if err != nil {
+			return a.technicalError(r, err), nil
+		}
+		r.result.Claims = append(r.result.Claims, claim)
+	}
+	return a.finish(r, StatusOK, ""), nil
+}
+
+// resolveInput returns the text to check and, for URLs, the fetched document.
+func (a *Agent) resolveInput(ctx context.Context, request VerifyRequest) (string, *Document, error) {
+	if request.InputType != InputTypeURL {
+		return strings.TrimSpace(request.Input), nil, nil
+	}
+	page, err := a.rag.Fetch(ctx, strings.TrimSpace(request.Input))
+	if err != nil {
+		return "", nil, err
+	}
+	fetchedAt := a.now().UTC().Format(time.RFC3339)
+	document := &Document{Text: page.Text, URL: stringPtr(page.URL), FetchedAt: &fetchedAt}
+	if page.Title != "" {
+		document.Title = stringPtr(page.Title)
+	}
+	text := page.Text
+	if page.Title != "" {
+		text = page.Title + "\n" + text
+	}
+	return text, document, nil
+}
+
+// extractClaims returns the claims to check: the input itself for a single statement, otherwise the model's list.
+func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, error) {
+	if isSingleStatement(text) {
+		return []string{strings.TrimSpace(text)}, 0, nil
+	}
+	runes := []rune(text)
+	if len(runes) > a.config.ExtractMaxText {
+		text = string(runes[:a.config.ExtractMaxText])
+	}
+	system, user := a.prompts.extractMessages(text, a.config.MaxClaims)
+	var answer extractAnswer
+	if _, err := askJSON(ctx, a.provider, system, user, &answer); err != nil {
+		if errors.Is(err, ErrModelAnswer) {
+			// A single statement that only looked complex: check it as it is rather than fail the request.
+			a.logger.Warn("claim extraction returned no JSON, checking the input as one claim", "error", err.Error())
+			return []string{strings.TrimSpace(text)}, 0, nil
+		}
+		return nil, 0, err
+	}
+	claims := make([]string, 0, len(answer.Claims))
+	for _, claim := range answer.Claims {
+		if trimmed := strings.TrimSpace(claim.Text); trimmed != "" {
+			claims = append(claims, trimmed)
+		}
+		if len(claims) == a.config.MaxClaims {
+			break
+		}
+	}
+	return claims, max(answer.Omitted, 0), nil
+}
+
+// checkClaim runs search, the judge and the rules for one claim.
+func (a *Agent) checkClaim(ctx context.Context, r *run, claimID, claimText string) (Claim, error) {
+	search, err := a.rag.Search(ctx, claimText, a.config.SearchTopK)
+	if err != nil {
+		return Claim{}, err
+	}
+	a.noteSearch(r, search)
+	claim := Claim{ID: claimID, Text: claimText, StrengthReasons: []string{}, Sources: []SourceRef{}, Warnings: []Warning{}}
+	for _, passage := range search.Results {
+		for _, flag := range passage.Flags {
+			if flag == flagSuspectedInjection {
+				r.injections++
+				claim.Warnings = append(claim.Warnings, Warning{Type: WarningOther, Message: warningInjection})
+				a.logger.Warn("prompt injection flagged by rag", "requestId", r.request.RequestID, "chunkId", passage.ChunkID)
+			}
+		}
+	}
+	if search.CampaignAlert != nil && len(search.CampaignAlert.Matches) > 0 {
+		claim.Warnings = append(claim.Warnings, Warning{Type: WarningIncidentMatch, Message: search.CampaignAlert.Message})
+	}
+
+	if len(search.Results) == 0 {
+		claim.Verdict = VerdictInsufficientEvidence
+		claim.Justification = missingNoSources
+		claim.EvidenceStrength = StrengthNone
+		claim.StrengthReasons = []string{reasonNoSources}
+		claim.Missing = stringPtr(missingNoSources)
+		r.abstained = true
+		return claim, nil
+	}
+
+	system, user := a.prompts.judgeMessages(claimText, search.ContextXML, a.now().Format("2006-01-02"))
+	var answer judgeAnswer
+	if _, err := askJSON(ctx, a.provider, system, user, &answer); err != nil {
+		if !errors.Is(err, ErrModelAnswer) {
+			return Claim{}, err
+		}
+		a.logger.Warn("judge returned no JSON", "requestId", r.request.RequestID, "claimId", claimID, "error", err.Error())
+		r.limitations = append(r.limitations, fmt.Sprintf(limitationModelFallback, claimID))
+		answer = judgeAnswer{Verdict: "brak_dowodow", Justification: missingWeakEvidence}
+	}
+	if answer.Suspicious {
+		r.injections++
+		claim.Warnings = append(claim.Warnings, Warning{Type: WarningOther, Message: warningSuspicious})
+		a.logger.Warn("model reported instructions inside sources", "requestId", r.request.RequestID, "claimId", claimID)
+	}
+
+	passages := map[string]Passage{}
+	for _, passage := range search.Results {
+		passages[passage.ChunkID] = passage
+	}
+	sources, dropped := validateCitations(answer.Citations, passages)
+	if dropped > 0 {
+		a.logger.Info("citations dropped by validation", "requestId", r.request.RequestID, "claimId", claimID, "dropped", dropped)
+	}
+	ruling := applyFactcheckRatings(sources, passages)
+	ev := assessEvidence(sources, a.now())
+	d := decide(claimID, mapVerdict(answer.Verdict), answer.Missing, sources, ev, dropped, ruling)
+	r.limitations = append(r.limitations, d.limitations...)
+
+	claim.Verdict = d.verdict
+	claim.Justification = strings.TrimSpace(answer.Justification)
+	if claim.Justification == "" {
+		claim.Justification = missingWeakEvidence
+	}
+	claim.Sources = sources
+	claim.EvidenceStrength = ev.strength
+	claim.StrengthReasons = ev.reasons
+	if d.consistent && (claim.Verdict == VerdictConfirmed || claim.Verdict == VerdictFalse) {
+		claim.StrengthReasons = append(claim.StrengthReasons, reasonConsistentWithRole)
+	}
+	claim.Missing = d.missing
+	if claim.Verdict == VerdictInsufficientEvidence || claim.Verdict == VerdictNotVerifiable {
+		r.abstained = true
+	}
+	return claim, nil
+}
+
+func (a *Agent) noteSearch(r *run, search SearchResponse) {
+	r.passages += len(search.Results)
+	if search.CorpusVersion != "" {
+		r.corpus = stringPtr(search.CorpusVersion)
+	}
+	for _, external := range search.ExternalSources {
+		switch {
+		case external.Status == externalStatusError:
+			r.searchErrs++
+			if external.Name == externalSourceFactcheck {
+				r.limitations = appendUnique(r.limitations, limitationFactcheckUnavailable)
+			}
+		case external.Name == externalSourceIncidentCatal && external.Status == externalStatusDisabled:
+			r.limitations = appendUnique(r.limitations, limitationCatalogEmpty)
+		}
+	}
+	if search.CampaignAlert != nil && len(search.CampaignAlert.Matches) > 0 && r.campaign == nil {
+		matches := make([]CampaignMatch, 0, len(search.CampaignAlert.Matches))
+		for _, match := range search.CampaignAlert.Matches {
+			matches = append(matches, match.CampaignMatch)
+		}
+		r.campaign = &CampaignAlert{Category: search.CampaignAlert.Category, Message: search.CampaignAlert.Message, Matches: matches}
+	}
+}
+
+func (a *Agent) technicalError(r *run, err error) CheckResult {
+	a.logger.Error("verify failed", "requestId", r.request.RequestID, "error", err.Error())
+	result := a.finish(r, StatusTechnicalError, msgTechnicalError)
+	result.Meta.TimedOut = errors.Is(err, context.DeadlineExceeded)
+	return result
+}
+
+func (a *Agent) finish(r *run, status, message string) CheckResult {
+	result := r.result
+	result.Status = status
+	if status != StatusOK {
+		result.Message = stringPtr(message)
+		result.Claims = []Claim{}
+		result.Document = nil
+	}
+	result.CampaignAlert = r.campaign
+	result.Limitations = appendUniqueAll(result.Limitations, r.limitations)
+	model := a.provider.Name()
+	cost := 0.0 // local model on FastFlowLM; a paid provider reports its own cost here
+	result.Meta = RunMeta{
+		Channel:           r.request.Channel,
+		ReceivedAt:        r.startedAt.UTC().Format(time.RFC3339),
+		LatencyMs:         a.now().Sub(r.startedAt).Milliseconds(),
+		Model:             &model,
+		EstimatedCostUsd:  &cost,
+		CorpusVersion:     r.corpus,
+		RetrievedPassages: r.passages,
+		SearchErrors:      r.searchErrs,
+		InjectionAttempts: r.injections,
+		Abstained:         r.abstained,
+	}
+	return result
+}
+
+func appendUnique(list []string, item string) []string {
+	for _, existing := range list {
+		if existing == item {
+			return list
+		}
+	}
+	return append(list, item)
+}
+
+func appendUniqueAll(list []string, items []string) []string {
+	for _, item := range items {
+		list = appendUnique(list, item)
+	}
+	return list
+}
