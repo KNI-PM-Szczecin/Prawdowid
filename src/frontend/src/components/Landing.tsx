@@ -10,6 +10,7 @@ interface LandingProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
+  onSubmitImage: (image: File) => void;
 }
 
 const VERDICT_ORDER: { verdict: Verdict; tone: Tone }[] = [
@@ -24,7 +25,7 @@ const SOURCE_ORDER: SourceType[] = ["official", "factcheck", "secondary", "incid
 
 const SAMPLE_TONE: Record<"confirmed" | "conflicting", Tone> = { confirmed: "positive", conflicting: "warning" };
 
-export function Landing({ value, onChange, onSubmit }: LandingProps) {
+export function Landing({ value, onChange, onSubmit, onSubmitImage }: LandingProps) {
   return (
     <div class="landing">
       <section class="landing__hero" aria-labelledby="main-heading">
@@ -32,7 +33,7 @@ export function Landing({ value, onChange, onSubmit }: LandingProps) {
           {texts.form.title}
         </h1>
         <p class="landing__lead">{texts.form.lead}</p>
-        <CheckForm value={value} onChange={onChange} onSubmit={onSubmit} />
+        <CheckForm value={value} onChange={onChange} onSubmit={onSubmit} onSubmitImage={onSubmitImage} />
       </section>
 
       <section class="landing__section landing__section--sample" aria-labelledby="sample-title">

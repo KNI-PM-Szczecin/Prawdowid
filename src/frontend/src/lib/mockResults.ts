@@ -1,4 +1,5 @@
 // Demo-only fixtures for `pnpm dev:mock`. Everything here is fictional and labelled as such in the UI.
+import { texts } from "./texts";
 import type { CheckResult, CheckedDocument, Claim, InputType, RunMeta, Source, TextSpan } from "./types";
 
 const MOCK_DELAY_MS = 1500;
@@ -324,6 +325,11 @@ function clarificationResult(requestId: string): CheckResult {
 }
 
 const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+export async function mockImageCheck(): Promise<CheckResult> {
+  await delay(MOCK_DELAY_MS);
+  return { ...clarificationResult(crypto.randomUUID()), message: texts.form.imageMockMessage };
+}
 
 export async function mockCheck(input: string, inputType: InputType): Promise<CheckResult> {
   await delay(MOCK_DELAY_MS);

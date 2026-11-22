@@ -1,7 +1,9 @@
-import { mockCheck } from "./mockResults";
+import { mockCheck, mockImageCheck } from "./mockResults";
 import type { CheckResult, InputType } from "./types";
 
 const CHECK_ENDPOINT = "/api/check";
+const IMAGE_CHECK_ENDPOINT = "/api/check/image";
+const IMAGE_FORM_FIELD = "image";
 // Backend budget is 25 s (CONTRACT.md §2); the rest covers the network.
 const REQUEST_TIMEOUT_MS = 40_000;
 // 503 and 429 carry a CheckResult with status technical_error (CONTRACT.md §1).
@@ -15,13 +17,30 @@ export async function checkInput(input: string, inputType: InputType): Promise<C
   if (IS_MOCK_MODE) {
     return mockCheck(input, inputType);
   }
+  return postForResult(CHECK_ENDPOINT, {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input, inputType }),
+  });
+}
+
+// A screenshot or photo: the backend reads its text (OCR in rag) and checks it like typed text (CONTRACT.md §1).
+export async function checkImage(image: File): Promise<CheckResult> {
+  if (IS_MOCK_MODE) {
+    return mockImageCheck();
+  }
+  const form = new FormData();
+  form.append(IMAGE_FORM_FIELD, image, image.name);
+  return postForResult(IMAGE_CHECK_ENDPOINT, { body: form });
+}
+
+async function postForResult(endpoint: string, init: { headers?: Record<string, string>; body: BodyInit }): Promise<CheckResult> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(CHECK_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input, inputType }),
+      headers: init.headers,
+      body: init.body,
       signal: controller.signal,
     });
     if (!HTTP_STATUSES_WITH_RESULT.has(response.status)) {

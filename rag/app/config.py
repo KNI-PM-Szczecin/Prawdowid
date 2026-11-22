@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     # Curated demo documents (app/data/seed_documents.json) fill facts the demo needs; missing ids are indexed at start.
     seed_corpus_enabled: bool = True
 
+    # POST /ocr: text of a screenshot or photo read locally by Tesseract (no external image API, nothing stored).
+    ocr_max_bytes: int = 5_000_000
+    ocr_max_pixels: int = 25_000_000
+    ocr_timeout_seconds: float = 15.0
+    ocr_languages: str = "pol+eng"
+    ocr_max_text_chars: int = 5000
+
     # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
     euvsdisinfo_token: str = Field(
         default="", validation_alias=AliasChoices("RAG_EUVSDISINFO_TOKEN", "EUVSDISINFO_TOKEN")

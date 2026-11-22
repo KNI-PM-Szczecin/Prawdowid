@@ -201,6 +201,15 @@ class FetchResponse(ApiModel):
     published_at: Timestamp | None = None
 
 
+class OcrResponse(ApiModel):
+    """Text read from an uploaded image; `dates` are strings visible in that text, not publication dates."""
+
+    text: str
+    confidence: float
+    dates: list[str]
+    engine: str
+
+
 MATCH_TITLE_MAX_CHARS = 1000
 MaterialMatchKind = Literal["corpus_document", "incident"]
 MaterialMatchBasis = Literal["url", "title", "date"]

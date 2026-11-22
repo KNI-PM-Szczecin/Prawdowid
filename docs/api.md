@@ -30,6 +30,7 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `src/backend/config.go`
 | Metoda i ścieżka | Po co | Priorytet |
 |---|---|---|
 | `POST /api/check` | sprawdzenie tekstu lub URL (WWW) | **MVP, pionowy przekrój** |
+| `POST /api/check/image` (wdrożone, `src/backend/check_image.go`) | zrzut ekranu lub zdjęcie z tekstem (scenariusz F): `multipart/form-data`, pole `image` (PNG/JPEG/WEBP do 5 MB). OCR lokalnie w rag (`POST /ocr`, Tesseract), odczytany tekst idzie tą samą ścieżką `runCheck` co tekst; odpowiedź jak `POST /api/check` plus ograniczenia o OCR i o dacie widocznej na obrazie | funkcja premiowana |
 | `GET /api/checks/{requestId}` **[NOWE, niezaimplementowane]** | odczyt zapisanego wyniku: odświeżenie strony wyniku, link z drugiego kanału do pełnego widoku | MVP |
 | `DELETE /api/checks/{requestId}` (wdrożone) | usunięcie sesji demo (wymóg prywatności) | MVP |
 | `GET /health`, `GET /livez` | stan backendu i bazy (już działa) | jest |

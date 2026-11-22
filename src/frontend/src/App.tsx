@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { AccessibilityPanel } from "./components/AccessibilityPanel";
 import { BackgroundBlobs } from "./components/BackgroundBlobs";
 import { Footer } from "./components/Footer";
@@ -8,7 +8,7 @@ import { LoadingView } from "./components/LoadingView";
 import { ResultView } from "./components/ResultView";
 import { StatusView, statusCopy } from "./components/StatusView";
 import { useAccessibilitySettings } from "./lib/accessibilitySettings";
-import { IS_MOCK_MODE, checkInput } from "./lib/api";
+import { IS_MOCK_MODE, checkImage, checkInput } from "./lib/api";
 import { detectInputType } from "./lib/input";
 import { SUMMARY_TONE, type Tone } from "./lib/presentation";
 import { texts } from "./lib/texts";
@@ -27,16 +27,34 @@ export function App() {
   const [accessibilityOpen, setAccessibilityOpen] = useState(false);
   const accessibility = useAccessibilitySettings();
 
-  const runCheck = async (input: string) => {
-    setSubmittedInput(input);
+  // What "try again" repeats: the last typed input or the last picture.
+  const lastRunRef = useRef<(() => Promise<CheckResult>) | null>(null);
+
+  const runRequest = async (request: () => Promise<CheckResult>) => {
+    lastRunRef.current = request;
     setView({ kind: "loading" });
     window.scrollTo({ top: 0 });
     try {
-      const result = await checkInput(input.trim(), detectInputType(input));
-      setView({ kind: "result", result });
+      setView({ kind: "result", result: await request() });
     } catch (error) {
       console.error("Check request failed", error);
       setView({ kind: "connection_error" });
+    }
+  };
+
+  const runCheck = (input: string) => {
+    setSubmittedInput(input);
+    return runRequest(() => checkInput(input.trim(), detectInputType(input)));
+  };
+
+  const runImageCheck = (image: File) => {
+    setSubmittedInput("");
+    return runRequest(() => checkImage(image));
+  };
+
+  const retryLastRun = () => {
+    if (lastRunRef.current) {
+      void runRequest(lastRunRef.current);
     }
   };
 
@@ -66,13 +84,15 @@ export function App() {
         notice={IS_MOCK_MODE ? texts.demoBanner : null}
       />
       <main id="main">
-        {view.kind === "form" && <Landing value={draft} onChange={setDraft} onSubmit={runCheck} />}
+        {view.kind === "form" && (
+          <Landing value={draft} onChange={setDraft} onSubmit={runCheck} onSubmitImage={runImageCheck} />
+        )}
         {view.kind === "loading" && <LoadingView />}
         {view.kind === "connection_error" && (
           <StatusView
             title={texts.connectionError.title}
             message={texts.connectionError.description}
-            onRetry={() => runCheck(submittedInput)}
+            onRetry={retryLastRun}
             onBack={goHome}
           />
         )}
@@ -81,7 +101,7 @@ export function App() {
             title={statusCopy(view.result).title}
             message={view.result.message ?? texts.status.fallbackMessage}
             note={statusCopy(view.result).note}
-            onRetry={statusCopy(view.result).retryable ? () => runCheck(submittedInput) : undefined}
+            onRetry={statusCopy(view.result).retryable ? retryLastRun : undefined}
             onBack={goHome}
           />
         )}
