@@ -99,7 +99,7 @@ Każde z wymienionych zagrożeń zostało zidentyfikowane na etapie planowania a
 - [ZAIMPLEMENTOWANE] Eviction raz na dobę usuwa nadwyżkę według wzoru: wiek (Tier 3 starzeje się dwa razy szybciej) minus popularność, z karą dla tematów zajmujących ponad 30% bazy. Tier 1 i świeżo dodane dokumenty (7 dni ochrony) są nieusuwalne. Co noc Qdrant optymalizuje indeks.
 - [ZAIMPLEMENTOWANE] Dolny limit eviction: korpus nigdy nie spada poniżej 100 dokumentów i 10 domen (minimum z briefu).
 - [ZAIMPLEMENTOWANE] Ponowne wgranie dokumentu o tym samym `documentId` podmienia jego treść.
-- [ZAPLANOWANE] Harmonogram odświeżania źródeł urzędowych (ISAP, dane.gov.pl) i oznaczanie dokumentów uchylonych. Import aktów z Dziennika Ustaw jest, ale ręczny (`POST /admin/corpus/law`).
+- [ZAIMPLEMENTOWANE] Harmonogram odświeżania źródeł urzędowych w `rag/` (`app/maintenance.py`): strony z listy startowej są pobierane ponownie codziennie (`RAG_CORPUS_REFRESH_CRON_HOUR`, domyślnie 5:00; zmieniona strona podmienia swoje fragmenty i datę), a akty z Dziennika Ustaw są importowane ponownie raz w tygodniu (`RAG_LAW_REFRESH_CRON_DAY_OF_WEEK`, domyślnie poniedziałek 6:00): nowy tekst jednolity (nowa pozycja Dz.U.) zastępuje stary dokument `law:<id>`, więc uchylona wersja nie zostaje w korpusie jako dowód. `RAG_CORPUS_REFRESH_ENABLED=false` wyłącza oba zadania; ręczne `POST /admin/corpus/fetch` i `POST /admin/corpus/law` działają bez zmian. [ZAPLANOWANE] Osobne oznaczanie aktów uchylonych bez następcy i odświeżanie ISAP/dane.gov.pl poza listą startową.
 
 ### Brak zweryfikowanych źródeł danych (świeże wydarzenia)
 **Opis:** zgłoszenie dotyczy wydarzenia sprzed kilku godzin, którego nie ma jeszcze w korpusie. Model może wtedy „dopowiedzieć” odpowiedź z własnej pamięci.

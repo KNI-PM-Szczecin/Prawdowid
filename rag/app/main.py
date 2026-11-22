@@ -26,6 +26,7 @@ from app.gov_search import wanted as gov_search_wanted
 from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
 from app.law_import import import_law, law_state
+from app.maintenance import register_maintenance_jobs
 from app.material import match_material
 from app.models import (
     CorpusFetchRequest,
@@ -133,17 +134,7 @@ async def lifespan(app: FastAPI):
             logger.exception("Seeding the incident catalog failed; search continues without it")
 
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(run_eviction, "cron", hour=settings.eviction_cron_hour, args=[store])
-    # Stale points first, so the optimizer that follows compacts a collection without them.
-    scheduler.add_job(reconcile_vectors, "cron", hour=settings.optimize_cron_hour, args=[store])
-    scheduler.add_job(store.optimize, "cron", hour=settings.optimize_cron_hour, minute=settings.optimize_cron_minute)
-    if euvsdisinfo.enabled:
-        scheduler.add_job(
-            sync_cases,
-            "cron",
-            hour=settings.euvsdisinfo_sync_cron_hour,
-            args=[euvsdisinfo, app.state.models, incidents, settings.euvsdisinfo_daily_sync_cases],
-        )
+    register_maintenance_jobs(scheduler, store, app.state.models, incidents, euvsdisinfo)
     scheduler.start()
     try:
         yield
