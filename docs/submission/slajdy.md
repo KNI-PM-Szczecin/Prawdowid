@@ -4,7 +4,7 @@ Limit: **12 slajdów** (`spec/brief.md` §4). Kolejność z briefu: problem, uż
 
 | # | Slajd | Treść | Dowód / grafika | Status |
 |---|---|---|---|---|
-| 1 | Tytuł | Prawdowid, hasło, nazwa zespołu, zadanie MSZ, data | logo, nazwa zespołu | [DO UZUPEŁNIENIA] nazwa |
+| 1 | Tytuł | Prawdowid, hasło, zespół KNIPM, zadanie MSZ, data | logo, nazwa zespołu | |
 | 2 | Problem | Fałszywe doniesienia krążą w komunikatorach szybciej niż je sprawdzamy. Płynny język modelu nie gwarantuje prawdy. Treści bywają prawdziwe, ale nieaktualne albo wyjęte z kontekstu | 1 liczba lub przykład z briefu | |
 | 3 | Użytkownicy | Obywatel, także z niskimi kompetencjami cyfrowymi. Administrator/analityk (powtarzające się pytania bez odpowiedzi) | persony, 2 zdania | |
 | 4 | Rozwiązanie | Sprawdzasz tak łatwo, jak wysyłasz wiadomość. Werdykt + źródła + granice wiedzy. Nie „sędzia prawdy” | schemat: zgłoszenie → twierdzenia (opinie jako „nie podlega weryfikacji”, podświetlenie w tekście) → dowody → werdykt | [WDROŻONE] pełny przepływ |

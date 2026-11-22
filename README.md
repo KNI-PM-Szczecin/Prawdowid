@@ -59,7 +59,7 @@ curl -X POST http://localhost:8080/api/channels/demo -H "Content-Type: applicati
 gdzie `wiadomosc.json` to `{"text": "treść do sprawdzenia"}` w UTF-8. Odpowiedź jest zwykłym tekstem z werdyktem, siłą podstawy, uzasadnieniem i źródłami, jak w komunikatorze. To samo zgłoszenie przez WWW i ten adapter daje ten sam wynik merytoryczny (scenariusz G). Bot Discord nie jest zaimplementowany.
 
 ## Zespół
-Uzupełnić.
+KNIPM (Koło Naukowe Informatyków Politechniki Morskiej w Szczecinie).
 
 ## Wdrożenie (Railway)
 Jeden publiczny adres obsługuje usługa `front` (Caddy): serwuje zbudowany `src/frontend/` i przekazuje `/api/*` do `src/backend/` przez sieć prywatną. `src/backend/`, `rag/` i Qdrant nie mają publicznych domen. Dockerfile'e są w `deploy/` (kontekst budowania to korzeń repo). Sekrety tylko w zmiennych Railwaya.
