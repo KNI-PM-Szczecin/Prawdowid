@@ -6,8 +6,8 @@ const (
 		"To nie jest ocena treści. Spróbuj ponownie za kilka minut."
 	msgNoClaims = "Nie znaleźliśmy w tekście twierdzenia, które da się sprawdzić. " +
 		"Wklej konkretną informację, np. „Rząd podniósł płacę minimalną do 5000 zł”."
-	msgPageUnreadable       = "Nie udało się odczytać treści tej strony. Wklej jej tekst albo wybierz inny adres."
-	msgPageBlocked          = "Ta strona blokuje automatyczne pobieranie albo wczytuje treść dopiero skryptem, więc nie możemy " +
+	msgPageUnreadable = "Nie udało się odczytać treści tej strony. Wklej jej tekst albo wybierz inny adres."
+	msgPageBlocked    = "Ta strona blokuje automatyczne pobieranie więc nie możemy " +
 		"jej odczytać. Wklej tekst, który chcesz sprawdzić."
 	msgPageIsFile = "Ten adres prowadzi do pliku (np. PDF, obraz albo dokument), a nie do strony z tekstem. " +
 		"Wklej tekst do sprawdzenia; zrzut ekranu możesz dodać przyciskiem ze zdjęciem."
@@ -50,7 +50,7 @@ const (
 		"Potraktowaliśmy je jako zwykły tekst i nie zmieniły zasad sprawdzania."
 
 	// A link inside the text (mentor scenario E): the page is fetched as part of the checked material.
-	limitationLinkFetched = "Tekst zawierał adres %s; pobraliśmy tę stronę i sprawdziliśmy ją razem z tekstem."
+	limitationLinkFetched    = "Tekst zawierał adres %s; pobraliśmy tę stronę i sprawdziliśmy ją razem z tekstem."
 	limitationLinkNotFetched = "Tekst zawierał adres %s, ale nie udało się odczytać tej strony; " +
 		"sprawdziliśmy sam tekst."
 	limitationLinkUnsupported = "Tekst zawierał adres %s; nie odczytujemy filmów ani wpisów z serwisów " +
