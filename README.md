@@ -2,6 +2,14 @@
 
 **Sprawdź doniesienie tak łatwo, jak wysłać wiadomość.**
 
+![Go](https://img.shields.io/badge/Go-backend%20i%20agent-00ADD8?logo=go&logoColor=white)
+![Python](https://img.shields.io/badge/Python-rag-3776AB?logo=python&logoColor=white)
+![Preact](https://img.shields.io/badge/Preact-frontend-673AB8?logo=preact&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
+![WCAG](https://img.shields.io/badge/dostępność-WCAG%202.1%20AA-2E7D32)
+
+[Na żywo](#sprawdź-na-żywo) · [Jak to działa](#jak-to-działa) · [Źródła](#źródła) · [Wyniki testów](#wyniki-testów) · [Uruchomienie](#uruchomienie)
+
 Wklejasz tekst albo link. Prawdowid wyodrębnia twierdzenia, szuka ich w wiarygodnych źródłach
 i pokazuje werdykt z uzasadnieniem, siłą podstawy i cytatem. Gdy dowodów brakuje, uczciwie
 wstrzymuje się od oceny.
