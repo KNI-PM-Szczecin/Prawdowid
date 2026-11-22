@@ -453,12 +453,30 @@ var sentenceBoundary = regexp.MustCompile(`[.!?…]\s+\p{Lu}`)
 
 // isSingleStatement decides whether the submission is already one claim, so extraction can be skipped. Questions go
 // through extraction, which rewrites them as statements; checked as they are, they would read as no claim at all.
+// So does a sentence that joins two statements with a conjunction ("X jest A i mieszka w B"): checked as one claim,
+// a true half and an unverifiable half would sink each other into an abstention.
 func isSingleStatement(input string) bool {
 	trimmed := strings.TrimSpace(input)
 	if len([]rune(trimmed)) > maxSingleStatementRunes || strings.Contains(trimmed, "\n") || strings.HasSuffix(trimmed, "?") {
 		return false
 	}
-	return !sentenceBoundary.MatchString(trimmed)
+	return !sentenceBoundary.MatchString(trimmed) && !joinsTwoStatements(trimmed)
+}
+
+// clauseConjunction splits a sentence into the parts it joins; minClauseWords on both sides tells two statements
+// ("Kowalski jest radnym i mieszka w Borowie") from a compound subject or object ("Sejm i Senat są wybierane...").
+var clauseConjunction = regexp.MustCompile(`(?i)\s(?:i|oraz|a także|ale|lecz)\s`)
+
+const minClauseWords = 3
+
+func joinsTwoStatements(sentence string) bool {
+	for _, location := range clauseConjunction.FindAllStringIndex(sentence, -1) {
+		if len(strings.Fields(sentence[:location[0]])) >= minClauseWords &&
+			len(strings.Fields(sentence[location[1]:])) >= minClauseWords {
+			return true
+		}
+	}
+	return false
 }
 
 // A yes/no question in Polish keeps statement word order after "czy", so dropping "czy" and "?" gives the claim.
