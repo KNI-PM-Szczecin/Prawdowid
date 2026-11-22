@@ -21,6 +21,8 @@ from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.fetcher import FetchError, fetch_page
+from app.gov_search import GovSearchClient
+from app.gov_search import wanted as gov_search_wanted
 from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
 from app.law_import import import_law, law_state
@@ -96,6 +98,9 @@ async def lifespan(app: FastAPI):
     logger.info("EUvsDisinfo import %s", "enabled" if euvsdisinfo.enabled else "disabled (no EUVSDISINFO_TOKEN)")
     factcheck = FactCheckClient()
     app.state.factcheck = factcheck
+    gov_search = GovSearchClient()
+    app.state.gov_search = gov_search
+    logger.info("gov.pl gap filling %s", "enabled" if gov_search.enabled else "disabled")
     logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
 
     # Before the scheduler and before uvicorn accepts requests: the first citizen search must not pay for cold models.
@@ -137,6 +142,7 @@ async def lifespan(app: FastAPI):
     finally:
         scheduler.shutdown(wait=False)
         await factcheck.close()
+        await gov_search.close()
         await euvsdisinfo.close()
         await incidents.close()
         await reports.close()
@@ -216,6 +222,13 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
     response = await search_passages(
         request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
     )
+    if gov_search_wanted(request, len(response.results)):
+        gap_fill = await app.state.gov_search.fill(request.query, app.state.models, app.state.store)
+        if gap_fill.indexed:
+            response = await search_passages(
+                request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+            )
+        response = response.model_copy(update={"external_sources": [*response.external_sources, gap_fill.as_status()]})
     corpus_chunk_ids = [item.chunk_id for item in response.results if item.source_type != FACTCHECK_SOURCE_TYPE]
     if corpus_chunk_ids:
         background_tasks.add_task(db.register_reads, corpus_chunk_ids)
@@ -262,6 +275,7 @@ async def sources_external() -> list[ExternalSourceInfo]:
     """Live services and imported registers used beside the corpus, with what they get and their current state."""
     runtime = {
         "google_factcheck": {"enabled": app.state.factcheck.enabled},
+        "gov_search": {"enabled": app.state.gov_search.enabled},
         "euvsdisinfo": {
             "enabled": app.state.euvsdisinfo.enabled,
             "catalogSize": await app.state.incidents.count(),

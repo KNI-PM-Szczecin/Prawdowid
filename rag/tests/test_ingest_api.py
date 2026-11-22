@@ -128,6 +128,7 @@ async def _failing_delete(chunk_ids):
 def test_external_sources_describe_data_sent_and_state(client):
     from app.euvsdisinfo import EuvsDisinfoClient
     from app.factcheck import FactCheckClient
+    from app.gov_search import GovSearchClient
 
     class EmptyCatalog:
         async def count(self):
@@ -136,10 +137,12 @@ def test_external_sources_describe_data_sent_and_state(client):
     app.state.factcheck = FactCheckClient()
     app.state.euvsdisinfo = EuvsDisinfoClient()
     app.state.incidents = EmptyCatalog()
+    app.state.gov_search = GovSearchClient()
     body = client.get("/sources/external").json()
-    assert [entry["name"] for entry in body] == ["google_factcheck", "euvsdisinfo"]
+    assert [entry["name"] for entry in body] == ["google_factcheck", "gov_search", "euvsdisinfo"]
     assert all(entry["dataSent"] and entry["terms"] and entry["env"] for entry in body)
-    assert body[1]["catalogSize"] == 0
+    assert body[1]["enabled"] is settings.gov_search_enabled
+    assert body[2]["catalogSize"] == 0
 
 
 def test_failed_metadata_write_removes_the_new_vectors(client, monkeypatch):

@@ -126,6 +126,22 @@ class Settings(BaseSettings):
     euvsdisinfo_daily_sync_cases: int = 200
     euvsdisinfo_sync_cron_hour: int = 2
 
+    # Gap filling from gov.pl: when the corpus has fewer relevant passages than gov_search_min_results, /search asks
+    # the endpoint behind gov.pl/web/gov/szukaj (robots.txt allows all), indexes the best and the newest pages and
+    # searches again. The whole fill stays under gov_search_budget_seconds, inside rag's 12 s (CONTRACT.md §2).
+    gov_search_enabled: bool = True
+    gov_search_url: str = "https://www.gov.pl/api/data/search"
+    gov_search_site: str = "https://www.gov.pl"
+    gov_search_candidates: int = 10
+    gov_search_max_pages: int = 3
+    gov_search_min_results: int = 1
+    gov_search_timeout_seconds: float = 3.0
+    gov_search_budget_seconds: float = 6.0
+    # A stored gov.pl page older than this is downloaded again when a question needs it, so evidence stays current.
+    gov_search_refresh_days: int = 30
+    gov_search_cache_ttl_seconds: int = 3600
+    gov_search_cache_max_entries: int = 1000
+
     # Same query + filters within the TTL and the same corpus version returns the cached response: identical
     # results across channels (brief scenario G) and no reranker cost on repeats. Memory only, keyed by hash.
     search_cache_ttl_seconds: int = 600

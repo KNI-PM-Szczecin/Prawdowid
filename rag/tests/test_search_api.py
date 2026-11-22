@@ -9,6 +9,7 @@ from app.config import settings
 from app.embeddings import SparseVector
 from app.euvsdisinfo import EuvsDisinfoClient
 from app.factcheck import FactCheckResult, FactCheckReview
+from app.gov_search import GapFillResult
 from app.main import app
 from app.vector_store import RetrievedChunk
 
@@ -44,6 +45,19 @@ class FakeStore:
         if self._failure is not None:
             raise self._failure
         return len(self._chunks)
+
+
+class FakeGovSearch:
+    def __init__(self, result: GapFillResult | None = None, store_after_fill: "FakeStore | None" = None):
+        self.result = result or GapFillResult(status="disabled")
+        self.store_after_fill = store_after_fill
+        self.queries: list[str] = []
+
+    async def fill(self, query, models, store):
+        self.queries.append(query)
+        if self.store_after_fill is not None:
+            app.state.store = self.store_after_fill
+        return self.result
 
 
 class FakeFactCheck:
@@ -150,6 +164,7 @@ def client(monkeypatch):
     app.state.factcheck = FakeFactCheck(FactCheckResult(status="disabled", reviews=[]))
     app.state.incidents = FakeStore([])
     app.state.euvsdisinfo = EuvsDisinfoClient()
+    app.state.gov_search = FakeGovSearch()
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -381,3 +396,28 @@ def test_same_query_is_served_from_cache_until_corpus_changes(client, monkeypatc
     third = client.post("/search", json=QUERY).json()
     assert third["results"] == []
     assert third["corpusVersion"] == "corpus-v2"
+
+
+def test_gov_search_is_not_asked_when_the_corpus_answers(client):
+    response = client.post("/search", json=QUERY)
+    assert response.status_code == 200
+    assert app.state.gov_search.queries == []
+    assert "gov_search" not in [source["name"] for source in response.json()["externalSources"]]
+
+
+def test_gov_search_fills_the_gap_and_the_search_runs_again(client, monkeypatch):
+    found_later = RetrievedChunk(chunk_id=uuid4(), text="Poseł X głosował przeciw ustawie Y.", fusion_score=0.9)
+    app.state.store = FakeStore([])
+    app.state.gov_search = FakeGovSearch(GapFillResult(status="ok", indexed=1), FakeStore([found_later]))
+    versions = iter(["before-fill", "after-fill"])
+
+    async def corpus_version():
+        return next(versions)
+
+    monkeypatch.setattr(db, "corpus_version", corpus_version)
+
+    body = client.post("/search", json=QUERY).json()
+
+    assert app.state.gov_search.queries == [QUERY["query"]]
+    assert [result["passage"] for result in body["results"]] == [found_later.text]
+    assert {"name": "gov_search", "status": "ok", "results": 1} in body["externalSources"]

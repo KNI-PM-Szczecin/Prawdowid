@@ -444,6 +444,15 @@
       "env": "FACTCHECK_API_KEY"
     },
     {
+      "name": "gov_search",
+      "provider": "Wyszukiwarka portalu gov.pl (endpoint /api/data/search używany przez gov.pl/web/gov/szukaj)",
+      "url": "https://www.gov.pl/web/gov/szukaj",
+      "role": "Uzupełnianie korpusu: gdy korpus nie ma trafnego fragmentu, rag pyta wyszukiwarkę gov.pl, pobiera najtrafniejszą i najnowsze strony (data publikacji z gov.pl), wgrywa je zwykłą ścieżką ingest (katalog, wykluczenia, duplikaty) i szuka ponownie. Kopia starsza niż RAG_GOV_SEARCH_REFRESH_DAYS jest pobierana ponownie.",
+      "dataSent": "Treść jednego twierdzenia (po maskowaniu danych osobowych w backendzie). Odbiorca: serwis administracji rządowej RP (EOG).",
+      "terms": "Publiczny portal gov.pl; robots.txt pozwala na pobieranie (Allow: /). Bez klucza. Klient przedstawia się jako Prawdowid/0.1, najwyżej 3 strony na pytanie.",
+      "env": "RAG_GOV_SEARCH_ENABLED"
+    },
+    {
       "name": "euvsdisinfo",
       "provider": "EUvsDisinfo (EEAS East StratCom Task Force), serwer MCP",
       "url": "https://euvsdisinfo.eu/",
