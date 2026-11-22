@@ -56,6 +56,7 @@ from app.models import (
     SourceCatalog,
 )
 from app.ocr import OcrError, OcrUnavailableError, read_image
+from app.primary_hop import PrimaryHopClient
 from app.reconcile import reconcile_vectors
 from app.reports import REPORTS_COLLECTION_NAME, match_report
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
@@ -108,6 +109,8 @@ async def lifespan(app: FastAPI):
     app.state.factcheck = factcheck
     gov_search = GovSearchClient()
     app.state.gov_search = gov_search
+    primary_hop = PrimaryHopClient()
+    app.state.primary_hop = primary_hop
     logger.info("gov.pl gap filling %s", "enabled" if gov_search.enabled else "disabled")
     logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
 
@@ -142,6 +145,7 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
         await factcheck.close()
         await gov_search.close()
+        await primary_hop.close()
         await euvsdisinfo.close()
         await incidents.close()
         await reports.close()
@@ -231,7 +235,16 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
             response = await search_passages(
                 request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
             )
-        response = response.model_copy(update={"external_sources": [*response.external_sources, gap_fill.as_status()]})
+        fill_statuses = [gap_fill.as_status()]
+        if gov_search_wanted(request, response.results):
+            # gov.pl did not help either: find the official pages that secondary sources cite for this event.
+            hop = await app.state.primary_hop.fill(request.query, gap_query, app.state.models, app.state.store)
+            if hop.indexed:
+                response = await search_passages(
+                    request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+                )
+            fill_statuses.append(hop.as_status())
+        response = response.model_copy(update={"external_sources": [*response.external_sources, *fill_statuses]})
     corpus_chunk_ids = [item.chunk_id for item in response.results if item.source_type != FACTCHECK_SOURCE_TYPE]
     if corpus_chunk_ids:
         background_tasks.add_task(db.register_reads, corpus_chunk_ids)

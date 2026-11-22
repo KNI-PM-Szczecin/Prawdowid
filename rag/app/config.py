@@ -166,6 +166,19 @@ class Settings(BaseSettings):
     # timeouts); 0.5 keeps the fill for claims whose best passage is clearly weak.
     gov_search_sufficient_score: float = 0.5
     gov_search_timeout_seconds: float = 3.0
+    # Secondary -> primary hop (app/primary_hop.py): when gov.pl did not help either, Wikipedia articles about the event
+    # are searched only to find the official pages they cite; those catalog pages are indexed as evidence.
+    hop_enabled: bool = True
+    hop_wikipedia_url: str = "https://pl.wikipedia.org/w/api.php"
+    # One article: the second search hit is often a different event, and every title costs one more API call.
+    hop_max_titles: int = 1
+    # Wikimedia asks API clients for a descriptive agent with a way to reach the operator (here the public repository).
+    hop_user_agent: str = "Prawdowid/0.1 (https://github.com/KNI-PM-Szczecin/prawdowid; fact-checking hackathon demo)"
+    hop_cache_ttl_seconds: int = 3600
+    hop_cache_max_entries: int = 500
+    hop_candidates_max: int = 60
+    hop_max_pages: int = 3
+    hop_budget_seconds: float = 6.0
     # A slower fill keeps running in the background, so its pages still reach the corpus for the next question.
     gov_search_budget_seconds: float = 4.0
     # A stored gov.pl page older than this is downloaded again when a question needs it, so evidence stays current.

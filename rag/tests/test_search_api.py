@@ -10,6 +10,7 @@ from app.euvsdisinfo import EuvsDisinfoClient
 from app.factcheck import FactCheckResult, FactCheckReview
 from app.gov_search import GapFillResult
 from app.main import app
+from app.primary_hop import HopResult
 from app.vector_store import RetrievedChunk
 
 RELEVANT_LOGIT = 8.0
@@ -56,6 +57,16 @@ class FakeGovSearch:
         self.queries.append(query)
         if self.store_after_fill is not None:
             app.state.store = self.store_after_fill
+        return self.result
+
+
+class FakePrimaryHop:
+    def __init__(self, result: HopResult | None = None):
+        self.result = result or HopResult(status="disabled")
+        self.calls: list[tuple[str, str]] = []
+
+    async def fill(self, claim, keywords, models, store):
+        self.calls.append((claim, keywords))
         return self.result
 
 
@@ -164,6 +175,7 @@ def client(monkeypatch):
     app.state.incidents = FakeStore([])
     app.state.euvsdisinfo = EuvsDisinfoClient()
     app.state.gov_search = FakeGovSearch()
+    app.state.primary_hop = FakePrimaryHop()
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -439,3 +451,35 @@ def test_gov_search_fills_the_gap_and_the_search_runs_again(client, monkeypatch)
     assert app.state.gov_search.queries == ["poseł x poparł ustawę y"]
     assert [result["passage"] for result in body["results"]] == [found_later.text]
     assert {"name": "gov_search", "status": "ok", "results": 1} in body["externalSources"]
+
+
+def test_primary_hop_runs_only_after_gov_search_did_not_help(client, monkeypatch):
+    found_later = RetrievedChunk(chunk_id=uuid4(), text="Poseł X głosował przeciw ustawie Y.", fusion_score=0.9)
+    app.state.store = FakeStore([])
+    app.state.gov_search = FakeGovSearch(GapFillResult(status="ok", indexed=0))
+    app.state.primary_hop = FakePrimaryHop(HopResult(status="ok", indexed=1))
+    versions = iter(["v1", "v2", "v3"])
+
+    async def corpus_version():
+        return next(versions, "v3")
+
+    monkeypatch.setattr(db, "corpus_version", corpus_version)
+    original_search = search.search_passages
+    calls = {"count": 0}
+
+    async def search_after_hop(request, models, store, *rest):
+        calls["count"] += 1
+        if calls["count"] == 2:  # the hop has indexed a page: the second search finds it
+            store = FakeStore([found_later])
+        return await original_search(request, models, store, *rest)
+
+    monkeypatch.setattr("app.main.search_passages", search_after_hop)
+    body = client.post("/search", json=QUERY).json()
+    assert [call[0] for call in app.state.primary_hop.calls] == [QUERY["query"]]
+    assert [item["passage"] for item in body["results"]] == [found_later.text]
+    assert [source["name"] for source in body["externalSources"]][-2:] == ["gov_search", "primary_hop"]
+
+
+def test_primary_hop_is_not_asked_when_the_corpus_answers(client):
+    client.post("/search", json=QUERY)
+    assert app.state.primary_hop.calls == []
