@@ -234,6 +234,26 @@ async def chunk_states() -> dict[UUID, bool]:
     return {row["chunk_id"]: row["is_deleted"] for row in rows}
 
 
+async def claim_database(instance_id: UUID, take_over: bool) -> UUID:
+    """Records instance_id as the owner of this database when nobody owns it (or on take_over); returns the owner."""
+    async with pool().acquire() as connection, connection.transaction():
+        if take_over:
+            await connection.execute(
+                """
+                INSERT INTO rag_instance (singleton, qdrant_instance_id) VALUES (TRUE, $1)
+                ON CONFLICT (singleton)
+                DO UPDATE SET qdrant_instance_id = EXCLUDED.qdrant_instance_id, claimed_at = NOW()
+                """,
+                instance_id,
+            )
+        else:
+            await connection.execute(
+                "INSERT INTO rag_instance (singleton, qdrant_instance_id) VALUES (TRUE, $1) ON CONFLICT DO NOTHING",
+                instance_id,
+            )
+        return await connection.fetchval("SELECT qdrant_instance_id FROM rag_instance")
+
+
 async def mark_chunks_deleted(chunk_ids: list[UUID]) -> None:
     await pool().execute("UPDATE document_metadata SET is_deleted = TRUE WHERE chunk_id = ANY($1::uuid[])", chunk_ids)
 

@@ -1,7 +1,7 @@
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from qdrant_client import AsyncQdrantClient, models
 
@@ -14,6 +14,8 @@ NIGHTLY_DELETED_THRESHOLD = 0.05
 SCROLL_PAGE_SIZE = 1000
 SOURCE_TYPE_FIELD = "source_type"
 PUBLISHED_AT_FIELD = "published_at"
+# Identity of one Qdrant; PostgreSQL records which identity owns the database (app/instance.py).
+INSTANCE_ID_KEY = "prawdowid_instance_id"
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,16 @@ class VectorStore:
         await self._client.create_payload_index(
             self._collection, PUBLISHED_AT_FIELD, field_schema=models.PayloadSchemaType.DATETIME
         )
+
+    async def instance_id(self) -> UUID:
+        """Stable identity of this Qdrant, kept in the collection metadata and created on the first call."""
+        info = await self._client.get_collection(self._collection)
+        stored = (info.config.metadata or {}).get(INSTANCE_ID_KEY)
+        if stored:
+            return UUID(stored)
+        created = uuid4()
+        await self._client.update_collection(self._collection, metadata={INSTANCE_ID_KEY: str(created)})
+        return created
 
     async def upsert(self, points: list[ChunkPoint]) -> None:
         await self.upsert_raw(
