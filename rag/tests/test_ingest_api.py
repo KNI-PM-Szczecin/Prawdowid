@@ -140,3 +140,20 @@ def test_external_sources_describe_data_sent_and_state(client):
     assert [entry["name"] for entry in body] == ["google_factcheck", "euvsdisinfo"]
     assert all(entry["dataSent"] and entry["terms"] and entry["env"] for entry in body)
     assert body[1]["catalogSize"] == 0
+
+
+def test_failed_metadata_write_removes_the_new_vectors(client, monkeypatch):
+    """Qdrant is written first; when PostgreSQL then fails, the new points must not stay behind as orphans."""
+    deleted: list = []
+
+    async def failing_upsert(source, content_hash, chunk_ids):
+        raise RuntimeError("database down")
+
+    async def record_delete(chunk_ids):
+        deleted.extend(chunk_ids)
+
+    monkeypatch.setattr(db, "upsert_source_with_chunks", failing_upsert)
+    app.state.store.delete = record_delete
+    response = client.post("/ingest", json={"documents": [DOCUMENT]}, headers=HEADERS)
+    assert response.status_code == 503
+    assert len(deleted) == 1

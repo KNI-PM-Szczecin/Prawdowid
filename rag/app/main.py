@@ -40,6 +40,7 @@ from app.models import (
     IngestRequest,
     IngestResult,
     PruneReport,
+    ReconcileReport,
     ReportMatchRequest,
     ReportMatchResponse,
     SearchRequest,
@@ -47,6 +48,7 @@ from app.models import (
     SourceAuditEntry,
     SourceCatalog,
 )
+from app.reconcile import reconcile_vectors
 from app.reports import REPORTS_COLLECTION_NAME, match_report
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.seed import ensure_seed_corpus
@@ -119,7 +121,9 @@ async def lifespan(app: FastAPI):
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_eviction, "cron", hour=settings.eviction_cron_hour, args=[store])
-    scheduler.add_job(store.optimize, "cron", hour=settings.optimize_cron_hour)
+    # Stale points first, so the optimizer that follows compacts a collection without them.
+    scheduler.add_job(reconcile_vectors, "cron", hour=settings.optimize_cron_hour, args=[store])
+    scheduler.add_job(store.optimize, "cron", hour=settings.optimize_cron_hour, minute=settings.optimize_cron_minute)
     if euvsdisinfo.enabled:
         scheduler.add_job(
             sync_cases,
@@ -431,3 +435,12 @@ async def start_law_import(
 @app.post("/admin/eviction", response_model=EvictionReport, dependencies=AdminOnly)
 async def eviction() -> EvictionReport:
     return await run_eviction(app.state.store)
+
+
+@app.post("/admin/corpus/reconcile", response_model=ReconcileReport, dependencies=AdminOnly)
+async def reconcile(include_unknown: Annotated[bool, Query(alias="includeUnknown")] = False) -> ReconcileReport:
+    """
+    Deletes Qdrant points PostgreSQL marks as deleted. includeUnknown=true also drops points PostgreSQL has never
+    seen; use it only when no import is running, because an import writes Qdrant before PostgreSQL.
+    """
+    return await reconcile_vectors(app.state.store, include_unknown=include_unknown)
