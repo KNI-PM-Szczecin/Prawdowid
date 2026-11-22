@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -126,6 +127,18 @@ async def fetch_law_rules(position: int, year: int) -> list[str]:
         f"SELECT rule FROM {table} WHERE docid = $1 AND date / {YEAR_DIVISOR} = $2 ORDER BY id", position, year
     )
     return [row["rule"] for row in rows if row["rule"]]
+
+
+async def document_fetched_at(document_id: str) -> datetime | None:
+    """When the active copy of a document was fetched; None when the corpus has no active chunks for it."""
+    return await pool().fetchval(
+        """
+        SELECT s.fetched_at FROM sources s
+        WHERE s.document_id = $1
+          AND EXISTS (SELECT 1 FROM document_metadata m WHERE m.source_id = s.document_id AND NOT m.is_deleted)
+        """,
+        document_id,
+    )
 
 
 async def active_document_url(document_id: str) -> str | None:
