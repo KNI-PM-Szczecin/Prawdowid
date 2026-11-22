@@ -27,7 +27,7 @@ Model: dowolny serwer zgodny z OpenAI `/v1/chat/completions` (FastFlowLM, Ollama
 6. `evidenceStrength` i `strengthReasons` liczone z przesłanek (typ i niezależność źródeł, wiek), nie z opinii modelu.
 7. Każde twierdzenie dostaje `span`: pozycję `fragment` (w zapasie samego twierdzenia) w `document.text`, w code points, bez rozróżniania wielkości liter; parafraza → `null`.
 
-Budżet: 25 s na `Verify`, 12 s na wywołanie `rag/` (`RAG_TIMEOUT_SECONDS`), 10 s na wywołanie modelu, temperatura 0 (dla hostowanego OpenAI tylko przy `reasoning_effort=none`), myślenie Qwen3 wyłączone.
+Budżet: 25 s na `Verify`, 18 s na wywołanie `rag/` (`RAG_TIMEOUT_SECONDS`), 10 s na wywołanie modelu, temperatura 0 (dla hostowanego OpenAI tylko przy `reasoning_effort=none`), myślenie Qwen3 wyłączone.
 
 ## Koszt
 
