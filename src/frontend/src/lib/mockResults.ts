@@ -21,6 +21,7 @@ const BRIDGE_TEXT =
   "To najdłuższy most w województwie, ma 840 metrów.\n\n" +
   "Mieszkańcy czekali na przeprawę od ponad dziesięciu lat. Według urzędu miasta most skróci dojazd do centrum o kwadrans.";
 const RESIGNATION_TEXT = "Dziś rano burmistrz Przykładowa podał się do dymisji.";
+const OPINION_TEXT = "Przykładowo to najpiękniejsze miasto w regionie.";
 
 export const MOCK_EXAMPLES: MockExample[] = [
   { label: "Prawdziwa informacja", input: TICKETS_TEXT },
@@ -308,6 +309,35 @@ function noEvidenceResult(requestId: string, text: string): CheckResult {
   };
 }
 
+function opinionResult(requestId: string): CheckResult {
+  return {
+    requestId,
+    status: "ok",
+    message: null,
+    document: textDocument(OPINION_TEXT),
+    summary: { level: "unknown", reasons: [] },
+    badges: [],
+    campaignAlert: null,
+    claims: [
+      {
+        id: "c1",
+        text: OPINION_TEXT,
+        span: null,
+        verdict: "not_verifiable",
+        justification: "To opinia: ocena, która miasto jest najpiękniejsze, zależy od gustu i nie da się jej sprawdzić w źródłach.",
+        evidenceStrength: "none",
+        strengthReasons: ["opinia, nie fakt"],
+        sources: [],
+        warnings: [],
+        conflict: null,
+        missing: null,
+      },
+    ],
+    limitations: [],
+    meta: meta(true),
+  };
+}
+
 function clarificationResult(requestId: string): CheckResult {
   return {
     requestId,
@@ -346,6 +376,9 @@ export async function mockCheck(input: string, inputType: InputType): Promise<Ch
   }
   if (text.includes(BRIDGE_TEXT.slice(0, 40))) {
     return bridgeResult(requestId);
+  }
+  if (text === OPINION_TEXT) {
+    return opinionResult(requestId);
   }
   return noEvidenceResult(requestId, text);
 }
