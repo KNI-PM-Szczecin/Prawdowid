@@ -1,6 +1,6 @@
 # Opis do oddania (limit: 4000 znaków)
 
-Szkic roboczy (pliki w `docs/submission/`: `opis.md`, `slajdy.md`, `film.md`). Wymagania: nazwa zespołu, tytuł i opis do 4000 znaków (`spec/brief.md` §4). Znaczniki `[WDROŻONE]`, `[ZAPLANOWANE]` i `[DO UZUPEŁNIENIA]` służą zespołowi i **przed oddaniem trzeba je usunąć**. Nie wolno opisywać jako działającej funkcji, której nie ma w kodzie (brief: brak sfabrykowanych wyników, uczciwe ograniczenia). Zliczanie znaków: `python3 docs/submission/count.py`.
+Szkic roboczy (pliki w `docs/submission/`: `opis.md`, `film.md`). Wymagania: nazwa zespołu, tytuł i opis do 4000 znaków (`spec/brief.md` §4). Znaczniki `[WDROŻONE]`, `[ZAPLANOWANE]` i `[DO UZUPEŁNIENIA]` służą zespołowi i **przed oddaniem trzeba je usunąć**. Nie wolno opisywać jako działającej funkcji, której nie ma w kodzie (brief: brak sfabrykowanych wyników, uczciwe ograniczenia). Zliczanie znaków: `python3 docs/submission/count.py`.
 
 **Nazwa zespołu:** KNIPM
 **Tytuł:** Prawdowid: sprawdź doniesienie tak łatwo, jak wysłać wiadomość
