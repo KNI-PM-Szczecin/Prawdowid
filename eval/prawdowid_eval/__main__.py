@@ -65,7 +65,8 @@ def _write_report(run_dir: Path, cases_path: Path) -> Path:
         )
     cases = load_cases(cases_path)
     records = [RunRecord.model_validate(record) for record in saved["records"]]
-    selected, skipped = select_cases(cases, set(saved["meta"]["enabled"]))
+    selected_ids = saved["meta"].get("selectedIds")
+    selected, skipped = select_cases(cases, set(saved["meta"]["enabled"]), set(selected_ids) if selected_ids else None)
     metrics, outcomes = compute_metrics(selected, records, _read_citation_labels(run_dir / CITATIONS_FILE))
     report_path = run_dir / REPORT_FILE
     report_path.write_text(render_report(saved["meta"], cases, metrics, outcomes, skipped), encoding="utf-8")
@@ -74,8 +75,14 @@ def _write_report(run_dir: Path, cases_path: Path) -> Path:
 
 def command_run(args: argparse.Namespace) -> int:
     cases = load_cases(args.cases)
+    only_ids = {case_id.strip() for case_id in args.ids.split(",")} if args.ids else None
+    if only_ids is not None:
+        unknown = sorted(only_ids - {case.id for case in cases})
+        if unknown:
+            print(f"Nieznane id przypadków: {', '.join(unknown)}", file=sys.stderr)
+            return 1
     enabled = set(args.enable)
-    selected, _ = select_cases(cases, enabled)
+    selected, _ = select_cases(cases, enabled, only_ids)
     if not selected:
         print("Brak przypadków do uruchomienia w tym trybie.", file=sys.stderr)
         return 1
@@ -95,6 +102,7 @@ def command_run(args: argparse.Namespace) -> int:
         "baseUrl": args.url,
         "repeats": args.repeats,
         "enabled": sorted(enabled),
+        "selectedIds": sorted(only_ids) if only_ids is not None else None,
         "casesFile": args.cases.name,
         "casesSha256": hashlib.sha256(args.cases.read_bytes()).hexdigest(),
         "corpusVersions": _collect(records, "corpusVersion"),
@@ -136,6 +144,14 @@ def main() -> int:
         action="append",
         default=[],
         help="Włącz przypadki z danym requires, np. fault:no_llm_key, fault:rag_down, channel:discord.",
+    )
+    run_parser.add_argument(
+        "--ids",
+        default="",
+        help=(
+            "Uruchom tylko wskazane przypadki, np. --ids A01,I01 "
+            "(spot-check: kilka realnych wywołań zamiast pełnego przebiegu)."
+        ),
     )
     run_parser.set_defaults(handler=command_run)
 

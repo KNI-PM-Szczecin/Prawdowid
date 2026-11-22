@@ -24,3 +24,20 @@ def test_fault_mode_runs_only_fault_cases():
     cases = load_cases(DEFAULT_CASES)
     selected, _ = select_cases(cases, {"fault:no_llm_key"})
     assert [case.id for case in selected] == ["J01"]
+
+
+def test_ids_spot_check_runs_only_the_named_cases():
+    cases = load_cases(DEFAULT_CASES)
+    selected, skipped = select_cases(cases, set(), {"A01", "I01"})
+    assert [case.id for case in selected] == ["A01", "I01"]
+    reasons = {case.id: reason for case, reason in skipped}
+    outside = [case.id for case in cases if case.id not in {"A01", "I01"} and case.input is not None]
+    assert all(reasons[case_id] == "poza wybranym zestawem --ids" for case_id in outside)
+    assert len(skipped) == len(cases) - 2
+
+
+def test_ids_spot_check_leaves_unrunnable_and_required_cases_skipped():
+    cases = load_cases(DEFAULT_CASES)
+    spot = {"A01", "G01"}  # G01 wymaga channel:discord
+    selected, _ = select_cases(cases, set(), spot)
+    assert [case.id for case in selected] == ["A01"]

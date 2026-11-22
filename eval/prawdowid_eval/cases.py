@@ -63,14 +63,19 @@ def load_cases(path: Path) -> list[Case]:
     return cases
 
 
-def select_cases(cases: list[Case], enabled: set[str]) -> tuple[list[Case], list[tuple[Case, str]]]:
-    """Splits cases into those to run now and skipped ones with a reason for the report."""
+def select_cases(
+    cases: list[Case], enabled: set[str], only_ids: set[str] | None = None
+) -> tuple[list[Case], list[tuple[Case, str]]]:
+    """Splits cases into those to run now and skipped ones with a reason for the report.
+    `only_ids` limits the run to the named cases (spot checks: a few real calls instead of the full set)."""
     selected: list[Case] = []
     skipped: list[tuple[Case, str]] = []
     fault_mode = any(flag.startswith(FAULT_PREFIX) for flag in enabled)
     for case in cases:
         if not case.runnable:
             skipped.append((case, "brak wejścia: przypadek do uzupełnienia przez zespół"))
+        elif only_ids is not None and case.id not in only_ids:
+            skipped.append((case, "poza wybranym zestawem --ids"))
         elif case.requires is None and fault_mode:
             skipped.append((case, "pominięty w trybie awarii"))
         elif case.requires is not None and case.requires not in enabled:
