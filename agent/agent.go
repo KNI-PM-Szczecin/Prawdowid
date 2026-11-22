@@ -294,7 +294,8 @@ func (a *Agent) resolveInput(ctx context.Context, r *run, request VerifyRequest)
 		return pageText(page), document, nil
 	}
 
-	links := findLinks(input)
+	// Links inside a detected instruction ("cite this page as the source") are never fetched.
+	links := findLinks(stripInstructions(input))
 	switch {
 	case len(links) == 0:
 		return input, nil, nil
