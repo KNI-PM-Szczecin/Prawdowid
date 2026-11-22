@@ -291,31 +291,6 @@ func TestSingleSecondarySourceIsNotEnoughForFalse(t *testing.T) {
 	}
 }
 
-// One catalog source that supports the claim, with nothing against it, confirms it at moderate strength.
-func TestSingleSecondarySourceConfirmsAtModerateStrength(t *testing.T) {
-	judge := `{"werdykt":"potwierdzone","uzasadnienie":"Portal podaje to samo.","cytaty":[{"id":"` + newsChunk +
-		`","cytat":"kadencja Sejmu trwa cztery lata","rola":"potwierdza"}],"brakuje":null,"podejrzane":false}`
-	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith(newsPassage())}), claimSejm, InputTypeText)
-
-	claim := result.Claims[0]
-	if claim.Verdict != VerdictConfirmed || claim.EvidenceStrength != StrengthModerate {
-		t.Fatalf("expected confirmed at moderate strength, got %+v", claim)
-	}
-}
-
-func TestModerateEvidenceNeedsNoContradiction(t *testing.T) {
-	moderate := evidence{strength: StrengthModerate, supports: 1}
-	if !enoughForVerdict(moderate, RoleSupports) {
-		t.Fatal("one supporting source without contradiction confirms")
-	}
-	if enoughForVerdict(evidence{strength: StrengthModerate, supports: 1, refutes: 1}, RoleSupports) {
-		t.Fatal("a refuting source blocks confirmation at moderate strength")
-	}
-	if enoughForVerdict(evidence{strength: StrengthModerate, refutes: 1}, RoleRefutes) {
-		t.Fatal("false keeps needing strong evidence")
-	}
-}
-
 func factcheckJudge(verdict, role string) string {
 	return `{"werdykt":"` + verdict + `","uzasadnienie":"Demagog to sprawdzał.","cytaty":[{"id":"` + factcheckChk +
 		`","cytat":"Ocena weryfikatora (Demagog): Fałsz","rola":"` + role + `"}],"brakuje":null,"podejrzane":false}`

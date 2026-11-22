@@ -377,24 +377,7 @@ func applyFactcheckRatings(claimText string, sources []SourceRef, passages map[s
 	return ruling
 }
 
-// enoughForVerdict: strong evidence always settles confirmed/false. Moderate evidence (one decisive source from the
-// catalog) settles confirmed when no decisive source refutes it, and the strength shown stays "moderate", so the
-// single source is visible. False keeps needing strong evidence: calling a claim false on one secondary source, which
-// a mislabeled quote can produce, harms more than an abstention. Weak or no evidence never gives a verdict
-// (CONTRACT.md §4).
-func enoughForVerdict(ev evidence, needsRole string) bool {
-	switch ev.strength {
-	case StrengthStrong:
-		return true
-	case StrengthModerate:
-		return needsRole == RoleSupports && ev.refutes == 0
-	default:
-		return false
-	}
-}
-
-// decide applies CONTRACT.md §4: confirmed/false need strong evidence, or moderate evidence that nothing contradicts,
-// with matching roles; a cited fact-check whose
+// decide applies CONTRACT.md §4: confirmed/false need strong evidence with matching roles; a cited fact-check whose
 // rating differs from the model's verdict makes the claim an abstention; otherwise weak evidence also abstains.
 // Misleading needs a decisive citation (supports or refutes) or an agreeing fact-check rating: a source that is only
 // context, e.g. about another place or period than the claim, settles nothing (prompt rules 7 and 11).
@@ -434,7 +417,7 @@ func decide(claimID, proposed string, modelMissing *string, sources []SourceRef,
 		}
 		return result
 	}
-	if result.verdict != VerdictMisleading && (!enoughForVerdict(ev, needsRole) || !roleMatches) {
+	if result.verdict != VerdictMisleading && (ev.strength != StrengthStrong || !roleMatches) {
 		result.verdict = VerdictInsufficientEvidence
 		result.missing = stringPtr(missingWeakEvidence)
 		return result
