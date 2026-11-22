@@ -16,7 +16,7 @@ HTML = """<html><head><title> Komunikat  RCB </title><style>p{}</style><script>v
 def test_extract_text_keeps_visible_blocks_and_title():
     title, text = extract_text(HTML)
     assert title == "Komunikat RCB"
-    assert text.splitlines() == ["Menu", "Alert RCB", "Trening syren 21.11.", "Drugi akapit tekstu."]
+    assert text.splitlines() == ["Alert RCB", "Trening syren 21.11.", "Drugi akapit tekstu."]
 
 
 def test_extract_text_ignores_svg_titles_of_inline_icons():
@@ -148,3 +148,44 @@ def test_fetch_page_stops_after_too_many_redirects():
 
     with pytest.raises(FetchError, match="too many redirects"):
         asyncio.run(fetch_page(_client(handler), "https://www.gov.pl/start"))
+
+
+LONG_PARAGRAPH = "Sondaż przeprowadzono na próbie 1227 osób. " * 15
+
+
+def test_longest_article_wins_over_teasers_and_chrome():
+    html = (
+        "<html><body><nav>Pogoda Kraków</nav><header>Onet</header>"
+        "<article><h2>Inny tekst</h2><p>Zapowiedź.</p></article>"
+        f"<article><header><h1>Właściwy tytuł</h1></header><p>{LONG_PARAGRAPH}</p><aside>Reklama</aside></article>"
+        "<footer>Regulamin</footer></body></html>"
+    )
+    _, text = extract_text(html)
+    assert text.startswith("Właściwy tytuł") and "1227 osób" in text
+    assert not any(word in text for word in ("Pogoda", "Onet", "Zapowiedź", "Reklama", "Regulamin"))
+
+
+def test_short_article_falls_back_to_page_without_chrome():
+    html = "<body><nav>Menu</nav><article><p>Krótko.</p></article><div><p>Treść poza artykułem.</p></div></body>"
+    _, text = extract_text(html)
+    assert text.splitlines() == ["Krótko.", "Treść poza artykułem."]
+
+
+def test_role_navigation_with_nested_divs_is_dropped_but_following_text_kept():
+    html = (
+        '<body><div role="navigation"><div><div>Link 1</div></div><div>Link 2</div></div>'
+        "<div><p>Komunikat RCB.</p></div></body>"
+    )
+    _, text = extract_text(html)
+    assert text == "Komunikat RCB."
+
+
+def test_unclosed_article_still_counts_as_content():
+    html = f"<body><nav>Menu</nav><article><h1>Tytuł</h1><p>{LONG_PARAGRAPH}</p></body>"
+    _, text = extract_text(html)
+    assert text.startswith("Tytuł") and "Menu" not in text
+
+
+def test_page_that_is_only_chrome_keeps_its_text():
+    _, text = extract_text("<body><nav><a>Jedyna treść strony</a></nav></body>")
+    assert text == "Jedyna treść strony"
