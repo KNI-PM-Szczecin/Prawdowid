@@ -75,10 +75,22 @@ type SearchResponse struct {
 
 // FetchResponse is rag's answer to POST /fetch.
 type FetchResponse struct {
-	URL       string `json:"url"`
-	Title     string `json:"title"`
-	Text      string `json:"text"`
-	Truncated bool   `json:"truncated"`
+	URL         string  `json:"url"`
+	Title       string  `json:"title"`
+	Text        string  `json:"text"`
+	Truncated   bool    `json:"truncated"`
+	PublishedAt *string `json:"publishedAt"`
+}
+
+type matchRequest struct {
+	URL         string  `json:"url"`
+	Title       *string `json:"title"`
+	PublishedAt *string `json:"publishedAt"`
+}
+
+// MaterialMatchResponse is rag's answer to POST /match.
+type MaterialMatchResponse struct {
+	Matches []MaterialMatchItem `json:"matches"`
 }
 
 // RagClient calls rag/ over HTTP; it is the only place that knows rag's endpoints.
@@ -135,6 +147,22 @@ func (r *RagClient) Fetch(ctx context.Context, url string) (FetchResponse, error
 	default:
 		return response, fmt.Errorf("%w: fetch HTTP %d: %s", ErrRagUnavailable, status, truncate(string(body), maxErrorBodyLen))
 	}
+}
+
+// MatchMaterial asks whether the fetched page itself is a known document or incident link (brief scenario I).
+func (r *RagClient) MatchMaterial(ctx context.Context, url string, title, publishedAt *string) (MaterialMatchResponse, error) {
+	var response MaterialMatchResponse
+	status, body, err := r.post(ctx, "/match", matchRequest{URL: url, Title: title, PublishedAt: publishedAt})
+	if err != nil {
+		return response, err
+	}
+	if status != http.StatusOK {
+		return response, fmt.Errorf("%w: match HTTP %d: %s", ErrRagUnavailable, status, truncate(string(body), maxErrorBodyLen))
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return response, fmt.Errorf("%w: decode match response: %w", ErrRagUnavailable, err)
+	}
+	return response, nil
 }
 
 func (r *RagClient) post(ctx context.Context, path string, payload any) (int, []byte, error) {

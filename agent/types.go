@@ -101,11 +101,40 @@ type RunMeta struct {
 
 // Document is the checked text as the front shows it (CONTRACT.md §1a, optional).
 type Document struct {
-	Title     *string `json:"title"`
-	Text      string  `json:"text"`
-	URL       *string `json:"url"`
-	Publisher *string `json:"publisher"`
-	FetchedAt *string `json:"fetchedAt"`
+	Title       *string `json:"title"`
+	Text        string  `json:"text"`
+	URL         *string `json:"url"`
+	Publisher   *string `json:"publisher"`
+	PublishedAt *string `json:"publishedAt"`
+	FetchedAt   *string `json:"fetchedAt"`
+}
+
+// Kinds and bases of a material match (CONTRACT.md §1a, brief scenario I).
+const (
+	MaterialKindCorpusDocument = "corpus_document"
+	MaterialKindIncident       = "incident"
+	MaterialBasisURL           = "url"
+	MaterialBasisTitle         = "title"
+	MaterialBasisDate          = "date"
+)
+
+// MaterialMatchItem is one known material the submitted page was recognised as, with the explicit basis.
+type MaterialMatchItem struct {
+	Kind        string   `json:"kind"`
+	Basis       []string `json:"basis"`
+	Title       string   `json:"title"`
+	Publisher   string   `json:"publisher"`
+	URL         string   `json:"url"`
+	PublishedAt *string  `json:"publishedAt"`
+	SourceType  *string  `json:"sourceType"`
+	IncidentID  *string  `json:"incidentId"`
+	Source      *string  `json:"source"`
+}
+
+// MaterialMatch says whether the submitted page itself is a known material; context, never a verdict.
+type MaterialMatch struct {
+	Message string              `json:"message"`
+	Matches []MaterialMatchItem `json:"matches"`
 }
 
 // CampaignMatch is one known disinformation case similar to the submission; context only.
@@ -132,6 +161,7 @@ type CheckResult struct {
 	Message       *string        `json:"message"`
 	Document      *Document      `json:"document"`
 	CampaignAlert *CampaignAlert `json:"campaignAlert"`
+	MaterialMatch *MaterialMatch `json:"materialMatch"`
 	Claims        []Claim        `json:"claims"`
 	Limitations   []string       `json:"limitations"`
 	Meta          RunMeta        `json:"meta"`

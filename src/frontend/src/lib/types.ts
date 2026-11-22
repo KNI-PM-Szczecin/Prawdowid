@@ -58,7 +58,29 @@ export interface CheckedDocument {
   text: string;
   url: string | null;
   publisher: string | null;
+  publishedAt?: string | null;
   fetchedAt: string | null;
+}
+
+// Brief scenario I: the submitted page recognised as a known material, with the explicit basis. Context only.
+export type MaterialMatchKind = "corpus_document" | "incident";
+export type MaterialMatchBasis = "url" | "title" | "date";
+
+export interface MaterialMatchItem {
+  kind: MaterialMatchKind;
+  basis: MaterialMatchBasis[];
+  title: string;
+  publisher: string;
+  url: string;
+  publishedAt: string | null;
+  sourceType: SourceType | null;
+  incidentId: string | null;
+  source: string | null;
+}
+
+export interface MaterialMatch {
+  message: string;
+  matches: MaterialMatchItem[];
 }
 
 export interface Summary {
@@ -113,6 +135,7 @@ export interface CheckResult {
   summary?: Summary | null;
   badges?: Badge[];
   campaignAlert?: CampaignAlert | null;
+  materialMatch?: MaterialMatch | null;
   cases?: CaseNotice[];
   claims: Claim[];
   limitations: string[];

@@ -135,6 +135,17 @@ class VectorStore:
             if offset is None:
                 return ids
 
+    async def find_by_payload(self, field: str, value: str, limit: int) -> list[dict]:
+        """Payloads of points whose keyword field (a scalar or a list) contains the value; no vectors involved."""
+        points, _ = await self._client.scroll(
+            self._collection,
+            scroll_filter=models.Filter(must=[models.FieldCondition(key=field, match=models.MatchValue(value=value))]),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return [point.payload for point in points if point.payload]
+
     async def hybrid_search(
         self, dense: list[float], sparse: SparseVector, limit: int, payload_filter: models.Filter | None
     ) -> list[RetrievedChunk]:

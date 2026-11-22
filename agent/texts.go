@@ -43,6 +43,17 @@ const (
 	limitationInputInstructions = "Zgłoszenie zawierało polecenia skierowane do systemu. " +
 		"Potraktowaliśmy je jako zwykły tekst i nie zmieniły zasad sprawdzania."
 
+	// Brief scenario I: a match of the material is context about the page, never a verdict about its content.
+	materialMatchByURL = "Ten adres prowadzi do materiału, który mamy w naszych źródłach (zgodny adres). " +
+		"To informacja o samym materiale, nie ocena jego treści."
+	materialMatchByTitleAndDate = "Tytuł i data publikacji tej strony zgadzają się z materiałem w naszych źródłach, " +
+		"więc to najpewniej ten sam materiał. To informacja o samym materiale, nie ocena jego treści."
+	materialMatchIncident = "Ten adres jest zapisany w katalogu znanych kampanii dezinformacyjnych jako miejsce, " +
+		"gdzie rozpowszechniano sprawdzaną tam treść (zgodny adres). To kontekst, nie ocena prawdziwości."
+	limitationNoMaterialMatch = "Nie znaleźliśmy tej strony w naszych źródłach ani w katalogu znanych kampanii " +
+		"(porównujemy adres oraz tytuł z datą publikacji). Sama domena o niczym nie przesądza."
+	limitationMaterialMatchUnavailable = "Nie udało się sprawdzić, czy ta strona jest znanym materiałem (usługa niedostępna)."
+
 	reasonOfficial           = "źródło urzędowe"
 	reasonFactcheck          = "ocena weryfikatora faktów (%s)"
 	reasonTwoSecondary       = "co najmniej dwa niezależne źródła wtórne"

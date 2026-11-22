@@ -17,6 +17,7 @@
 | Box zbiorczy (v3: ikona ✓ / ⚠ / ✕ w pełnym kole, etykieta, opis; pierścień z „81%” został tylko na starym ekranie Sidebar) | `summary.level` → ikona, etykieta i opis. Poziom z reguł kontraktu (§8), **bez pola `score`**, UI nie pokazuje procentu | §1a, **liczy backend** (reguły w §8) |
 | Chipy (v3: „Świeży” / „Archiwalny”, „Oficjalna informacja” / „Brak oficjalnej informacji”) | `badges` z czterema wartościami. Dla `inputType: url` backend dodaje chip katalogu `input_source_in_catalog` / `input_source_outside_catalog` z `rag/ GET /sources/catalog` (`src/backend/catalog.go`); gdy katalog niedostępny, chipa nie ma. UI v3 chipów katalogu nie pokazuje | §1a, **liczy backend** (reguły w §8) |
 | Czarny box „Ten tekst może być częścią kampanii dezinformacyjnej” + „Więcej informacji” | `campaignAlert` (komunikat + linki do spraw), na poziomie całego tekstu | §1a, `agent/` już zwraca |
+| Box „Znamy ten materiał” (tylko dla URL): komunikat z nazwaną podstawą, lista dopasowań z linkiem, wydawcą, datą i podstawą („zgodny adres” albo „zgodny tytuł, zgodna data publikacji”) | `materialMatch` z `POST /match` w rag (dokument korpusu po adresie albo tytule i dacie; wpis katalogu kampanii po adresie materiału). Bez dopasowania `limitations` mówi, że strony nie znaleziono i sama domena o niczym nie przesądza. `document.publishedAt` pokazywane pod adresem | §1a, **`agent/` zwraca** (`agent/agent.go` `matchMaterial`, `src/frontend/src/components/MaterialMatchBox.tsx`) |
 | Panel boczny: nagłówek = fragment, badge „Fakt”, wyjaśnienie, „Źródła:” | `claims[].text`, `verdict`, `justification`, `evidenceStrength`, `strengthReasons`, `sources` | tak |
 | Panel „Sprzeczne źródła” (ikona ostrzeżenia, karty z tytułem, wydawcą, datą i linkiem) | `claims[].conflict` + źródła z obu stron (`role`: `supports` / `refutes`, `quote`) | §1a, **`agent/` jeszcze nie zwraca** → front do czasu wnioskuje z ról źródeł |
 | Panel ustawień dostępności (v3, zrzut wzorcowy: kontrast domyślny / wysoki jasny / wysoki ciemny, rozmiar tekstu 100–200%, „ogranicz animacje”, „przywróć domyślne”) | nic z API; front, `localStorage` + `prefers-contrast` / `prefers-reduced-motion`, zob. §6a | — |
@@ -172,6 +173,8 @@ Tylko pola, które się różnią od przykładu A:
 ```
 
 `campaignAlert` **nigdy nie wpływa** na `verdict`, `summary` ani `evidenceStrength` (zakaz z briefu, scenariusz I). Front pokazuje go obok, jako kontekst, z tekstem dokładnie z `message`.
+
+To samo dotyczy `materialMatch` (scenariusz I, wariant „URL podobny do znanego incydentu”): rag porównuje zgłoszony adres po normalizacji z adresami dokumentów korpusu i z adresami materiałów zapisanych przy sprawach katalogu kampanii (`links`), a tytuł z datą publikacji (±1 dzień, pokrycie słów ≥ 0,6) z dokumentami korpusu. Podobny temat albo sama domena (np. `pap.pl`) nie dają dopasowania; wtedy odpowiedź ma ograniczenie „Nie znaleźliśmy tej strony w naszych źródłach ani w katalogu znanych kampanii (…). Sama domena o niczym nie przesądza.” Kanał demo wypisuje blok „Znamy ten materiał” z podstawą przed twierdzeniami.
 
 ### Przykład C — sprzeczne źródła (panel „Sprzeczne źródła”)
 

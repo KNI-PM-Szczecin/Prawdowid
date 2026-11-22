@@ -143,6 +143,31 @@ func TestDemoReplyListsSourcesOutsideJustification(t *testing.T) {
 	}
 }
 
+func TestDemoReplyShowsMaterialMatchWithBasisOutsideVerdict(t *testing.T) {
+	result := agent.CheckResult{
+		RequestID: "r1",
+		Status:    agent.StatusOK,
+		MaterialMatch: &agent.MaterialMatch{
+			Message: "Tytuł i data publikacji zgadzają się z materiałem w naszych źródłach.",
+			Matches: []agent.MaterialMatchItem{{
+				Kind: agent.MaterialKindCorpusDocument, Basis: []string{agent.MaterialBasisTitle, agent.MaterialBasisDate},
+				Title: "Depesza PAP", Publisher: "PAP", URL: "https://pap.pl/depesza",
+			}},
+		},
+		Claims: []agent.Claim{{ID: "c1", Text: "Twierdzenie", Verdict: agent.VerdictInsufficientEvidence, Justification: "Brak źródeł."}},
+	}
+	replyBytes, err := demoAdapter{}.ToReply(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply := string(replyBytes)
+	for _, want := range []string{"Znamy ten materiał", "Depesza PAP", "zgodny tytuł, zgodna data publikacji", "https://pap.pl/depesza", "Brak wystarczających dowodów"} {
+		if !strings.Contains(reply, want) {
+			t.Fatalf("reply missing %q: %s", want, reply)
+		}
+	}
+}
+
 func TestDemoReplyNonOKStatusIsOnlyMessage(t *testing.T) {
 	message := "Dopisz, co chcesz sprawdzić."
 	for _, status := range []string{agent.StatusNeedsClarification, agent.StatusOutOfScope, agent.StatusTechnicalError} {

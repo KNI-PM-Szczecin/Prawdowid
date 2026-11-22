@@ -38,6 +38,15 @@ def test_extract_published_at_prefers_opengraph_then_json_ld_then_time():
     assert extract_published_at(time_tag) == datetime(2020, 5, 4, tzinfo=UTC)
 
 
+def test_extract_published_at_reads_elements_labelled_as_publication_date():
+    govpl = '<div class="article-header"><p class="event-date">12.03.2024</p><h2>Tytuł</h2></div>'
+    assert extract_published_at(govpl) == datetime(2024, 3, 12, tzinfo=UTC)
+    nested = '<span class="post-date"><i></i> 2026-11-20 </span>'
+    assert extract_published_at(nested) == datetime(2026, 11, 20, tzinfo=UTC)
+    assert extract_published_at('<p class="event-date">wkrótce</p>') is None
+    assert extract_published_at('<p class="date-of-birth">12.03.2024</p>') is None
+
+
 def test_extract_published_at_rejects_missing_implausible_and_prose_dates():
     assert extract_published_at("<p>Opublikowano 12.03.2024</p>") is None
     assert extract_published_at('<meta name="date" content="2024-13-40">') is None

@@ -26,6 +26,7 @@ from app.gov_search import wanted as gov_search_wanted
 from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
 from app.law_import import import_law, law_state
+from app.material import match_material
 from app.models import (
     CorpusFetchRequest,
     CorpusSyncStatus,
@@ -41,6 +42,8 @@ from app.models import (
     IncidentIngestResult,
     IngestRequest,
     IngestResult,
+    MaterialMatchRequest,
+    MaterialMatchResponse,
     PruneReport,
     ReconcileReport,
     ReportMatchRequest,
@@ -267,8 +270,18 @@ async def fetch_url(request: FetchRequest) -> FetchResponse:
         raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=FETCH_FAILED_MESSAGE.format(reason=error)) from error
     truncated = len(page.text) > settings.fetch_max_text_chars
     return FetchResponse(
-        url=page.url, title=page.title, text=page.text[: settings.fetch_max_text_chars], truncated=truncated
+        url=page.url,
+        title=page.title,
+        text=page.text[: settings.fetch_max_text_chars],
+        truncated=truncated,
+        published_at=page.published_at,
     )
+
+
+@app.post("/match", response_model=MaterialMatchResponse)
+async def match(request: MaterialMatchRequest) -> MaterialMatchResponse:
+    """Is the submitted page itself a known material (corpus document or incident link)? Context, never a verdict."""
+    return await match_material(request, app.state.incidents)
 
 
 @app.get("/sources/external", response_model=list[ExternalSourceInfo])

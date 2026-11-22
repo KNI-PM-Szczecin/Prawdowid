@@ -95,8 +95,17 @@ type ragStub struct {
 	searchStatus int
 	fetch        FetchResponse
 	fetchStatus  int
+	match        MaterialMatchResponse
+	matchStatus  int
 	mu           sync.Mutex
 	queries      []string
+	matchBodies  []map[string]any
+}
+
+func (s *ragStub) matchBodyList() []map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]map[string]any(nil), s.matchBodies...)
 }
 
 // callList and queryList are safe to read while claims are being checked in parallel.
@@ -135,6 +144,21 @@ func (s *ragStub) server(t *testing.T) *httptest.Server {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(s.fetch)
+	})
+	mux.HandleFunc("POST /match", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		s.mu.Lock()
+		s.matchBodies = append(s.matchBodies, body)
+		s.mu.Unlock()
+		if s.matchStatus != 0 && s.matchStatus != http.StatusOK {
+			w.WriteHeader(s.matchStatus)
+			return
+		}
+		if s.match.Matches == nil {
+			s.match.Matches = []MaterialMatchItem{}
+		}
+		_ = json.NewEncoder(w).Encode(s.match)
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
@@ -381,6 +405,50 @@ func TestURLInputIsFetchedThroughRag(t *testing.T) {
 	}
 	if len(result.Claims) != 1 {
 		t.Fatalf("claims: %+v", result.Claims)
+	}
+}
+
+// Brief scenario I: the page is recognised by address, title and date; the match is context and the limitation
+// says plainly that the domain alone decides nothing.
+func TestURLMaterialMatchIsContextWithExplicitBasis(t *testing.T) {
+	published := "2026-11-20T10:00:00Z"
+	judge := judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")
+	page := FetchResponse{URL: "https://pap.pl/depesza", Title: "Depesza", Text: claimSejm, PublishedAt: &published}
+
+	matched := &ragStub{search: searchWith(officialPassage()), fetch: page, match: MaterialMatchResponse{Matches: []MaterialMatchItem{{
+		Kind: MaterialKindCorpusDocument, Basis: []string{MaterialBasisTitle, MaterialBasisDate},
+		Title: "Depesza PAP", Publisher: "PAP", URL: "https://www.pap.pl/depesza?utm_source=x", PublishedAt: &published,
+	}}}}
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, matched), "https://pap.pl/depesza", InputTypeURL)
+	if result.Status != StatusOK || result.MaterialMatch == nil || len(result.MaterialMatch.Matches) != 1 {
+		t.Fatalf("expected a material match, got %+v", result)
+	}
+	if !strings.Contains(result.MaterialMatch.Message, "Tytuł i data") || result.Claims[0].Verdict != VerdictConfirmed {
+		t.Fatalf("message %q verdict %s", result.MaterialMatch.Message, result.Claims[0].Verdict)
+	}
+	if result.Document.PublishedAt == nil || *result.Document.PublishedAt != published {
+		t.Fatalf("document should carry the page date: %+v", result.Document)
+	}
+	bodies := matched.matchBodyList()
+	if len(bodies) != 1 || bodies[0]["url"] != "https://pap.pl/depesza" || bodies[0]["title"] != "Depesza" || bodies[0]["publishedAt"] != published {
+		t.Fatalf("match request: %+v", bodies)
+	}
+
+	unmatched := &ragStub{search: searchWith(officialPassage()), fetch: page}
+	result = verify(t, newTestAgent(t, &fakeProvider{judge: judge}, unmatched), "https://pap.pl/depesza", InputTypeURL)
+	if result.MaterialMatch != nil || !slices.Contains(result.Limitations, limitationNoMaterialMatch) {
+		t.Fatalf("expected no match and the domain limitation, got %+v", result)
+	}
+
+	down := &ragStub{search: searchWith(officialPassage()), fetch: page, matchStatus: http.StatusServiceUnavailable}
+	result = verify(t, newTestAgent(t, &fakeProvider{judge: judge}, down), "https://pap.pl/depesza", InputTypeURL)
+	if result.Status != StatusOK || !slices.Contains(result.Limitations, limitationMaterialMatchUnavailable) {
+		t.Fatalf("a failing match must not break the check: %+v", result)
+	}
+
+	text := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, matched), claimSejm, InputTypeText)
+	if text.MaterialMatch != nil || len(matched.matchBodyList()) != 1 {
+		t.Fatalf("text input must not be matched as material: %+v", text)
 	}
 }
 

@@ -53,6 +53,15 @@ META_TAG = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
 HTML_ATTRIBUTE = re.compile(r"([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*([\"'])(.*?)\2", re.DOTALL)
 JSON_LD_DATE = re.compile(r'"datePublished"\s*:\s*"([^"]+)"', re.IGNORECASE)
 TIME_DATE = re.compile(r"<time\b[^>]*\bdatetime\s*=\s*[\"']([^\"']+)[\"']", re.IGNORECASE)
+# An element the publisher itself labels as the publication date (gov.pl uses <p class="event-date">12.03.2024</p>
+# and no metadata at all). Only class names that mean "date of publication"; prose dates stay ignored.
+DATED_ELEMENT = re.compile(
+    r"<(?:p|span|div|time|small|li)\b[^>]*\bclass\s*=\s*[\"'][^\"']*\b"
+    r"(?:event-date|article-date|article__date|publish(?:ed)?-date|date-published|post-date|entry-date|news-date)"
+    r"\b[^\"']*[\"'][^>]*>\s*(?:<[^>]+>\s*)*([^<]{6,40})<",
+    re.IGNORECASE,
+)
+VISIBLE_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b|\b(\d{4})-(\d{2})-(\d{2})\b")
 EARLIEST_PUBLISHED_YEAR = 1989
 FUTURE_DATE_TOLERANCE = timedelta(days=1)
 
@@ -78,10 +87,28 @@ def _parse_published(value: str) -> datetime | None:
     return parsed
 
 
+def _parse_visible_date(text: str) -> datetime | None:
+    """dd.mm.yyyy or yyyy-mm-dd inside an element labelled as the publication date; prose dates never get here."""
+    match = VISIBLE_DATE.search(text)
+    if match is None:
+        return None
+    day, month, year = (
+        (match.group(1), match.group(2), match.group(3))
+        if match.group(1)
+        else (
+            match.group(6),
+            match.group(5),
+            match.group(4),
+        )
+    )
+    return _parse_published(f"{year}-{int(month):02d}-{int(day):02d}")
+
+
 def extract_published_at(html: str) -> datetime | None:
     """
-    Publication date from machine-readable metadata only: OpenGraph/HTML meta, JSON-LD or <time datetime>.
-    A visible date in prose is not used because its meaning (publication, update, event) is ambiguous.
+    Publication date from machine-readable metadata: OpenGraph/HTML meta, JSON-LD, <time datetime>, and last an
+    element whose class names it as the publication date (gov.pl `event-date`). A date in prose is not used
+    because its meaning (publication, update, event) is ambiguous.
     """
     meta_values: dict[str, str] = {}
     for tag in META_TAG.findall(html):
@@ -98,6 +125,9 @@ def extract_published_at(html: str) -> datetime | None:
             return parsed
     for match in TIME_DATE.findall(html):
         if (parsed := _parse_published(match)) is not None:
+            return parsed
+    for match in DATED_ELEMENT.findall(html):
+        if (parsed := _parse_visible_date(match)) is not None:
             return parsed
     return None
 
