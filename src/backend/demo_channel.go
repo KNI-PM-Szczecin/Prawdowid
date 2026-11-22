@@ -20,7 +20,7 @@ var demoVerdictLabels = map[string]string{
 	agent.VerdictConfirmed:            "Potwierdzone",
 	agent.VerdictFalse:                "Fałszywe",
 	agent.VerdictMisleading:           "Wprowadzające w błąd",
-	agent.VerdictInsufficientEvidence: "Brak wystarczających dowodów",
+	agent.VerdictInsufficientEvidence: "Niepewne",
 	agent.VerdictNotVerifiable:        "Nie podlega weryfikacji",
 }
 

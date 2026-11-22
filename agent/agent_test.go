@@ -824,6 +824,51 @@ func TestInstructionNeverReachesTheSearchQuery(t *testing.T) {
 	}
 }
 
+// A claim in English is translated by extraction before it reaches rag, whose corpus and searches are Polish.
+func TestClaimInEnglishReachesTheSearchInPolish(t *testing.T) {
+	rag := &ragStub{search: searchWith(officialPassage())}
+	provider := &fakeProvider{
+		extract: `{"twierdzenia":[{"tekst":"Kadencja Sejmu trwa 4 lata.","fragment":"The Sejm term lasts 4 years","rodzaj":"fakt"}],"pominiete":0}`,
+		judge:   judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza"),
+	}
+	result := verify(t, newTestAgent(t, provider, rag), "The Sejm term lasts 4 years.", InputTypeText)
+
+	if calls := provider.callList(); len(calls) == 0 || calls[0] != "extract" {
+		t.Fatalf("an English sentence must go through extraction, got calls %v", calls)
+	}
+	if queries := rag.queryList(); len(queries) == 0 || queries[0] != "Kadencja Sejmu trwa 4 lata." {
+		t.Fatalf("rag must get the Polish claim, got %q", queries)
+	}
+	if result.Claims[0].Text != "Kadencja Sejmu trwa 4 lata." {
+		t.Fatalf("the claim is shown in Polish, got %q", result.Claims[0].Text)
+	}
+}
+
+// A major past event with nothing confirming it stays an abstention (brief scenario D) but carries a clear warning.
+func TestMajorEventWithoutAnySourceAbstainsWithAWarning(t *testing.T) {
+	judge := `{"werdykt":"brak_dowodow","uzasadnienie":"x","cytaty":[],"brakuje":"komunikat policji","podejrzane":false,"szeroko_opisane":true}`
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith()}),
+		"W czwartek w Zielonowie doszło do zamachu na dworcu.", InputTypeText)
+
+	claim := result.Claims[0]
+	if claim.Verdict != VerdictInsufficientEvidence {
+		t.Fatalf("no evidence must stay an abstention, got %s", claim.Verdict)
+	}
+	if !slices.ContainsFunc(claim.Warnings, func(warning Warning) bool { return warning.Message == warningNoCoverage }) {
+		t.Fatalf("expected the no-coverage warning, got %+v", claim.Warnings)
+	}
+}
+
+func TestLocalMatterWithoutSourcesGetsNoCoverageWarning(t *testing.T) {
+	judge := `{"werdykt":"brak_dowodow","uzasadnienie":"x","cytaty":[],"brakuje":"komunikat gminy","podejrzane":false,"szeroko_opisane":false}`
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith()}),
+		"Od wczoraj w Zielonowie bilety kupisz tylko w aplikacji.", InputTypeText)
+
+	if slices.ContainsFunc(result.Claims[0].Warnings, func(warning Warning) bool { return warning.Message == warningNoCoverage }) {
+		t.Fatalf("a local matter must not get the warning: %+v", result.Claims[0].Warnings)
+	}
+}
+
 func TestQuestionWithoutAClaimNeedsClarification(t *testing.T) {
 	provider := &fakeProvider{extract: `{"twierdzenia":[{"tekst":"To prawda.","fragment":"to prawda","rodzaj":"fakt"}],"pominiete":0}`}
 	for _, input := range []string{"Czy to prawda?", "Is this true?", "To prawda czy nie?"} {

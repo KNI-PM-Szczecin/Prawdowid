@@ -83,7 +83,8 @@ export const texts = {
       confirmed: "Wiarygodne źródła potwierdzają twierdzenie.",
       false: "Wiarygodne źródła przeczą twierdzeniu.",
       misleading: "Twierdzenie zawiera prawdziwe elementy, ale pomija kontekst albo zniekształca fakty.",
-      insufficient_evidence: "Nie znaleźliśmy wystarczających źródeł. To nie znaczy, że twierdzenie jest fałszywe.",
+      insufficient_evidence:
+        "Niepewne: źródła nie wystarczają, żeby potwierdzić albo obalić twierdzenie (brak źródeł, jedno słabe źródło albo tylko część faktów). To nie znaczy, że twierdzenie jest prawdziwe ani że jest fałszywe.",
       not_verifiable: "Opinia, prognoza albo pytanie, których nie da się sprawdzić w źródłach.",
     } satisfies Record<Verdict, string>,
     verdictsNote: "Awaria techniczna i niejasne pytanie nie są ocenami. Pokazujemy je osobno, bez koloru werdyktu.",
@@ -219,9 +220,8 @@ export const texts = {
     confirmed: "Prawda",
     false: "Fałsz",
     misleading: "Wprowadza w błąd",
-    insufficient_evidence: "Brak wystarczających dowodów",
+    insufficient_evidence: "Niepewne",
     conflicting: "Sprzeczne źródła",
-    partial: "Ustalono częściowo",
     not_verifiable: "Nie podlega weryfikacji",
   },
   claims: {

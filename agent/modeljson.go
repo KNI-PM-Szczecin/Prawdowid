@@ -44,6 +44,9 @@ type judgeAnswer struct {
 	Citations     []judgeCitation `json:"cytaty"`
 	Missing       *string         `json:"brakuje"`
 	Suspicious    bool            `json:"podejrzane"`
+	// WidelyReported: the claim describes an event of national weight that should already have happened and that the
+	// media or institutions would certainly have reported; with no evidence found it earns a warning, not a verdict.
+	WidelyReported bool `json:"szeroko_opisane"`
 }
 
 // firstJSONObject cuts the first balanced {...} out of a model answer that may carry stray text around it.

@@ -522,7 +522,28 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 	if claim.Verdict == VerdictInsufficientEvidence || claim.Verdict == VerdictNotVerifiable {
 		r.abstained = true
 	}
+	if claim.Verdict == VerdictInsufficientEvidence && !hasDecisiveSource(claim.Sources) {
+		addNoCoverageWarning(&claim, answer)
+	}
 	return claim, nil
+}
+
+// addNoCoverageWarning: an event of national weight that should already have happened, with nothing confirming it,
+// stays an abstention (brief: no verdict without evidence) but the citizen is told plainly that the silence of the
+// media and institutions is a strong warning sign.
+func addNoCoverageWarning(claim *Claim, answer judgeAnswer) {
+	if answer.WidelyReported {
+		claim.Warnings = append(claim.Warnings, Warning{Type: WarningOther, Message: warningNoCoverage})
+	}
+}
+
+func hasDecisiveSource(sources []SourceRef) bool {
+	for _, source := range sources {
+		if source.Role == RoleSupports || source.Role == RoleRefutes {
+			return true
+		}
+	}
+	return false
 }
 
 // evaluation is one pass of the judge and the rules over a set of passages.
@@ -721,6 +742,7 @@ func (a *Agent) checkClaimWithoutSources(ctx context.Context, r *claimRun, claim
 	claim.Verdict = VerdictInsufficientEvidence
 	claim.Justification = missingNoSources
 	claim.Missing = stringPtr(noSourcesMissing(answer.Missing))
+	addNoCoverageWarning(&claim, answer)
 	return claim, nil
 }
 

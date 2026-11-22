@@ -48,13 +48,9 @@ export function verdictLabel(claim: Claim): string {
   if (claim.verdict !== "insufficient_evidence") {
     return texts.verdict[claim.verdict];
   }
-  if (hasConflict(claim)) {
-    return texts.verdict.conflicting;
-  }
-  // "Partly established" needs a source that settles part of the claim; context sources alone (shown with every
-  // abstention so the citizen sees what was found) establish nothing.
-  const establishesPart = claim.sources.some((source) => source.role === "supports" || source.role === "refutes");
-  return establishesPart ? texts.verdict.partial : texts.verdict.insufficient_evidence;
+  // Every incomplete result (no source, one weak source, only part of the facts) is "uncertain"; what is missing is
+  // said under the label. Sources that contradict each other get their own label.
+  return hasConflict(claim) ? texts.verdict.conflicting : texts.verdict.insufficient_evidence;
 }
 
 const dateFormatter = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long", year: "numeric" });
