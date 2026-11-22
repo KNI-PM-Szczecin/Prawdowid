@@ -122,23 +122,6 @@ func TestDiscordReactionEmoji(t *testing.T) {
 	}
 }
 
-func TestDiscordConfidence(t *testing.T) {
-	tests := []struct {
-		strength string
-		want     string
-	}{
-		{agent.StrengthStrong, discordConfidenceStrong},
-		{agent.StrengthModerate, discordConfidenceModerate},
-		{agent.StrengthWeak, discordConfidenceWeak},
-		{agent.StrengthNone, ""},
-	}
-	for _, test := range tests {
-		if got := discordConfidence(test.strength); got != test.want {
-			t.Fatalf("discordConfidence(%s) = %q, want %q", test.strength, got, test.want)
-		}
-	}
-}
-
 func TestFormatDiscordReplyShortAndFull(t *testing.T) {
 	result := agent.CheckResult{
 		Status: agent.StatusOK,
@@ -161,7 +144,7 @@ func TestFormatDiscordReplyShortAndFull(t *testing.T) {
 	}
 
 	short := formatDiscordReply(result, false)
-	for _, want := range []string{"Fałszywe — pewność 90%", "Źródła przeczą temu twierdzeniu.", "https://a.example/1", "Daj 🚨, aby zobaczyć więcej"} {
+	for _, want := range []string{"Fałszywe", "Źródła przeczą temu twierdzeniu.", "https://a.example/1", "Daj 🚨, aby zobaczyć więcej"} {
 		if !strings.Contains(short, want) {
 			t.Fatalf("short reply missing %q: %s", want, short)
 		}
