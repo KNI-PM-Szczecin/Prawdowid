@@ -84,6 +84,7 @@ const (
 	limitationMaterialMatchUnavailable = "Nie udało się sprawdzić, czy ta strona jest znanym materiałem (usługa niedostępna)."
 
 	reasonOfficial           = "źródło urzędowe"
+	reasonReference          = "dane encyklopedyczne o osobie (Wikidata)"
 	reasonFactcheck          = "ocena weryfikatora faktów (%s)"
 	reasonTwoSecondary       = "co najmniej dwa niezależne źródła wtórne"
 	reasonOneSecondary       = "jedno źródło wtórne"

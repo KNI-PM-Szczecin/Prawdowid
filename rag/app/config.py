@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     factcheck_max_reviews: int = 10
     # Kept well under the 30 s agent/ gives the whole rag call, so a slow Google never sinks the whole search.
     factcheck_timeout_seconds: float = 6.0
+    # Wikidata facts about people named in a claim (life dates, short description), searched beside the fact-check.
+    wikidata_enabled: bool = True
+    wikidata_api_url: str = "https://www.wikidata.org/w/api.php"
+    wikidata_timeout_seconds: float = 4.0
+    wikidata_max_people: int = 2
+    wikidata_search_limit: int = 3
+    wikidata_cache_ttl_seconds: int = 3600
+    wikidata_cache_max_entries: int = 1000
     # Same query within the TTL reuses the answer: fewer paid calls and the same result for repeated checks.
     factcheck_cache_ttl_seconds: int = 3600
     factcheck_cache_max_entries: int = 1000

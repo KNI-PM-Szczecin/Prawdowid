@@ -94,6 +94,7 @@ export const texts = {
       factcheck: "Oceny organizacji weryfikujących fakty, które pracują według jawnych zasad.",
       secondary: "Publikacje rzetelnych mediów i instytucji badawczych.",
       incident: "Katalog znanych przypadków dezinformacji. Podobieństwo do nich pokazujemy jako kontekst, nigdy jako ocenę.",
+      reference: "Dane encyklopedyczne o osobach z Wikidaty, np. daty urodzenia i śmierci osób publicznych.",
     } satisfies Record<SourceType, string>,
     sourcesNote: "Każde źródło w wyniku ma tytuł, wydawcę, datę publikacji, datę pobrania i link. Możesz je otworzyć i sprawdzić samodzielnie.",
     principlesTitle: "Zasady, których przestrzegamy",
@@ -259,6 +260,7 @@ export const texts = {
     secondary: "Źródło wtórne",
     factcheck: "Weryfikator faktów",
     incident: "Baza incydentów",
+    reference: "Dane encyklopedyczne",
   } satisfies Record<SourceType, string>,
   sourceRole: {
     supports: "Potwierdza",

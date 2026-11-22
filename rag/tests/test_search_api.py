@@ -15,6 +15,7 @@ from app.main import app
 from app.odyseusz import OdyseuszFillResult
 from app.primary_hop import HopResult
 from app.vector_store import RetrievedChunk
+from app.wikidata import PersonFact, WikidataResult
 
 RELEVANT_LOGIT = 8.0
 IRRELEVANT_LOGIT = -6.0
@@ -83,6 +84,16 @@ class FakePrimaryHop:
 
     async def fill(self, claim, keywords, models, store):
         self.calls.append((claim, keywords))
+        return self.result
+
+
+class FakeWikidata:
+    def __init__(self, result: WikidataResult):
+        self.result = result
+        self.claims: list[str] = []
+
+    async def people(self, claim):
+        self.claims.append(claim)
         return self.result
 
 
@@ -188,6 +199,7 @@ def client(monkeypatch):
     )
     app.state.store = FakeStore([relevant, irrelevant])
     app.state.factcheck = FakeFactCheck(FactCheckResult(status="disabled", reviews=[]))
+    app.state.wikidata = FakeWikidata(WikidataResult(status="skipped", facts=[]))
     app.state.incidents = FakeStore([])
     app.state.euvsdisinfo = EuvsDisinfoClient()
     app.state.gov_search = FakeGovSearch()
@@ -509,6 +521,34 @@ def test_slow_gap_fill_never_delays_the_answer_past_the_search_budget(client, mo
     assert {"name": "gov_search", "status": "skipped", "results": 0} in body["externalSources"]
 
 
+PERSON = PersonFact(
+    entity_id="Q100",
+    label="Zofia I",
+    description="królowa Borowii w latach 1950-2021",
+    born="21 kwietnia 1930 r.",
+    died="5 marca 2021 r.",
+    modified=datetime(2026, 11, 1, tzinfo=UTC),
+)
+
+
+def test_person_named_in_the_claim_joins_the_results_as_reference(client):
+    app.state.store = FakeStore([])
+    app.state.wikidata = FakeWikidata(WikidataResult(status="ok", facts=[PERSON]))
+    app.state.models = FakeModels({PERSON.rerank_text: IRRELEVANT_LOGIT})
+
+    body = client.post("/search", json=QUERY).json()
+
+    person = next(result for result in body["results"] if result["documentId"] == "wikidata:Q100")
+    assert person["sourceType"] == "reference"
+    assert person["url"] == "https://www.wikidata.org/wiki/Q100"
+    assert "Data śmierci: 5 marca 2021 r." in person["passage"]
+    assert person["license"].startswith("CC0")
+    assert {"name": "wikidata", "status": "ok", "results": 1} in body["externalSources"]
+    assert 'source_type="reference"' in body["contextXml"]
+    # Matched by name, so even a low rerank score keeps the fact in the results.
+    assert person["score"] < settings.rerank_min_score
+
+
 def test_odyseusz_notice_indexed_on_demand_is_found_by_the_search_that_follows(client, monkeypatch):
     notice = RetrievedChunk(chunk_id=uuid4(), text="Poseł X głosował przeciw ustawie Y.", fusion_score=0.9)
     app.state.store = FakeStore([])
@@ -542,7 +582,7 @@ def test_primary_hop_runs_only_after_gov_search_did_not_help(client, monkeypatch
     original_search = search.search_passages
     calls = {"count": 0}
 
-    async def search_after_hop(request, models, store, *rest, refresh=False):
+    async def search_after_hop(request, models, store, *rest, refresh=False, wikidata=None):
         calls["count"] += 1
         if calls["count"] == 2:  # the hop has indexed a page: the second search finds it
             store = FakeStore([found_later])

@@ -9,7 +9,7 @@ from app.config import settings
 
 Tier = Literal[1, 2, 3]
 Reliability = Literal["high", "medium", "low"]
-SourceType = Literal["official", "secondary", "factcheck", "incident"]
+SourceType = Literal["official", "secondary", "factcheck", "incident", "reference"]
 PassageFlag = Literal["suspected_injection"]
 
 QUERY_MAX_CHARS = 5000

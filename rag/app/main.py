@@ -68,6 +68,7 @@ from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.seed import ensure_seed_corpus
 from app.vector_store import VectorStore
 from app.warmup import warm_up
+from app.wikidata import WikidataClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -114,6 +115,8 @@ async def lifespan(app: FastAPI):
     logger.info("EUvsDisinfo import %s", "enabled" if euvsdisinfo.enabled else "disabled (no EUVSDISINFO_TOKEN)")
     factcheck = FactCheckClient()
     app.state.factcheck = factcheck
+    wikidata = WikidataClient()
+    app.state.wikidata = wikidata
     gov_search = GovSearchClient()
     app.state.gov_search = gov_search
     primary_hop = PrimaryHopClient()
@@ -154,6 +157,7 @@ async def lifespan(app: FastAPI):
     finally:
         scheduler.shutdown(wait=False)
         await factcheck.close()
+        await wikidata.close()
         await gov_search.close()
         await primary_hop.close()
         await odyseusz.close()
@@ -247,7 +251,13 @@ async def search(
     started_at = time.monotonic()
     refresh = NO_CACHE_DIRECTIVE in (cache_control or "").casefold()
     response = await search_passages(
-        request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents, refresh=refresh
+        request,
+        app.state.models,
+        app.state.store,
+        app.state.factcheck,
+        app.state.incidents,
+        refresh=refresh,
+        wikidata=app.state.wikidata,
     )
     if gov_search_wanted(request, response.results):
         remaining = settings.search_total_budget_seconds - (time.monotonic() - started_at)
@@ -274,7 +284,12 @@ async def _fill_and_search_again(request: SearchRequest, response: SearchRespons
     )
     if gap_fill.indexed or odyseusz_fill.indexed:
         response = await search_passages(
-            request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+            request,
+            app.state.models,
+            app.state.store,
+            app.state.factcheck,
+            app.state.incidents,
+            wikidata=app.state.wikidata,
         )
     fill_statuses = [gap_fill.as_status()]
     if gov_search_wanted(request, response.results):
@@ -282,7 +297,12 @@ async def _fill_and_search_again(request: SearchRequest, response: SearchRespons
         hop = await app.state.primary_hop.fill(request.query, gap_query, app.state.models, app.state.store)
         if hop.indexed:
             response = await search_passages(
-                request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+                request,
+                app.state.models,
+                app.state.store,
+                app.state.factcheck,
+                app.state.incidents,
+                wikidata=app.state.wikidata,
             )
         fill_statuses.append(hop.as_status())
     return response.model_copy(update={"external_sources": [*response.external_sources, *fill_statuses]})
@@ -355,6 +375,7 @@ async def sources_external() -> list[ExternalSourceInfo]:
     runtime = {
         "google_factcheck": {"enabled": app.state.factcheck.enabled},
         "gov_search": {"enabled": app.state.gov_search.enabled},
+        "wikidata": {"enabled": app.state.wikidata.enabled},
         "euvsdisinfo": {
             "enabled": app.state.euvsdisinfo.enabled,
             "catalogSize": await app.state.incidents.count(),
