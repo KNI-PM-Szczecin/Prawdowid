@@ -1,0 +1,17 @@
+{
+  "note": "Kanały RSS źródeł z katalogu, czytane cyklicznie (app/feeds.py), żeby korpus dostawał nowe komunikaty bez zapytania obywatela. Każdy kanał ma adres, limit wpisów na przebieg i listę hostów, dla których wyłączamy regułę wykluczania hosta z corpus_rules.json: kroniki policyjne są wykluczone z importów zbiorczych, ale świeży komunikat policji potrafi rozstrzygnąć twierdzenie, więc wpisy z tych kanałów wchodzą do korpusu. Reguły adresów i tytułów (strony główne, listy) nadal obowiązują. Dokumenty z kanałów mają identyfikator feed:<skrót>, więc POST /admin/corpus/prune ich nie usuwa. Domena kanału musi być w katalogu źródeł, inaczej wpis jest pomijany.",
+  "feeds": [
+    {
+      "name": "Policja: aktualności (Komenda Główna)",
+      "url": "https://www.policja.pl/dokumenty/rss/1-rss-1.rss",
+      "maxItems": 15,
+      "exemptHosts": ["policja.pl"]
+    },
+    {
+      "name": "Policja Małopolska: aktualności",
+      "url": "https://malopolska.policja.gov.pl/dokumenty/rss/386-rss-157.rss",
+      "maxItems": 15,
+      "exemptHosts": ["policja.gov.pl"]
+    }
+  ]
+}

@@ -19,6 +19,7 @@ from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
+from app.feeds import feed_state, refresh_feeds
 from app.fetcher import FetchError, fetch_page
 from app.gov_search import GovSearchClient
 from app.gov_search import wanted as gov_search_wanted
@@ -425,6 +426,19 @@ async def start_corpus_fetch(
     if not fetch_state.running:
         background_tasks.add_task(fetch_corpus, urls, app.state.models, app.state.store)
     return _corpus_status(fetch_state)
+
+
+@app.get("/corpus/feeds", response_model=CorpusSyncStatus)
+async def corpus_feeds_status() -> CorpusSyncStatus:
+    return _corpus_status(feed_state)
+
+
+@app.post("/admin/corpus/feeds", response_model=CorpusSyncStatus, status_code=HTTP_ACCEPTED, dependencies=AdminOnly)
+async def start_feed_refresh(background_tasks: BackgroundTasks) -> CorpusSyncStatus:
+    """Reads the RSS feeds from app/data/feeds.json in the background and indexes the entries not yet in the corpus."""
+    if not feed_state.running:
+        background_tasks.add_task(refresh_feeds, app.state.models, app.state.store)
+    return _corpus_status(feed_state)
 
 
 @app.get("/corpus/sync", response_model=CorpusSyncStatus)

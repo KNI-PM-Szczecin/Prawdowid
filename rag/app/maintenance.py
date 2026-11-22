@@ -5,6 +5,7 @@ from app.corpus_sync import fetch_corpus, seed_urls
 from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases
 from app.eviction import run_eviction
+from app.feeds import refresh_feeds
 from app.law_import import import_law
 from app.reconcile import reconcile_vectors
 from app.vector_store import VectorStore
@@ -15,6 +16,7 @@ JOB_OPTIMIZE = "optimize"
 JOB_EUVSDISINFO = "euvsdisinfo_sync"
 JOB_CORPUS_REFRESH = "corpus_refresh"
 JOB_LAW_REFRESH = "law_refresh"
+JOB_FEEDS_REFRESH = "feeds_refresh"
 
 
 def register_maintenance_jobs(
@@ -46,6 +48,14 @@ def register_maintenance_jobs(
             id=JOB_EUVSDISINFO,
             hour=settings.euvsdisinfo_sync_cron_hour,
             args=[euvsdisinfo, models, incidents, settings.euvsdisinfo_daily_sync_cases],
+        )
+    if settings.feeds_refresh_enabled:
+        scheduler.add_job(
+            refresh_feeds,
+            "interval",
+            id=JOB_FEEDS_REFRESH,
+            minutes=settings.feeds_refresh_interval_minutes,
+            args=[models, store],
         )
     if settings.corpus_refresh_enabled:
         # A page fetched again with the same text replaces its own chunks; a changed page replaces them with the

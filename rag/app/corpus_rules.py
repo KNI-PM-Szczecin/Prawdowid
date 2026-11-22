@@ -25,11 +25,18 @@ def load_rules() -> CorpusRules:
     )
 
 
-def exclusion_reason(url: str, title: str) -> str | None:
-    """Why a page stays out of the evidence corpus (host, address or title rule), or None when it may be indexed."""
+def _is_host_in(host: str, hosts: frozenset[str]) -> bool:
+    return any(host == candidate or host.endswith("." + candidate) for candidate in hosts)
+
+
+def exclusion_reason(url: str, title: str, exempt_hosts: frozenset[str] = frozenset()) -> str | None:
+    """
+    Why a page stays out of the evidence corpus (host, address or title rule), or None when it may be indexed.
+    `exempt_hosts` lifts the host rule only (feeds of excluded hosts, see feeds.json); address and title rules stay.
+    """
     rules = load_rules()
     host = (urlparse(url).hostname or "").lower()
-    if any(host == excluded or host.endswith("." + excluded) for excluded in rules.hosts):
+    if _is_host_in(host, rules.hosts) and not _is_host_in(host, exempt_hosts):
         return f"host {host} excluded"
     for pattern in rules.url_patterns:
         if pattern.search(url):

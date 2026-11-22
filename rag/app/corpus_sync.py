@@ -162,6 +162,7 @@ async def _index_pages(
     state: CorpusSyncState,
     label: str,
     strip_boilerplate: bool,
+    exempt_hosts: frozenset[str] = frozenset(),
 ) -> None:
     """Normal ingest path for every page (catalog, duplicates, chunking); one bad page never stops the run."""
     cleaned = (
@@ -174,7 +175,7 @@ async def _index_pages(
         else [page.content for page in pages]
     )
     for page, content in zip(pages, cleaned, strict=True):
-        reason = exclusion_reason(page.url, page.title)
+        reason = exclusion_reason(page.url, page.title, exempt_hosts)
         if reason is not None:
             state.skipped_excluded += 1
             logger.info("%s: %s excluded by corpus rules (%s)", label, page.document_id, reason)
@@ -206,6 +207,7 @@ async def run_corpus_job(
     models: EmbeddingModels,
     store: VectorStore,
     strip_boilerplate: bool = True,
+    exempt_hosts: frozenset[str] = frozenset(),
 ) -> CorpusSyncState:
     """
     One background import at a time per job: loads pages, indexes them, keeps the state for the status endpoint.
@@ -220,7 +222,7 @@ async def run_corpus_job(
         try:
             pages = await load_pages(state)
             state.available = len(pages)
-            await _index_pages(pages, models, store, state, label, strip_boilerplate)
+            await _index_pages(pages, models, store, state, label, strip_boilerplate, exempt_hosts)
         except Exception as error:
             state.last_error = f"{type(error).__name__}: {error}"
             logger.exception("%s stopped", label)
