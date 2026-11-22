@@ -28,7 +28,7 @@ class FakeModels:
         return [[0.0]] * len(queries), [SparseVector(indices=[], values=[])] * len(queries)
 
     def rerank(self, query, documents):
-        return [self._logits[document] for document in documents]
+        return [self._logits.get(document, IRRELEVANT_LOGIT) for document in documents]
 
 
 class FakeStore:
@@ -113,6 +113,22 @@ def _incident(text: str, incident_id: str) -> RetrievedChunk:
 
 CAMPAIGN_INCIDENT = _incident("Poseł X poparł ustawę Y na polecenie obcego państwa.", "12345")
 WEAK_INCIDENT = _incident("Zachód planuje wojnę.", "67890")
+# A claim phrased like the case title: the thesis alone is worded differently and scores below the threshold,
+# so only the title + thesis variant can match it (the Ust-Luga campaign case).
+TITLED_INCIDENT = RetrievedChunk(
+    chunk_id=uuid4(),
+    text="Atak był operacją sojuszu z brytyjskim wątkiem.",
+    fusion_score=0.8,
+    payload={
+        "incident_id": "24680",
+        "source": "euvsdisinfo",
+        "title": "NATO i MI6 zorganizowały atak dronów na port",
+        "summary": "Atak był operacją sojuszu z brytyjskim wątkiem.",
+        "url": "https://euvsdisinfo.eu/report/24680",
+        "published_at": "2026-03-26T00:00:00+00:00",
+    },
+)
+TITLED_INCIDENT_WITH_TITLE = f"{TITLED_INCIDENT.payload['title']}. {TITLED_INCIDENT.text}"
 
 
 def _metadata_row(chunk_id):
@@ -158,6 +174,8 @@ def client(monkeypatch):
             UNRELATED_REVIEW.rerank_text: IRRELEVANT_LOGIT,
             CAMPAIGN_INCIDENT.text: CAMPAIGN_LOGIT,
             WEAK_INCIDENT.text: WEAK_CAMPAIGN_LOGIT,
+            TITLED_INCIDENT.text: WEAK_CAMPAIGN_LOGIT,
+            TITLED_INCIDENT_WITH_TITLE: CAMPAIGN_LOGIT,
         }
     )
     app.state.store = FakeStore([relevant, irrelevant])
@@ -330,6 +348,13 @@ def test_campaign_match_adds_category_outside_results_and_context(client):
     assert all("euvsdisinfo" not in item["url"] for item in body["results"])
     assert "euvsdisinfo" not in body["contextXml"]
     assert {"name": "incident_catalog", "status": "ok", "results": 1} in body["externalSources"]
+
+
+def test_campaign_match_uses_title_when_thesis_alone_is_weak(client):
+    app.state.incidents = FakeStore([TITLED_INCIDENT])
+    alert = client.post("/search", json=QUERY).json()["campaignAlert"]
+    assert [match["incidentId"] for match in alert["matches"]] == ["24680"]
+    assert alert["matches"][0]["score"] >= settings.incident_min_score
 
 
 def test_no_alert_for_weak_match_or_empty_catalog(client):
