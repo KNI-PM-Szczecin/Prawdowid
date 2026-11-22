@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     feeds_refresh_enabled: bool = True
     feeds_refresh_interval_minutes: int = 60
     feeds_max_bytes: int = 1_000_000
+    feeds_retry_delay_seconds: float = 3.0
     corpus_refresh_cron_hour: int = 5
     law_refresh_cron_day_of_week: str = "mon"
     law_refresh_cron_hour: int = 6

@@ -14,7 +14,7 @@ from app import db
 from app.config import settings
 from app.corpus_sync import CorpusSyncState, Page, run_corpus_job
 from app.embeddings import EmbeddingModels
-from app.fetcher import FetchError, fetch_page
+from app.fetcher import FetchedPage, FetchError, fetch_page
 from app.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,8 @@ FEEDS_PATH = Path(__file__).parent / "data" / "feeds.json"
 FEED_PREFIX = "feed:"
 FEED_ID_LENGTH = 16
 HTTP_URL_SCHEMES = ("http://", "https://")
+# Police servers drop connections that arrive in bursts, so a page gets a few spaced attempts before it fails.
+FETCH_ATTEMPTS = 3
 
 feed_state = CorpusSyncState()
 _feed_lock = asyncio.Lock()
@@ -98,6 +100,17 @@ async def _read_feed(client: httpx.AsyncClient, feed: Feed) -> list[FeedItem]:
     return parse_feed(response.text, feed.max_items)
 
 
+async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> FetchedPage:
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            return await fetch_page(client, url)
+        except FetchError:
+            if attempt == FETCH_ATTEMPTS:
+                raise
+            await asyncio.sleep(settings.feeds_retry_delay_seconds)
+    raise AssertionError("unreachable: the last attempt returns or raises")
+
+
 async def refresh_feeds(
     models: EmbeddingModels, store: VectorStore, transport: httpx.AsyncBaseTransport | None = None
 ) -> CorpusSyncState:
@@ -127,21 +140,21 @@ async def refresh_feeds(
                         state.already_present += 1
                         continue
                     try:
-                        fetched = await fetch_page(client, item.link)
+                        fetched = await _fetch_with_retry(client, item.link)
                     except FetchError as error:
                         state.failed += 1
                         logger.warning("Feed %s: %s skipped (%s)", feed.name, item.link, error)
-                        continue
-                    pages.append(
-                        Page(
-                            document_id=document_id,
-                            url=fetched.url,
-                            title=fetched.title or item.title,
-                            content=fetched.text,
-                            fetched_at=datetime.now(UTC),
-                            published_at=item.published_at or fetched.published_at,
+                    else:
+                        pages.append(
+                            Page(
+                                document_id=document_id,
+                                url=fetched.url,
+                                title=fetched.title or item.title,
+                                content=fetched.text,
+                                fetched_at=datetime.now(UTC),
+                                published_at=item.published_at or fetched.published_at,
+                            )
                         )
-                    )
                     await asyncio.sleep(settings.corpus_fetch_delay_seconds)
         return pages
 

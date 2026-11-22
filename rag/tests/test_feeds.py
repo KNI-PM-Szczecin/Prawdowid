@@ -68,6 +68,7 @@ def ingested(monkeypatch):
     monkeypatch.setattr(db, "active_chunk_ids_for_document", active_chunks)
     monkeypatch.setattr(fetcher, "assert_public_url", allow)
     monkeypatch.setattr(settings, "corpus_fetch_delay_seconds", 0)
+    monkeypatch.setattr(settings, "feeds_retry_delay_seconds", 0)
     monkeypatch.setattr(
         feeds,
         "load_feeds",
@@ -108,3 +109,22 @@ def test_an_unreachable_feed_is_counted_and_never_stops_the_run(ingested):
     assert ingested == {}
     assert state.failed == 1
     assert state.last_error is None
+
+
+def test_a_page_the_server_drops_once_is_retried_before_it_counts_as_failed(ingested):
+    attempts: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == FEED_URL:
+            return httpx.Response(200, text=RSS)
+        attempts[request.url.path] = attempts.get(request.url.path, 0) + 1
+        if request.url.path.endswith("284200,Komunikat-w-sprawie-sprawcy.html") and attempts[request.url.path] < 3:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        body = (
+            f"<html><head><title>Strona</title></head><body><p>Treść komunikatu {request.url.path}.</p></body></html>"
+        )
+        return httpx.Response(200, text=body, headers={"content-type": "text/html"})
+
+    state = asyncio.run(refresh_feeds(models=None, store=None, transport=httpx.MockTransport(handler)))
+    assert (state.failed, state.last_error) == (0, None)
+    assert feed_document_id(NEW_ARTICLE) in ingested
