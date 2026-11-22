@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-22.1",
+  "version": "2026-11-22.2",
   "note": "Katalog zaufanych źródeł: lista domen rządowych od mentora MSZ (aktualności i ostrzeżenia), rekomendacje briefu (spec/brief.md §7) i weryfikatorzy faktów. Dopasowanie po domenie URL (domena lub jej poddomena, najdłuższa wygrywa). Obecność domeny w katalogu nigdy nie jest podstawą werdyktu, tylko domyślnych metadanych i neutralnej informacji o statusie źródła.",
   "rules": {
     "official": "Organ władzy publicznej, instytucja państwowa lub unijna. Dokumenty pierwotne: akty prawne, komunikaty, dane. Tier 1, wiarygodność wysoka.",
@@ -40,6 +40,7 @@
       "reliability": "high",
       "qualification": "Druki, głosowania, stenogramy."
     },
+    {"publisher": "Kancelaria Prezydenta RP", "domains": ["prezydent.pl"], "sourceType": "official", "tier": 1, "reliability": "high", "qualification": "Komunikaty i aktualności Prezydenta RP. Dodane, by datowana aktywność urzędującego prezydenta mogła obalić tezę o jego śmierci lub dymisji (nie jako dowód z samej ciszy)."},
     {
       "publisher": "Senat RP",
       "domains": [

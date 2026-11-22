@@ -2,11 +2,13 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from urllib.parse import urljoin
 
 import httpx
 
@@ -30,12 +32,27 @@ feed_state = CorpusSyncState()
 _feed_lock = asyncio.Lock()
 
 
+POLISH_MONTHS = {
+    "stycznia": 1, "lutego": 2, "marca": 3, "kwietnia": 4, "maja": 5, "czerwca": 6,
+    "lipca": 7, "sierpnia": 8, "września": 9, "października": 10, "listopada": 11, "grudnia": 12,
+}  # fmt: skip
+VISIBLE_DATE = re.compile(r"^\s*(\d{1,2}) (" + "|".join(POLISH_MONTHS) + r") (\d{4})\b")
+HREF = re.compile(r'href="([^"#]+)"')
+KIND_RSS = "rss"
+KIND_HTML = "html"
+
+
 @dataclass(frozen=True)
 class Feed:
     name: str
     url: str
     max_items: int
     exempt_hosts: frozenset[str]
+    kind: str = KIND_RSS
+    # html lists only: which links on the list page are articles (matched against the link path).
+    link_pattern: re.Pattern[str] | None = None
+    # The publication date may be read from the start of the page text when the site gives none in its metadata.
+    visible_date: bool = False
 
 
 @dataclass(frozen=True)
@@ -53,6 +70,9 @@ def load_feeds() -> list[Feed]:
             url=item["url"],
             max_items=item["maxItems"],
             exempt_hosts=frozenset(host.lower() for host in item.get("exemptHosts", [])),
+            kind=item.get("kind", KIND_RSS),
+            link_pattern=re.compile(item["linkPattern"]) if item.get("linkPattern") else None,
+            visible_date=item.get("visibleDate", False),
         )
         for item in payload["feeds"]
     ]
@@ -60,6 +80,35 @@ def load_feeds() -> list[Feed]:
 
 def feed_document_id(url: str) -> str:
     return FEED_PREFIX + hashlib.sha256(url.encode("utf-8")).hexdigest()[:FEED_ID_LENGTH]
+
+
+def visible_date(text: str) -> datetime | None:
+    """The date a page prints at the top of its text ("19 listopada 2026 ..."); never inferred from anything else."""
+    match = VISIBLE_DATE.match(text)
+    if match is None:
+        return None
+    try:
+        return datetime(int(match[3]), POLISH_MONTHS[match[2]], int(match[1]), tzinfo=UTC)
+    except ValueError:
+        return None
+
+
+def parse_list_page(html: str, feed: Feed) -> list[FeedItem]:
+    """Article links of a list page (feeds without RSS), in page order, without duplicates."""
+    if feed.link_pattern is None:
+        return []
+    items: list[FeedItem] = []
+    seen: set[str] = set()
+    for href in HREF.findall(html):
+        path = href if href.startswith("/") else ""
+        link = urljoin(feed.url, href)
+        if not path or not feed.link_pattern.match(path) or link in seen:
+            continue
+        seen.add(link)
+        items.append(FeedItem(title="", link=link, published_at=None))
+        if len(items) == feed.max_items:
+            break
+    return items
 
 
 def _published_at(raw: str | None) -> datetime | None:
@@ -97,6 +146,8 @@ async def _read_feed(client: httpx.AsyncClient, feed: Feed) -> list[FeedItem]:
     response.raise_for_status()
     if len(response.content) > settings.feeds_max_bytes:
         raise ValueError(f"feed larger than {settings.feeds_max_bytes} bytes")
+    if feed.kind == KIND_HTML:
+        return parse_list_page(response.text, feed)
     return parse_feed(response.text, feed.max_items)
 
 
@@ -145,6 +196,17 @@ async def refresh_feeds(
                         state.failed += 1
                         logger.warning("Feed %s: %s skipped (%s)", feed.name, item.link, error)
                     else:
+                        published_at = (
+                            item.published_at
+                            or fetched.published_at
+                            or (visible_date(fetched.text) if feed.visible_date else None)
+                        )
+                        if published_at is None:
+                            # Search drops passages without a date, so indexing the page would only cost CPU.
+                            state.failed += 1
+                            logger.warning("Feed %s: %s has no publication date, skipped", feed.name, item.link)
+                            await asyncio.sleep(settings.corpus_fetch_delay_seconds)
+                            continue
                         pages.append(
                             Page(
                                 document_id=document_id,
@@ -152,7 +214,7 @@ async def refresh_feeds(
                                 title=fetched.title or item.title,
                                 content=fetched.text,
                                 fetched_at=datetime.now(UTC),
-                                published_at=item.published_at or fetched.published_at,
+                                published_at=published_at,
                             )
                         )
                     await asyncio.sleep(settings.corpus_fetch_delay_seconds)

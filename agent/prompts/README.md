@@ -36,6 +36,8 @@ Model proponuje, Go rozstrzyga. Odpowiedź modelu jest odrzucana albo obniżana,
 9. **`evidenceStrength`** liczone w Go z przesłanek: typ i liczba niezależnych źródeł, wiek (`publishedAt`), zgodność ról z werdyktem. `strengthReasons` to te przesłanki po polsku.
 10. **Spójność kanałów**: ten sam `input` daje ten sam wynik; `rag/` ma cache, a `temperature: 0` ogranicza losowość modelu. Przy rozjeździe wygrywają reguły powyżej, nie model.
 
+11. **Twierdzenia o osobie** (śmierć, dymisja, areszt): reguła 12 w `judge.system.md`. Brak wzmianki nie obala tezy; `false` wymaga cytatu ze źródła z datą późniejszą niż rzekome zdarzenie, które opisuje osobę jako działającą na urzędzie. Dotyczy to wyłącznie dowodu pozytywnego, nigdy ciszy (brief, scenariusz D).
+
 ## Przepływ `Verify`
 
 1. Wejście: `text` albo `url`. Dla `url` agent woła `POST /fetch` w `rag/` (ten sam parser co przy zasilaniu korpusu; decyzja zespołu: pobieranie zostaje w rag), dostaje tytuł, tekst i datę publikacji strony, a potem `POST /match`. Odmowa pobrania ma kod: serwis wideo/społecznościowy → `out_of_scope`, plik → `needs_clarification` o pliku, zapora albo brak tekstu → `needs_clarification` o blokadzie, reszta → „nie udało się odczytać”. Tekst z dokładnie jednym linkiem w środku też pobiera tę stronę i sprawdza ją razem z tekstem (nieudane pobranie to tylko wpis w `limitations`); kilka linków nie jest pobieranych. (czy strona jest znanym materiałem: `materialMatch`, kontekst). Strona starsza niż rok daje każdemu twierdzeniu ostrzeżenie `archival_material` i wpis w `limitations`; brak daty publikacji to osobny wpis w `limitations`. Maskowanie danych osobowych robi backend przed `Verify`.

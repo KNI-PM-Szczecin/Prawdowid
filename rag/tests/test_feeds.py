@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 import httpx
 import pytest
@@ -126,5 +127,72 @@ def test_a_page_the_server_drops_once_is_retried_before_it_counts_as_failed(inge
         return httpx.Response(200, text=body, headers={"content-type": "text/html"})
 
     state = asyncio.run(refresh_feeds(models=None, store=None, transport=httpx.MockTransport(handler)))
-    assert (state.failed, state.last_error) == (0, None)
+    # the one failure is the entry whose feed date is unreadable ("wczoraj") and whose page prints none
+    assert (state.failed, state.last_error) == (1, None)
     assert feed_document_id(NEW_ARTICLE) in ingested
+
+
+LIST_FEED = feeds.Feed(
+    "Prezydent",
+    "https://www.prezydent.pl/aktualnosci",
+    10,
+    frozenset(),
+    kind="html",
+    link_pattern=re.compile(r"^/aktualnosci/[^/]+/[^/]+,\d+$"),
+    visible_date=True,
+)
+ARTICLE_URL = "https://www.prezydent.pl/aktualnosci/wydarzenia/spotkanie-prezydenta,130385"
+LIST_HTML = (
+    '<a href="/aktualnosci/page,2">2</a>'
+    '<a href="/aktualnosci/wydarzenia/spotkanie-prezydenta,130385">Spotkanie</a>'
+    '<a href="/aktualnosci/wydarzenia/spotkanie-prezydenta,130385">Spotkanie (obrazek)</a>'
+    '<a href="https://example.org/aktualnosci/x/y,1">obcy</a>'
+    '<a href="/aktualnosci/odznaczenia/odznaczenia,130367">Odznaczenia</a>'
+)
+
+
+def test_visible_date_reads_only_a_date_printed_at_the_top_of_the_text():
+    assert feeds.visible_date("19 listopada 2026 W Auli Kryształowej odbyła się uroczystość.").isoformat() == (
+        "2026-11-19T00:00:00+00:00"
+    )
+    assert feeds.visible_date("Spotkanie z 19 listopada 2026 roku.") is None
+    assert feeds.visible_date("31 lutego 2026 błędna data") is None
+
+
+def test_list_page_yields_article_links_by_pattern_without_pagination_foreign_hosts_or_duplicates():
+    items = feeds.parse_list_page(LIST_HTML, LIST_FEED)
+    assert [item.link for item in items] == [
+        ARTICLE_URL,
+        "https://www.prezydent.pl/aktualnosci/odznaczenia/odznaczenia,130367",
+    ]
+
+
+def _list_transport(article_text: str) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == LIST_FEED.url:
+            return httpx.Response(200, text=LIST_HTML)
+        body = f"<html><head><title>Aktualność</title></head><body><p>{article_text}</p></body></html>"
+        return httpx.Response(200, text=body, headers={"content-type": "text/html"})
+
+    return httpx.MockTransport(handler)
+
+
+def test_a_list_feed_indexes_articles_with_the_date_printed_on_the_page(ingested, monkeypatch):
+    monkeypatch.setattr(feeds, "load_feeds", lambda: [LIST_FEED])
+    asyncio.run(
+        refresh_feeds(
+            models=None, store=None, transport=_list_transport("19 listopada 2026 Prezydent spotkał się z gośćmi.")
+        )
+    )
+    document = ingested[feed_document_id(ARTICLE_URL)]
+    assert document.source.published_at.isoformat() == "2026-11-19T00:00:00+00:00"
+    assert document.source.publisher == "Kancelaria Prezydenta RP"
+
+
+def test_a_page_without_any_publication_date_is_not_indexed(ingested, monkeypatch):
+    monkeypatch.setattr(feeds, "load_feeds", lambda: [LIST_FEED])
+    state = asyncio.run(
+        refresh_feeds(models=None, store=None, transport=_list_transport("Prezydent spotkał się z gośćmi."))
+    )
+    assert ingested == {}
+    assert state.failed == 2

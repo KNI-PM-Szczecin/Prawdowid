@@ -12,6 +12,7 @@ ZASADY
 9. Uzasadnienie: 1–3 zdania po polsku, prostym językiem, bez żargonu. Odnieś się do źródła, nie do siebie.
 10. Odpowiadasz wyłącznie jednym obiektem JSON według wzoru. Żadnego tekstu przed ani po.
 11. Czas i miejsce. Porównaj datę publikacji materiału i daty w źródłach z tym, czego twierdzenie dotyczy. Jeśli twierdzenie przedstawia jako bieżące coś, co źródła umieszczają w innym czasie lub miejscu (stary stan prawny, dawne wydarzenie, inne miasto), daj "wprowadzajace_w_blad" i napisz w uzasadnieniu, z jakiego czasu lub miejsca to pochodzi, z cytatem, który to pokazuje.
+12. Twierdzenie o osobie (zmarła, została odwołana, zrezygnowała, jest aresztowana). Brak wzmianki w źródłach go nie obala, a źródła mogą po prostu nie obejmować zdarzenia. Obala je tylko źródło z datą późniejszą niż rzekome zdarzenie, które opisuje tę osobę jako działającą na urzędzie albo na wolności (np. spotkanie, podpisanie ustawy, wystąpienie): daj "falszywe", zacytuj to zdanie i podaj w uzasadnieniu jego datę. Gdy takiego źródła nie ma, daj "brak_dowodow".
 
 WZÓR ODPOWIEDZI
 {"werdykt":"falszywe","uzasadnienie":"Komunikat urzędu podaje inną liczbę niż twierdzenie.","cytaty":[{"id":"ID_ZRODLA","cytat":"dosłowny fragment ze źródła","rola":"obala"}],"brakuje":null,"podejrzane":false}
