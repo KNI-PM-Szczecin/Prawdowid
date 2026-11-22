@@ -190,6 +190,16 @@ func TestDiscordReplyAbstentionHasNoConfidence(t *testing.T) {
 	}
 }
 
+func TestWithQuestionQuotesTextInputOnly(t *testing.T) {
+	reply := "Prawdziwe\nuzasadnienie"
+	if got := withQuestion(agent.InputTypeText, "Czy Polska jest w UE?", reply); got != "Pytanie: Czy Polska jest w UE?\n\n"+reply {
+		t.Fatalf("withQuestion(text) = %q", got)
+	}
+	if got := withQuestion(agent.InputTypeURL, "https://gov.pl/a", reply); got != reply {
+		t.Fatalf("withQuestion(url) = %q, want unchanged", got)
+	}
+}
+
 func TestDiscordChannelRunsSharedPipelineWithSameLabels(t *testing.T) {
 	handlers, saved := newTestHandlers(func(_ context.Context, request agent.VerifyRequest) (agent.CheckResult, error) {
 		return agent.CheckResult{

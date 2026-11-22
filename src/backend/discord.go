@@ -154,7 +154,7 @@ func (b *discordBot) handleInteraction(session *discordgo.Session, interaction *
 	inputType := detectInputType(query)
 	if message := validateCheck(checkRequest{Input: query, InputType: inputType}); message != "" {
 		result := b.checks.nonMerit(requestID, discordChannelName, agent.StatusNeedsClarification, message)
-		b.replyNow(session, interaction, formatCheckReply(result))
+		b.replyNow(session, interaction, withQuestion(inputType, query, formatCheckReply(result)))
 		return
 	}
 
@@ -170,8 +170,8 @@ func (b *discordBot) handleInteraction(session *discordgo.Session, interaction *
 	defer cancel()
 	result, _ := b.checks.runCheck(ctx, requestID, discordChannelName, query, inputType)
 
-	shortContent := truncateReply(formatDiscordReply(result, false))
-	fullContent := truncateReply(formatDiscordReply(result, true))
+	shortContent := truncateReply(withQuestion(inputType, query, formatDiscordReply(result, false)))
+	fullContent := truncateReply(withQuestion(inputType, query, formatDiscordReply(result, true)))
 	message, err := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{Content: &shortContent})
 	if err != nil {
 		b.logger.Error("discord edit reply failed", "requestId", requestID, "error", err)
@@ -187,6 +187,16 @@ func (b *discordBot) handleInteraction(session *discordgo.Session, interaction *
 		}
 		b.rememberReply(message.ChannelID, message.ID, emoji, shortContent, fullContent)
 	}
+}
+
+// withQuestion quotes the user's exact input at the top of the reply, so the answer always shows
+// what was asked, even when claim extraction rephrases the question into a statement. URL inputs
+// skip the prefix: the quoted claim already echoes the link.
+func withQuestion(inputType, query, reply string) string {
+	if inputType != agent.InputTypeText {
+		return reply
+	}
+	return "Pytanie: " + query + "\n\n" + reply
 }
 
 func (b *discordBot) replyNow(session *discordgo.Session, interaction *discordgo.InteractionCreate, message string) {
