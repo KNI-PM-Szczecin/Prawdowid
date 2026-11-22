@@ -21,7 +21,7 @@ from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.fetcher import FetchError, fetch_page
-from app.incidents import incident_point_id, index_incidents, load_seed_incidents
+from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
 from app.law_import import import_law, law_state
 from app.models import (
@@ -40,11 +40,14 @@ from app.models import (
     IngestRequest,
     IngestResult,
     PruneReport,
+    ReportMatchRequest,
+    ReportMatchResponse,
     SearchRequest,
     SearchResponse,
     SourceAuditEntry,
     SourceCatalog,
 )
+from app.reports import REPORTS_COLLECTION_NAME, match_report
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.seed import ensure_seed_corpus
 from app.vector_store import VectorStore
@@ -82,6 +85,9 @@ async def lifespan(app: FastAPI):
     incidents = VectorStore(settings.incident_collection_name)
     await incidents.ensure_collection()
     app.state.incidents = incidents
+    reports = VectorStore(REPORTS_COLLECTION_NAME)
+    await reports.ensure_collection()
+    app.state.reports = reports
     logger.info("Disinformation incident catalog: %d entries", await incidents.count())
     euvsdisinfo = EuvsDisinfoClient()
     app.state.euvsdisinfo = euvsdisinfo
@@ -102,10 +108,12 @@ async def lifespan(app: FastAPI):
             seed_report.skipped_duplicates,
             seed_report.failed,
         )
-    if settings.seed_incidents_enabled and await incidents.count() == 0:
+    if settings.seed_incidents_enabled:
         try:
-            seeded = await index_incidents(load_seed_incidents(), app.state.models, incidents)
-            logger.info("Seed incident catalog: %d entries", seeded)
+            # Upserted at every start, not only when the catalog is empty: an EUvsDisinfo import can run
+            # first and then the demo-critical cases would never arrive (they fall outside newest-N).
+            seeded = await ensure_seed_incidents(app.state.models, incidents)
+            logger.info("Seed incident catalog ensured: %d entries", seeded)
         except Exception:
             logger.exception("Seeding the incident catalog failed; search continues without it")
 
@@ -127,6 +135,7 @@ async def lifespan(app: FastAPI):
         await factcheck.close()
         await euvsdisinfo.close()
         await incidents.close()
+        await reports.close()
         await store.close()
         await db.close()
 
@@ -191,6 +200,13 @@ async def health(response: Response) -> HealthResponse:
     )
 
 
+@app.post("/reports/match", response_model=ReportMatchResponse)
+async def reports_match(request: ReportMatchRequest) -> ReportMatchResponse:
+    """Groups an unresolved question with earlier similar ones for the moderator; called by the backend only."""
+    case_id, matched, score = await match_report(request.claim, app.state.models, app.state.reports)
+    return ReportMatchResponse(case_id=case_id, matched=matched, score=score)
+
+
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> SearchResponse:
     response = await search_passages(
@@ -224,7 +240,10 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
 async def fetch_url(request: FetchRequest) -> FetchResponse:
     """Page text for agent/ when the user submits a URL; nothing is stored, the same parser as for the corpus."""
     try:
-        async with httpx.AsyncClient(timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=True) as client:
+        # fetch_timeout_seconds, not the corpus one: agent/ gives rag 12 s, so a 15 s page would be a
+        # guaranteed technical_error on agent's side before this endpoint ever answered. Redirects are
+        # followed inside fetch_page, with a URL guard check on every target.
+        async with httpx.AsyncClient(timeout=settings.fetch_timeout_seconds, follow_redirects=False) as client:
             page = await fetch_page(client, str(request.url))
     except FetchError as error:
         raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=FETCH_FAILED_MESSAGE.format(reason=error)) from error

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
+from app import fetcher
 from app.config import settings
 from app.fetcher import FetchError, extract_published_at, extract_text, fetch_page
 
@@ -44,7 +45,17 @@ def test_extract_published_at_rejects_missing_implausible_and_prose_dates():
 
 
 def _client(handler) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True)
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+
+
+@pytest.fixture(autouse=True)
+def allow_any_host(monkeypatch):
+    """The URL guard is stubbed here; it has its own tests with stubbed DNS in test_url_guard.py."""
+
+    async def allow(url):
+        return None
+
+    monkeypatch.setattr(fetcher, "assert_public_url", allow)
 
 
 def test_fetch_page_returns_text_and_sends_generic_user_agent():
@@ -92,3 +103,48 @@ def test_fetch_page_reads_publication_date_from_metadata():
 def test_fetch_page_rejects_errors_non_html_empty_and_oversized(response):
     with pytest.raises(FetchError):
         asyncio.run(fetch_page(_client(lambda request: response), "https://www.gov.pl/x"))
+
+
+def test_fetch_page_follows_redirects_and_checks_every_hop(monkeypatch):
+    checked = []
+
+    async def guard(url):
+        checked.append(url)
+
+    monkeypatch.setattr(fetcher, "assert_public_url", guard)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "https://www.gov.pl/next"})
+        return httpx.Response(200, text=HTML, headers={"content-type": "text/html; charset=utf-8"})
+
+    page = asyncio.run(fetch_page(_client(handler), "https://www.gov.pl/start"))
+    assert checked == ["https://www.gov.pl/start", "https://www.gov.pl/next"]
+    assert page.url == "https://www.gov.pl/next"
+    assert "Alert RCB" in page.text
+
+
+def test_fetch_page_rejects_redirect_to_internal_address(monkeypatch):
+    from app.url_guard import BlockedURLError
+
+    async def guard(url):
+        if "next.example" in url:
+            raise BlockedURLError("next.example resolves to a non-public address")
+
+    monkeypatch.setattr(fetcher, "assert_public_url", guard)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "http://next.example/panel"})
+        return httpx.Response(200, text=HTML, headers={"content-type": "text/html"})
+
+    with pytest.raises(FetchError, match="blocked"):
+        asyncio.run(fetch_page(_client(handler), "https://www.gov.pl/start"))
+
+
+def test_fetch_page_stops_after_too_many_redirects():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": f"{request.url}/loop"})
+
+    with pytest.raises(FetchError, match="too many redirects"):
+        asyncio.run(fetch_page(_client(handler), "https://www.gov.pl/start"))

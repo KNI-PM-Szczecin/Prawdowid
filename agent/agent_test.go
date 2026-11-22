@@ -546,3 +546,82 @@ func TestQuestionFallbackNotUsedWhenExtractionFindsClaims(t *testing.T) {
 		t.Fatalf("expected the extracted claim, got %+v", result.Claims)
 	}
 }
+
+// One word or a stray character is not a claim: the citizen is asked to clarify and nothing is searched or sent
+// to the model (rag/ would reject a query under 3 characters as a technical error).
+func TestTooShortInputNeedsClarificationWithoutSearch(t *testing.T) {
+	for _, input := range []string{"x", "Polska", "  5G?  ", "hej!!!", "…"} {
+		provider := &fakeProvider{judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+		rag := &ragStub{search: searchWith(officialPassage())}
+		result := verify(t, newTestAgent(t, provider, rag), input, InputTypeText)
+		if result.Status != StatusNeedsClarification || len(rag.queryList()) != 0 || len(provider.callList()) != 0 {
+			t.Errorf("%q: expected needs_clarification without search or model, got %s, queries %v, calls %v",
+				input, result.Status, rag.queryList(), provider.callList())
+		}
+	}
+}
+
+func TestTwoWordClaimsAreChecked(t *testing.T) {
+	for _, input := range []string{"5G zabija", "COVID-19 istnieje"} {
+		rag := &ragStub{search: searchWith(officialPassage())}
+		result := verify(t, newTestAgent(t, &fakeProvider{judge: judgeJSON("brak_dowodow", "Sejm i Senat są wybierane na czteroletnie kadencje", "kontekst")}, rag), input, InputTypeText)
+		if result.Status != StatusOK || len(rag.queryList()) != 1 {
+			t.Errorf("%q: expected a checked claim, got %s %v", input, result.Status, rag.queryList())
+		}
+	}
+}
+
+// The yes/no fallback must not turn "Czy Polska?" into a one-word claim.
+func TestQuestionFallbackSkipsOneWordStatement(t *testing.T) {
+	result := verify(t, newTestAgent(t, &fakeProvider{extract: emptyExtraction}, &ragStub{search: searchWith(officialPassage())}),
+		"Czy Polska?", InputTypeText)
+	if result.Status != StatusNeedsClarification {
+		t.Fatalf("expected needs_clarification, got %s %+v", result.Status, result.Claims)
+	}
+}
+
+const secondChunk = "44444444-4444-4444-4444-444444444444"
+
+func twoFragmentsOfOneDocument() (Passage, Passage) {
+	first := officialPassage()
+	second := officialPassage()
+	second.ChunkID = secondChunk
+	second.Passage = "Art. 96. 1. Sejm składa się z 460 posłów. 2. Wybory do Sejmu są powszechne."
+	return first, second
+}
+
+func judgeTwoCitations(firstRole, secondRole string) string {
+	return `{"werdykt":"potwierdzone","uzasadnienie":"Konstytucja.","cytaty":[` +
+		`{"id":"` + officialChunk + `","cytat":"Sejm i Senat są wybierane na czteroletnie kadencje","rola":"` + firstRole + `"},` +
+		`{"id":"` + secondChunk + `","cytat":"Sejm składa się z 460 posłów","rola":"` + secondRole + `"}],"brakuje":null,"podejrzane":false}`
+}
+
+func TestTwoFragmentsOfOneDocumentAreOneSource(t *testing.T) {
+	first, second := twoFragmentsOfOneDocument()
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judgeTwoCitations("potwierdza", "potwierdza")},
+		&ragStub{search: searchWith(first, second)}), claimSejm, InputTypeText)
+	sources := result.Claims[0].Sources
+	if len(sources) != 1 || sources[0].Quote != "Sejm i Senat są wybierane na czteroletnie kadencje" {
+		t.Fatalf("expected one source with the first quote, got %+v", sources)
+	}
+}
+
+func TestDecisiveFragmentReplacesContextFragmentOfSameDocument(t *testing.T) {
+	first, second := twoFragmentsOfOneDocument()
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judgeTwoCitations("kontekst", "potwierdza")},
+		&ragStub{search: searchWith(first, second)}), "Sejm Rzeczypospolitej Polskiej składa się z 460 posłów.", InputTypeText)
+	claim := result.Claims[0]
+	if len(claim.Sources) != 1 || claim.Sources[0].Role != RoleSupports || claim.Sources[0].ID != secondChunk || claim.Verdict != VerdictConfirmed {
+		t.Fatalf("expected one supporting source from the second fragment, got %s %+v", claim.Verdict, claim.Sources)
+	}
+}
+
+func TestFragmentsOfDifferentDocumentsStaySeparate(t *testing.T) {
+	first, second := twoFragmentsOfOneDocument()
+	second.DocumentID = "isap-konstytucja-inny"
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judgeTwoCitations("potwierdza", "potwierdza")},
+		&ragStub{search: searchWith(first, second)}), claimSejm, InputTypeText)
+	if sources := result.Claims[0].Sources; len(sources) != 2 {
+		t.Fatalf("expected two sources, got %+v", sources)
+	}
+}

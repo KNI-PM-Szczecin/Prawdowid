@@ -60,6 +60,8 @@ type checkHandlers struct {
 	catalog *sourceCatalog
 	// trustedProxyHops tells the rate limiter which X-Forwarded-For entry (counted from the right) is ours.
 	trustedProxyHops int
+	// cases is optional: without it the answer carries an empty case list.
+	cases *caseTracker
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
@@ -88,6 +90,7 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 
 	result, statusCode := h.runCheck(request.Context(), requestID, webChannel, body.Input, body.InputType)
 	response := h.withSummary(result)
+	response.Cases = h.cases.track(request.Context(), result)
 	if body.InputType == agent.InputTypeURL && result.Status == agent.StatusOK {
 		response.Badges = h.addCatalogBadge(request.Context(), response.Badges, body.Input)
 	}
@@ -129,8 +132,9 @@ func (h *checkHandlers) addCatalogBadge(ctx context.Context, badges []string, ra
 // checkResponse is the web answer: the agent result plus the deterministic fields from CONTRACT.md section 1a.
 type checkResponse struct {
 	agent.CheckResult
-	Summary Summary  `json:"summary"`
-	Badges  []string `json:"badges"`
+	Summary Summary      `json:"summary"`
+	Badges  []string     `json:"badges"`
+	Cases   []CaseNotice `json:"cases"`
 }
 
 func (h *checkHandlers) withSummary(result agent.CheckResult) checkResponse {
@@ -138,6 +142,7 @@ func (h *checkHandlers) withSummary(result agent.CheckResult) checkResponse {
 		CheckResult: result,
 		Summary:     buildSummary(result),
 		Badges:      buildBadges(result, h.now(), h.archivalAfter),
+		Cases:       []CaseNotice{},
 	}
 }
 

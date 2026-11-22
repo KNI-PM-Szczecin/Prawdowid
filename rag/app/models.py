@@ -162,6 +162,16 @@ class IncidentIngestRequest(ApiModel):
     incidents: list[IncidentIn] = Field(min_length=1, max_length=INCIDENT_BATCH_MAX)
 
 
+class ReportMatchRequest(ApiModel):
+    claim: str = Field(min_length=3, max_length=QUERY_MAX_CHARS)
+
+
+class ReportMatchResponse(ApiModel):
+    case_id: UUID
+    matched: bool
+    score: float | None
+
+
 class IncidentIngestResult(ApiModel):
     indexed: int
     catalog_size: int

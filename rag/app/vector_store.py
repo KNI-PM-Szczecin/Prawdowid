@@ -155,23 +155,28 @@ class VectorStore:
         Id of another document that most of the given chunks point to as their nearest neighbour, with a high mean
         cosine: a re-fetched or lightly edited copy that the exact content hash cannot catch. Chunk boundaries of
         the copy may be shifted, so the rule uses the mean over all chunks, not a per-chunk threshold.
+        All chunk queries go out as one batch: a large document means hundreds of vectors, and per-chunk
+        round trips made ingesting it minutes instead of seconds.
         """
         if not dense_vectors:
             return None
         other_documents = models.Filter(
             must_not=[models.FieldCondition(key="source_id", match=models.MatchValue(value=source_id))]
         )
-        matches: Counter[str] = Counter()
-        best_scores: list[float] = []
-        for vector in dense_vectors:
-            response = await self._client.query_points(
-                self._collection,
+        requests = [
+            models.QueryRequest(
                 query=vector,
                 using=DENSE_VECTOR_NAME,
-                query_filter=other_documents,
+                filter=other_documents,
                 limit=1,
                 with_payload=["source_id"],
             )
+            for vector in dense_vectors
+        ]
+        responses = await self._client.query_batch_points(self._collection, requests=requests)
+        matches: Counter[str] = Counter()
+        best_scores: list[float] = []
+        for response in responses:
             if response.points:
                 matches[response.points[0].payload["source_id"]] += 1
                 best_scores.append(response.points[0].score)

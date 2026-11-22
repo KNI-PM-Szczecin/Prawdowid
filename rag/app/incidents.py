@@ -23,6 +23,16 @@ def load_seed_incidents() -> list[IncidentIn]:
     return [IncidentIn.model_validate(item) for item in payload["incidents"]]
 
 
+async def ensure_seed_incidents(models: EmbeddingModels, store: VectorStore) -> int:
+    """
+    Upserts the seed catalog entries at every startup (idempotent: a case always keeps the same point id).
+    Seeding only an empty catalog is not enough: an EUvsDisinfo import can run before the first seed load
+    and then the demo-critical cases would never arrive, because they fall outside the newest-N window.
+    """
+    seeded = await index_incidents(load_seed_incidents(), models, store)
+    return seeded
+
+
 def incident_point_id(source: str, incident_id: str) -> UUID:
     """Stable id per catalog entry, so re-importing the same catalog updates points instead of duplicating them."""
     return uuid5(NAMESPACE_URL, f"incident:{source}:{incident_id}")

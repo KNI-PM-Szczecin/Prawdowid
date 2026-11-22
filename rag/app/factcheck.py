@@ -2,13 +2,13 @@ import asyncio
 import hashlib
 import logging
 import re
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
 
+from app.caching import TtlCache
 from app.config import settings
 from app.languages import load_profile
 from app.models import ExternalSourceStatus
@@ -123,7 +123,9 @@ class FactCheckClient:
 
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._client = httpx.AsyncClient(timeout=settings.factcheck_timeout_seconds, transport=transport)
-        self._cache: dict[str, tuple[float, list[FactCheckReview]]] = {}
+        self._cache: TtlCache[str, list[FactCheckReview]] = TtlCache(
+            settings.factcheck_cache_ttl_seconds, settings.factcheck_cache_max_entries
+        )
 
     @property
     def enabled(self) -> bool:
@@ -135,15 +137,10 @@ class FactCheckClient:
         return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
     def _cached(self, query: str) -> list[FactCheckReview] | None:
-        entry = self._cache.get(self._cache_key(query))
-        if entry is None or entry[0] < time.monotonic():
-            return None
-        return entry[1]
+        return self._cache.get(self._cache_key(query))
 
     def _remember(self, query: str, reviews: list[FactCheckReview]) -> None:
-        if len(self._cache) >= settings.factcheck_cache_max_entries:
-            self._cache.pop(next(iter(self._cache)))
-        self._cache[self._cache_key(query)] = (time.monotonic() + settings.factcheck_cache_ttl_seconds, reviews)
+        self._cache.put(self._cache_key(query), reviews)
 
     async def search(self, query: str) -> FactCheckResult:
         """
