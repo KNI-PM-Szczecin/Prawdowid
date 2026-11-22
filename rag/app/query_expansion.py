@@ -8,6 +8,7 @@ import httpx
 
 from app.caching import TtlCache
 from app.config import settings
+from app.countries import nominative_forms
 from app.lexical import content_words
 from app.models import ExpandedQueries
 
@@ -36,8 +37,13 @@ def _as_statement(claim: str) -> str:
 
 
 def _rules_keywords(claim: str) -> str:
-    """Without a model the keywords are the claim's content words (no stopwords), capped so the query stays focused."""
-    return " ".join(content_words(claim)[:RULES_KEYWORDS_MAX_WORDS])
+    """
+    Without a model the keywords are the claim's content words (no stopwords, no time adverbs), capped so the query
+    stays focused. A country is given in the nominative (we Włoszech -> Włochy): gov.pl titles and addresses use it.
+    """
+    nominatives = nominative_forms(claim)
+    words = dict.fromkeys(nominatives.get(word, word) for word in content_words(claim))
+    return " ".join(list(words)[:RULES_KEYWORDS_MAX_WORDS])
 
 
 def expand_with_rules(claim: str) -> ExpandedQueries:

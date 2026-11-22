@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 from contextlib import asynccontextmanager
@@ -56,6 +57,7 @@ from app.models import (
     SourceCatalog,
 )
 from app.ocr import OcrError, OcrUnavailableError, read_image
+from app.odyseusz import OdyseuszClient, odyseusz_state, refresh_odyseusz
 from app.primary_hop import PrimaryHopClient
 from app.reconcile import reconcile_vectors
 from app.reports import REPORTS_COLLECTION_NAME, match_report
@@ -86,6 +88,7 @@ OCR_FAILED_MESSAGE = "Nie udało się odczytać obrazu: {reason}."
 OCR_UNAVAILABLE_MESSAGE = "Odczyt tekstu z obrazu jest chwilowo niedostępny."
 NEAR_DUPLICATE_MESSAGE = "Dokument {document_id} ma niemal tę samą treść co {duplicate_of} (parafraza). Nie wgrano."
 EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
+NO_CACHE_DIRECTIVE = "no-cache"
 
 
 @asynccontextmanager
@@ -111,6 +114,9 @@ async def lifespan(app: FastAPI):
     app.state.gov_search = gov_search
     primary_hop = PrimaryHopClient()
     app.state.primary_hop = primary_hop
+    odyseusz = OdyseuszClient()
+    app.state.odyseusz = odyseusz
+    logger.info("Odyseusz (MSZ) travel notices %s", "enabled" if odyseusz.enabled else "disabled")
     logger.info("gov.pl gap filling %s", "enabled" if gov_search.enabled else "disabled")
     logger.info("Google Fact Check source %s", "enabled" if factcheck.enabled else "disabled (no FACTCHECK_API_KEY)")
 
@@ -146,6 +152,7 @@ async def lifespan(app: FastAPI):
         await factcheck.close()
         await gov_search.close()
         await primary_hop.close()
+        await odyseusz.close()
         await euvsdisinfo.close()
         await incidents.close()
         await reports.close()
@@ -223,15 +230,25 @@ async def reports_match(request: ReportMatchRequest) -> ReportMatchResponse:
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> SearchResponse:
+async def search(
+    request: SearchRequest,
+    background_tasks: BackgroundTasks,
+    cache_control: Annotated[str | None, Header()] = None,
+) -> SearchResponse:
+    """`Cache-Control: no-cache` recomputes the answer and overwrites the cached one (eval runs, corrected data)."""
+    refresh = NO_CACHE_DIRECTIVE in (cache_control or "").casefold()
     response = await search_passages(
-        request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+        request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents, refresh=refresh
     )
     if gov_search_wanted(request, response.results):
         # gov.pl search is keyword-based: the whole sentence of a claim buries the relevant pages in noise.
         gap_query = response.expanded_queries.keywords or request.query
-        gap_fill = await app.state.gov_search.fill(gap_query, app.state.models, app.state.store)
-        if gap_fill.indexed:
+        # The MSZ notice for a country named in the claim is fetched beside gov.pl, within the same budget.
+        gap_fill, odyseusz_fill = await asyncio.gather(
+            app.state.gov_search.fill(gap_query, app.state.models, app.state.store, claim=request.query),
+            app.state.odyseusz.fill(request.query, app.state.models, app.state.store),
+        )
+        if gap_fill.indexed or odyseusz_fill.indexed:
             response = await search_passages(
                 request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
             )
@@ -273,7 +290,7 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
 async def fetch_url(request: FetchRequest) -> FetchResponse:
     """Page text for agent/ when the user submits a URL; nothing is stored, the same parser as for the corpus."""
     try:
-        # fetch_timeout_seconds, not the corpus one: agent/ gives rag 12 s, so a 15 s page would be a
+        # fetch_timeout_seconds, not the corpus one: agent/ gives rag 30 s, so a slower page would be a
         # guaranteed technical_error on agent's side before this endpoint ever answered. Redirects are
         # followed inside fetch_page, with a URL guard check on every target.
         async with httpx.AsyncClient(timeout=settings.fetch_timeout_seconds, follow_redirects=False) as client:
@@ -454,6 +471,19 @@ async def start_feed_refresh(background_tasks: BackgroundTasks) -> CorpusSyncSta
     if not feed_state.running:
         background_tasks.add_task(refresh_feeds, app.state.models, app.state.store)
     return _corpus_status(feed_state)
+
+
+@app.get("/corpus/odyseusz", response_model=CorpusSyncStatus)
+async def corpus_odyseusz_status() -> CorpusSyncStatus:
+    return _corpus_status(odyseusz_state)
+
+
+@app.post("/admin/corpus/odyseusz", response_model=CorpusSyncStatus, status_code=HTTP_ACCEPTED, dependencies=AdminOnly)
+async def start_odyseusz_refresh(background_tasks: BackgroundTasks) -> CorpusSyncStatus:
+    """Imports the current MSZ travel notices from the Odyseusz API in the background (also runs every hour)."""
+    if not odyseusz_state.running:
+        background_tasks.add_task(refresh_odyseusz, app.state.models, app.state.store)
+    return _corpus_status(odyseusz_state)
 
 
 @app.get("/corpus/sync", response_model=CorpusSyncStatus)

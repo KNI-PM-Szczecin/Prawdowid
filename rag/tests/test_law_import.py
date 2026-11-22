@@ -110,7 +110,7 @@ def test_import_respects_budget_skips_indexed_acts_and_removes_stale_parts(monke
     async def active_document_url(document_id):
         return active.get(document_id)
 
-    async def ingest_document(document, models, store):
+    async def ingest_document(document, models, store, allow_near_duplicate=False):
         ingested.append(document.source.document_id)
 
     async def delete_document_chunks(document_id, store):

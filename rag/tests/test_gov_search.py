@@ -164,3 +164,36 @@ def test_slow_fill_returns_within_budget(corpus, monkeypatch):
     monkeypatch.setattr(settings, "gov_search_budget_seconds", 0.05)
     result = _fill(GovSearchClient(transport=_transport(delay=0.5)))
     assert (result.status, result.indexed) == ("ok", 0)
+
+
+def _titled(title: str, path: str) -> GovSearchHit:
+    return GovSearchHit(title=title, url=f"https://www.gov.pl{path}", published_at=datetime(2026, 1, 1, tzinfo=UTC))
+
+
+def test_hits_without_a_shared_topic_word_or_the_named_country_are_dropped():
+    on_topic = _titled("Festiwal latawców w Portugalii", "/web/portugalia/festiwal-latawcow")
+    other_country = _titled("Festiwal latawców w Belgii", "/web/belgia/festiwal-latawcow")
+    same_country_other_topic = _titled("Upały w Portugalii", "/web/portugalia/upaly")
+    role_page = _titled("Dyrektor Generalny", "/web/portugalia/dyrektor-generalny")
+    school = _titled("Festiwal w Portugalii", "/web/zsckr-przyklad/festiwal-w-portugalii")
+    hits = [other_country, same_country_other_topic, role_page, school, on_topic]
+
+    claim = "Czy w Portugalii ostatnio odbywał się festiwal latawców?"
+    assert gov_search.relevant_hits(hits, claim) == [on_topic]
+
+
+def test_a_named_place_must_appear_in_the_hit():
+    in_city = _titled("Nowy most w Gorzowie Wielkopolskim", "/web/uw-lubuski/nowy-most")
+    elsewhere = _titled("Nowy most w Opolu", "/web/uw-opolski/nowy-most")
+    assert gov_search.relevant_hits([elsewhere, in_city], "Czy w Gorzowie otwarto nowy most?") == [in_city]
+
+
+def test_hits_are_kept_when_the_claim_names_no_place():
+    hit = _titled("Uzyskaj zasiłek", OLD_PAGE)
+    assert gov_search.relevant_hits([hit], "Zasiłek pogrzebowy wynosi 4000 zł.") == [hit]
+
+
+def test_fill_indexes_nothing_when_no_hit_is_about_the_claim(corpus):
+    result = _fill(GovSearchClient(transport=_transport()), query="Czy w Portugalii odbył się festiwal latawców?")
+    assert (result.status, result.indexed) == ("ok", 0)
+    assert corpus["ingested"] == []

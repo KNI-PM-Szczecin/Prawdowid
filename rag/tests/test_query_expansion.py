@@ -169,3 +169,14 @@ def test_rules_keywords_drop_function_words_and_cap_the_length(monkeypatch):
     assert result.method == "rules"
     assert result.keywords == "zbrodnie krakowie zeszłym roku odpowiada obcokrajowiec"
     assert len(result.keywords.split()) <= query_expansion.RULES_KEYWORDS_MAX_WORDS
+
+
+def test_rules_keywords_drop_time_adverbs_and_auxiliary_verbs_and_name_countries_in_the_nominative(monkeypatch):
+    monkeypatch.setattr(settings, "expansion_llm_url", "")
+    query_expansion._cache.clear()
+    result = asyncio.run(query_expansion.expand("Czy w Portugalii ostatnio odbywał się festiwal latawców?"))
+    assert result.keywords == "Portugalia festiwal latawców"
+
+    query_expansion._cache.clear()
+    result = asyncio.run(query_expansion.expand("Czy wczoraj była dzisiaj obecnie teraz zamknięta granica?"))
+    assert result.keywords == "zamknięta granica"

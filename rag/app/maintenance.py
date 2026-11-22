@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import settings
@@ -7,6 +9,7 @@ from app.euvsdisinfo import EuvsDisinfoClient, sync_cases
 from app.eviction import run_eviction
 from app.feeds import refresh_feeds
 from app.law_import import import_law
+from app.odyseusz import refresh_odyseusz
 from app.reconcile import reconcile_vectors
 from app.vector_store import VectorStore
 
@@ -17,6 +20,7 @@ JOB_EUVSDISINFO = "euvsdisinfo_sync"
 JOB_CORPUS_REFRESH = "corpus_refresh"
 JOB_LAW_REFRESH = "law_refresh"
 JOB_FEEDS_REFRESH = "feeds_refresh"
+JOB_ODYSEUSZ_REFRESH = "odyseusz_refresh"
 
 
 def register_maintenance_jobs(
@@ -55,6 +59,16 @@ def register_maintenance_jobs(
             "interval",
             id=JOB_FEEDS_REFRESH,
             minutes=settings.feeds_refresh_interval_minutes,
+            args=[models, store],
+        )
+    if settings.odyseusz_enabled:
+        # First run right after start, in the background: travel notices change daily and the corpus may be empty.
+        scheduler.add_job(
+            refresh_odyseusz,
+            "interval",
+            id=JOB_ODYSEUSZ_REFRESH,
+            minutes=settings.odyseusz_refresh_interval_minutes,
+            next_run_time=datetime.now(UTC),
             args=[models, store],
         )
     if settings.corpus_refresh_enabled:

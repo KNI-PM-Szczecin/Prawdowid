@@ -10,6 +10,7 @@ from app.euvsdisinfo import EuvsDisinfoClient
 from app.factcheck import FactCheckResult, FactCheckReview
 from app.gov_search import GapFillResult
 from app.main import app
+from app.odyseusz import OdyseuszFillResult
 from app.primary_hop import HopResult
 from app.vector_store import RetrievedChunk
 
@@ -53,8 +54,21 @@ class FakeGovSearch:
         self.store_after_fill = store_after_fill
         self.queries: list[str] = []
 
-    async def fill(self, query, models, store):
+    async def fill(self, query, models, store, claim=None):
         self.queries.append(query)
+        if self.store_after_fill is not None:
+            app.state.store = self.store_after_fill
+        return self.result
+
+
+class FakeOdyseusz:
+    def __init__(self, result: OdyseuszFillResult | None = None, store_after_fill: "FakeStore | None" = None):
+        self.result = result or OdyseuszFillResult(status="skipped")
+        self.store_after_fill = store_after_fill
+        self.claims: list[str] = []
+
+    async def fill(self, claim, models, store):
+        self.claims.append(claim)
         if self.store_after_fill is not None:
             app.state.store = self.store_after_fill
         return self.result
@@ -75,7 +89,7 @@ class FakeFactCheck:
         self.result = result
         self.calls = 0
 
-    async def search(self, query):
+    async def search(self, query, expanded_keywords=None):
         self.calls += 1
         return self.result
 
@@ -176,6 +190,7 @@ def client(monkeypatch):
     app.state.euvsdisinfo = EuvsDisinfoClient()
     app.state.gov_search = FakeGovSearch()
     app.state.primary_hop = FakePrimaryHop()
+    app.state.odyseusz = FakeOdyseusz()
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -427,6 +442,22 @@ def test_same_query_is_served_from_cache_until_corpus_changes(client, monkeypatc
     assert third["corpusVersion"] == "corpus-v2"
 
 
+def test_no_cache_header_recomputes_and_overwrites_the_cached_answer(client):
+    first = client.post("/search", json=QUERY).json()
+    assert len(first["results"]) == 1
+    app.state.store = FakeStore([])
+    fresh = client.post("/search", json=QUERY, headers={"Cache-Control": "no-cache"}).json()
+    assert fresh["results"] == []
+    assert client.post("/search", json=QUERY).json()["results"] == []
+
+
+def test_answer_with_a_failed_external_source_is_not_cached(client):
+    app.state.factcheck = FakeFactCheck(FactCheckResult(status="error", reviews=[]))
+    client.post("/search", json=QUERY)
+    client.post("/search", json=QUERY)
+    assert app.state.factcheck.calls == 2
+
+
 def test_gov_search_is_not_asked_when_the_corpus_answers(client):
     response = client.post("/search", json=QUERY)
     assert response.status_code == 200
@@ -453,6 +484,25 @@ def test_gov_search_fills_the_gap_and_the_search_runs_again(client, monkeypatch)
     assert {"name": "gov_search", "status": "ok", "results": 1} in body["externalSources"]
 
 
+def test_odyseusz_notice_indexed_on_demand_is_found_by_the_search_that_follows(client, monkeypatch):
+    notice = RetrievedChunk(chunk_id=uuid4(), text="Poseł X głosował przeciw ustawie Y.", fusion_score=0.9)
+    app.state.store = FakeStore([])
+    app.state.gov_search = FakeGovSearch(GapFillResult(status="ok", indexed=0))
+    app.state.odyseusz = FakeOdyseusz(OdyseuszFillResult(status="ok", indexed=1), FakeStore([notice]))
+    versions = iter(["before-fill", "after-fill"])
+
+    async def corpus_version():
+        return next(versions, "after-fill")
+
+    monkeypatch.setattr(db, "corpus_version", corpus_version)
+
+    body = client.post("/search", json=QUERY).json()
+
+    assert app.state.odyseusz.claims == [QUERY["query"]]
+    assert [result["passage"] for result in body["results"]] == [notice.text]
+    assert app.state.primary_hop.calls == []
+
+
 def test_primary_hop_runs_only_after_gov_search_did_not_help(client, monkeypatch):
     found_later = RetrievedChunk(chunk_id=uuid4(), text="Poseł X głosował przeciw ustawie Y.", fusion_score=0.9)
     app.state.store = FakeStore([])
@@ -467,7 +517,7 @@ def test_primary_hop_runs_only_after_gov_search_did_not_help(client, monkeypatch
     original_search = search.search_passages
     calls = {"count": 0}
 
-    async def search_after_hop(request, models, store, *rest):
+    async def search_after_hop(request, models, store, *rest, refresh=False):
         calls["count"] += 1
         if calls["count"] == 2:  # the hop has indexed a page: the second search finds it
             store = FakeStore([found_later])

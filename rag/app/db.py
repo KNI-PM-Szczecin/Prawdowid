@@ -155,6 +155,18 @@ async def document_fetched_at(document_id: str) -> datetime | None:
     )
 
 
+async def document_content_hash(document_id: str) -> str | None:
+    """Content hash of a document that still has active chunks, or None; lets a refresh skip an unchanged text."""
+    return await pool().fetchval(
+        """
+        SELECT s.content_hash FROM sources s
+        WHERE s.document_id = $1
+          AND EXISTS (SELECT 1 FROM document_metadata m WHERE m.source_id = s.document_id AND NOT m.is_deleted)
+        """,
+        document_id,
+    )
+
+
 async def active_document_url(document_id: str) -> str | None:
     """URL of a document that still has active chunks, or None (missing or fully deleted)."""
     return await pool().fetchval(
