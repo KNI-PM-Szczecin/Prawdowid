@@ -549,14 +549,10 @@ func (a *Agent) judge(ctx context.Context, r *claimRun, claimID, claimText, cont
 }
 
 // checkClaimWithoutSources handles a search with no passages. The model still sees the claim, because an opinion or a
-// prediction is not_verifiable whether or not sources exist; any other verdict is impossible without evidence, so it
-// becomes insufficient_evidence and the model's justification is not shown.
+// prediction is not_verifiable whether or not sources exist, even when the fact-check service is down; any other
+// verdict is impossible without evidence, so it becomes insufficient_evidence and the model's justification is not
+// shown.
 func (a *Agent) checkClaimWithoutSources(ctx context.Context, r *claimRun, claim Claim, contextXML string) (Claim, error) {
-	if r.factcheckDown {
-		// The fact-check service was the only possible basis and it failed: a technical limitation, never the
-		// claim "there is no such publication" (CONTRACT.md §4, brief scenario J).
-		return Claim{}, errFactcheckUnavailable
-	}
 	if strings.TrimSpace(contextXML) == "" {
 		contextXML = emptyContextXML
 	}
@@ -574,6 +570,11 @@ func (a *Agent) checkClaimWithoutSources(ctx context.Context, r *claimRun, claim
 		claim.Verdict = VerdictNotVerifiable
 		claim.Justification = strings.TrimSpace(answer.Justification)
 		return claim, nil
+	}
+	if r.factcheckDown {
+		// A factual claim whose only possible basis, the fact-check service, failed: a technical limitation, never
+		// the claim "there is no such publication" (CONTRACT.md §4, brief scenario J).
+		return Claim{}, errFactcheckUnavailable
 	}
 	claim.Verdict = VerdictInsufficientEvidence
 	claim.Justification = missingNoSources

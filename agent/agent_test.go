@@ -946,6 +946,18 @@ func TestFactcheckOutageWithoutCorpusResultsIsTechnicalError(t *testing.T) {
 	}
 }
 
+// A prediction needs no source, so a fact-check outage must not turn it into a technical error.
+func TestPredictionStaysNotVerifiableDuringFactcheckOutage(t *testing.T) {
+	search := searchWith()
+	search.ExternalSources = []ExternalSourceStatus{{Name: externalSourceFactcheck, Status: externalStatusError}}
+	provider := &fakeProvider{judge: `{"werdykt":"nie_do_sprawdzenia","uzasadnienie":"To przewidywanie przyszłości.","cytaty":[],"brakuje":null,"podejrzane":false}`}
+	result := verify(t, newTestAgent(t, provider, &ragStub{search: search}), "W 2050 roku Zielonowo będzie największym miastem regionu.", InputTypeText)
+
+	if result.Status != StatusOK || len(result.Claims) != 1 || result.Claims[0].Verdict != VerdictNotVerifiable {
+		t.Fatalf("expected not_verifiable despite the outage, got %+v", result)
+	}
+}
+
 // With corpus results the fact-check outage is only a limitation; the verdict rests on the corpus.
 func TestFactcheckOutageWithCorpusResultsIsOnlyALimitation(t *testing.T) {
 	search := searchWith(officialPassage())
