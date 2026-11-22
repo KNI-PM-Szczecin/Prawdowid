@@ -184,15 +184,23 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 	if len(claims) == 0 {
 		return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
 	}
-	if omitted > 0 {
-		r.limitations = append(r.limitations, fmt.Sprintf(limitationClaimsSkipped, len(claims), len(claims)+omitted))
-	}
-
 	checked, err := a.checkClaims(ctx, r.claimRun, claims)
 	if err != nil {
 		return a.technicalError(r, err), nil
 	}
+	skipped := 0
+	for _, item := range checked {
+		if item.skipped {
+			skipped++
+		}
+	}
+	if omitted > 0 || skipped > 0 {
+		r.limitations = append(r.limitations, fmt.Sprintf(limitationClaimsSkipped, len(claims)-skipped, len(claims)+omitted))
+	}
 	for index := range checked {
+		if checked[index].skipped {
+			continue
+		}
 		r.mergeClaim(checked[index].run)
 		checked[index].claim.Span = findSpan(document.Text, claims[index].Fragment, claims[index].Text)
 		if r.archival {
@@ -228,16 +236,27 @@ func (a *Agent) noteMaterialAge(r *run, document *Document) string {
 type checkedClaim struct {
 	claim Claim
 	run   claimRun
+	// skipped: a less important claim that did not fit into the time budget or failed; it is left out of the answer
+	// and counted in limitations, never given a verdict.
+	skipped bool
 }
 
-// checkClaims runs one claim per worker, at most claimConcurrency at a time, and returns the results in claim order.
-// The answer therefore does not depend on which search finishes first (CONTRACT.md §2: the same input must give the
-// same verdict). A failure surfaces after every worker stops, so a technical_error never carries partial claims.
-// An opinion needs no worker: it is not_verifiable by definition and is never searched.
+// laterClaimMinRemaining is the time a claim beyond the first claimConcurrency needs to start: one rag search
+// (within rag's 14 s budget) and one judgment. Claims come in order of importance, so the least important are left
+// out when the budget runs short.
+const laterClaimMinRemaining = 18 * time.Second
+
+// checkClaims runs one claim per worker, at most claimConcurrency at a time, in order of importance, and returns the
+// results in claim order. The answer therefore does not depend on which search finishes first (CONTRACT.md §2: the
+// same input must give the same verdict). The first claimConcurrency claims are the core of the answer: a failure in
+// any of them surfaces after every worker stops, so a technical_error never carries partial claims. A later claim
+// starts only with enough time left, and its failure only drops it (skipped). An opinion needs no worker: it is
+// not_verifiable by definition and is never searched.
 func (a *Agent) checkClaims(ctx context.Context, shared claimRun, claims []extractedClaim) ([]checkedClaim, error) {
 	results := make([]checkedClaim, len(claims))
 	errs := make([]error, len(claims))
 	semaphore := make(chan struct{}, claimConcurrency)
+	needed := min(laterClaimMinRemaining, a.config.RagTimeout+a.config.LLMTimeout)
 	var wait sync.WaitGroup
 	for index, extracted := range claims {
 		claimID := fmt.Sprintf("c%d", index+1)
@@ -245,18 +264,27 @@ func (a *Agent) checkClaims(ctx context.Context, shared claimRun, claims []extra
 			results[index] = checkedClaim{claim: opinionClaim(claimID, extracted.Text), run: claimRun{request: shared.request, abstained: true}}
 			continue
 		}
+		core := index < claimConcurrency
 		wait.Add(1)
 		go func(index int, claimText string) {
 			defer wait.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			local := claimRun{request: shared.request, materialDate: shared.materialDate}
-			claim, err := a.checkClaim(ctx, &local, claimID, claimText)
-			if err != nil {
-				errs[index] = err
+			if deadline, ok := ctx.Deadline(); !core && ok && time.Until(deadline) < needed {
+				results[index] = checkedClaim{skipped: true}
 				return
 			}
-			results[index] = checkedClaim{claim: claim, run: local}
+			local := claimRun{request: shared.request, materialDate: shared.materialDate}
+			claim, err := a.checkClaim(ctx, &local, claimID, claimText)
+			switch {
+			case err != nil && core:
+				errs[index] = err
+			case err != nil:
+				a.logger.Warn("less important claim dropped", "requestId", shared.request.RequestID, "claimId", claimID, "error", err.Error())
+				results[index] = checkedClaim{skipped: true}
+			default:
+				results[index] = checkedClaim{claim: claim, run: local}
+			}
 		}(index, extracted.Text)
 	}
 	wait.Wait()
