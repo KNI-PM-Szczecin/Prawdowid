@@ -21,6 +21,10 @@ const (
 	defaultTrustedProxyHops = 1
 	// defaultModeratorRepeats: three unresolved reports of one question make a case worth a moderator's time.
 	defaultModeratorRepeats = 3
+	// defaultResultCacheMinutes: how long the same question gets the stored answer (consistency across refreshes and
+	// channels); 0 turns the cache off.
+	defaultResultCacheMinutes = 30
+	resultCacheMaxEntries     = 2000
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -53,6 +57,8 @@ type Config struct {
 	DiscordBotToken string
 	// DiscordGuildID registers the command on one guild instantly; empty registers it globally (slower to propagate).
 	DiscordGuildID string
+	// ResultCacheMinutes is how long a finished check result is reused for the same question; 0 disables reuse.
+	ResultCacheMinutes int
 }
 
 func loadConfig() (Config, error) {
@@ -95,6 +101,10 @@ func loadConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	resultCacheMinutes, err := intFromEnv("CHECK_RESULT_CACHE_MINUTES", defaultResultCacheMinutes)
+	if err != nil {
+		return Config{}, err
+	}
 	webhookURL := os.Getenv("MODERATOR_WEBHOOK_URL")
 	if webhookURL != "" && !validWebhookURL(webhookURL) {
 		return Config{}, errors.New("MODERATOR_WEBHOOK_URL must be an https URL")
@@ -114,6 +124,7 @@ func loadConfig() (Config, error) {
 		ModeratorToken:           os.Getenv("MODERATOR_TOKEN"),
 		DiscordBotToken:          os.Getenv("DISCORD_BOT_TOKEN"),
 		DiscordGuildID:           os.Getenv("DISCORD_GUILD_ID"),
+		ResultCacheMinutes:       resultCacheMinutes,
 	}, nil
 }
 
