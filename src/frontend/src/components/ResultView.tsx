@@ -4,6 +4,7 @@ import { texts } from "../lib/texts";
 import type { CheckResult } from "../lib/types";
 import { BadgeList } from "./BadgeList";
 import { CampaignAlertBox } from "./CampaignAlertBox";
+import { CaseNoticeBox } from "./CaseNoticeBox";
 import { ClaimList } from "./ClaimList";
 import { ClaimPanel } from "./ClaimPanel";
 import { HighlightedText } from "./HighlightedText";
@@ -110,6 +111,8 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
             <li>{texts.limitations.general}</li>
           </ul>
         </section>
+
+        <CaseNoticeBox notices={result.cases ?? []} />
 
         <TechnicalDetails result={result} />
 

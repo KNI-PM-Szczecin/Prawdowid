@@ -95,6 +95,16 @@ export interface RunMeta {
   timedOut: boolean;
 }
 
+// Closed information loop (CONTRACT.md §1a): "forwarded" only after the moderator's webhook accepted the case.
+export type CaseStatus = "logged" | "recommended" | "forwarded";
+
+export interface CaseNotice {
+  claimId: string;
+  caseId: string;
+  reports: number;
+  status: CaseStatus;
+}
+
 export interface CheckResult {
   requestId: string;
   status: Status;
@@ -103,6 +113,7 @@ export interface CheckResult {
   summary?: Summary | null;
   badges?: Badge[];
   campaignAlert?: CampaignAlert | null;
+  cases?: CaseNotice[];
   claims: Claim[];
   limitations: string[];
   meta: RunMeta;

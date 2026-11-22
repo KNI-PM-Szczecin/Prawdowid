@@ -285,6 +285,7 @@ function noEvidenceResult(requestId: string, text: string): CheckResult {
     summary: { level: "unknown", reasons: ["1 z 1 twierdzeń bez wystarczających dowodów"] },
     badges: [],
     campaignAlert: null,
+    cases: [{ claimId: "c1", caseId: "3f2a9c1e-0000-4000-8000-000000000000", reports: 3, status: "recommended" }],
     claims: [
       {
         id: "c1",

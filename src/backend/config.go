@@ -17,6 +17,8 @@ const (
 	defaultArchivalDays     = 365
 	defaultRagURL           = "http://localhost:8001"
 	defaultTrustedProxyHops = 1
+	// defaultModeratorRepeats: three unresolved reports of one question make a case worth a moderator's time.
+	defaultModeratorRepeats = 3
 )
 
 // godotenv never overrides variables that are already set, so the real environment
@@ -37,6 +39,12 @@ type Config struct {
 	RagURL string
 	// TrustedProxyHops is how many proxies append to X-Forwarded-For before the backend; the rate limiter reads that entry from the right.
 	TrustedProxyHops int
+	// ModeratorRepeatThreshold is the number of similar unresolved reports after which a case is recommended.
+	ModeratorRepeatThreshold int
+	// ModeratorWebhookURL receives recommended cases (https only); empty means cases are only recommended, never forwarded.
+	ModeratorWebhookURL string
+	// ModeratorToken opens GET /api/admin/cases; empty keeps the list closed.
+	ModeratorToken string
 }
 
 func loadConfig() (Config, error) {
@@ -75,6 +83,15 @@ func loadConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	moderatorRepeats, err := intFromEnv("MODERATOR_REPEAT_THRESHOLD", defaultModeratorRepeats)
+	if err != nil {
+		return Config{}, err
+	}
+	webhookURL := os.Getenv("MODERATOR_WEBHOOK_URL")
+	if webhookURL != "" && !validWebhookURL(webhookURL) {
+		return Config{}, errors.New("MODERATOR_WEBHOOK_URL must be an https URL")
+	}
+
 	return Config{
 		Port:               stringFromEnv("PORT", defaultPort),
 		DatabaseURL:        databaseURL,
@@ -84,6 +101,10 @@ func loadConfig() (Config, error) {
 		ArchivalDays:       archivalDays,
 		RagURL:             stringFromEnv("RAG_URL", defaultRagURL),
 		TrustedProxyHops:   trustedProxyHops,
+
+		ModeratorRepeatThreshold: moderatorRepeats,
+		ModeratorWebhookURL:      webhookURL,
+		ModeratorToken:           os.Getenv("MODERATOR_TOKEN"),
 	}, nil
 }
 

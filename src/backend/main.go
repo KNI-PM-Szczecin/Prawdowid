@@ -60,11 +60,12 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	cases := &caseStore{pool: pool}
 	retention := time.Duration(config.RetentionDays) * hoursPerDay * time.Hour
 	purgeDone := make(chan struct{})
 	go func() {
 		defer close(purgeDone)
-		purgeLoop(ctx, logger, store, retention)
+		purgeLoop(ctx, logger, retention, store, cases)
 	}()
 	// Registered after pool.Close, so it runs first: the purge must finish before the pool closes.
 	defer func() {
@@ -82,6 +83,7 @@ func run(logger *slog.Logger) error {
 		archivalAfter:    time.Duration(config.ArchivalDays) * hoursPerDay * time.Hour,
 		catalog:          newSourceCatalog(config.RagURL, catalogFetchTimeout),
 		trustedProxyHops: config.TrustedProxyHops,
+		cases:            newCaseTracker(logger, config, cases),
 	}
 
 	demo := newChannelHandler(checks, demoAdapter{})
@@ -92,6 +94,7 @@ func run(logger *slog.Logger) error {
 	mux.HandleFunc("POST /api/check", checks.check)
 	mux.HandleFunc("DELETE /api/checks/{requestId}", checks.deleteCheck)
 	mux.HandleFunc("POST /api/channels/demo", demo.handle)
+	mux.HandleFunc("GET /api/admin/cases", adminCasesHandler(logger, cases, config.ModeratorToken))
 
 	server := &http.Server{
 		Addr:              ":" + config.Port,
@@ -153,16 +156,22 @@ func writeJSON(logger *slog.Logger, writer http.ResponseWriter, statusCode int, 
 	}
 }
 
-// purgeLoop deletes stored runs older than the retention period until ctx is cancelled.
-func purgeLoop(ctx context.Context, logger *slog.Logger, store *runStore, retention time.Duration) {
+type retentionPurger interface {
+	purgeOlderThan(ctx context.Context, cutoff time.Time) (int64, error)
+}
+
+// purgeLoop deletes stored runs and cases older than the retention period until ctx is cancelled.
+func purgeLoop(ctx context.Context, logger *slog.Logger, retention time.Duration, purgers ...retentionPurger) {
 	ticker := time.NewTicker(purgeInterval)
 	defer ticker.Stop()
 	for {
-		removed, err := store.purgeOlderThan(ctx, time.Now().Add(-retention))
-		if err != nil {
-			logger.Error("purge check runs failed", "error", err)
-		} else if removed > 0 {
-			logger.Info("purged old check runs", "removed", removed)
+		for _, purger := range purgers {
+			removed, err := purger.purgeOlderThan(ctx, time.Now().Add(-retention))
+			if err != nil {
+				logger.Error("retention purge failed", "error", err)
+			} else if removed > 0 {
+				logger.Info("retention purge removed rows", "removed", removed)
+			}
 		}
 		select {
 		case <-ctx.Done():
