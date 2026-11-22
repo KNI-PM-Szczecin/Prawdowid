@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -141,11 +142,12 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
 	}
 
-	text, document, err := a.resolveInput(ctx, request)
+	text, document, err := a.resolveInput(ctx, r, request)
 	if err != nil {
 		if errors.Is(err, ErrFetchRejected) {
 			a.logger.Warn("page unreadable", "requestId", request.RequestID, "error", err.Error())
-			return a.finish(r, StatusNeedsClarification, msgPageUnreadable), nil
+			status, message := rejectedPageAnswer(fetchRejectionCode(err))
+			return a.finish(r, status, message), nil
 		}
 		return a.technicalError(r, err), nil
 	}
@@ -154,7 +156,7 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		document = &Document{Text: text}
 	}
 	r.result.Document = document
-	if request.InputType == InputTypeURL {
+	if document.URL != nil {
 		r.material = a.matchMaterial(ctx, r, document)
 		r.materialDate = a.noteMaterialAge(r, document)
 	}
@@ -256,25 +258,88 @@ func (a *Agent) checkClaims(ctx context.Context, shared claimRun, claims []extra
 	return results, nil
 }
 
-// resolveInput returns the text to check and, for URLs, the fetched document.
-func (a *Agent) resolveInput(ctx context.Context, request VerifyRequest) (string, *Document, error) {
-	if request.InputType != InputTypeURL {
-		return strings.TrimSpace(request.Input), nil, nil
+// rejectedPageAnswer maps rag's reason for not reading a page to the status and message for the citizen.
+// A video or social-media address is out of scope by design; everything else asks for the text instead.
+func rejectedPageAnswer(code string) (status, message string) {
+	switch code {
+	case FetchCodeUnsupportedHost:
+		return StatusOutOfScope, msgUnsupportedService
+	case FetchCodeNotHTML:
+		return StatusNeedsClarification, msgPageIsFile
+	case FetchCodeBotWall, FetchCodeNoText:
+		return StatusNeedsClarification, msgPageBlocked
+	default:
+		return StatusNeedsClarification, msgPageUnreadable
 	}
-	page, err := a.rag.Fetch(ctx, strings.TrimSpace(request.Input))
+}
+
+// resolveInput returns the text to check and, when a page was fetched, the document. A URL submission fetches
+// that page; a text with exactly one link inside fetches the link as part of the checked material (mentor
+// scenario E: "check this page too"), and a failure there only adds a limitation.
+func (a *Agent) resolveInput(ctx context.Context, r *run, request VerifyRequest) (string, *Document, error) {
+	input := strings.TrimSpace(request.Input)
+	if request.InputType == InputTypeURL {
+		page, err := a.rag.Fetch(ctx, input)
+		if err != nil {
+			return "", nil, err
+		}
+		document := a.documentFromPage(page)
+		return pageText(page), document, nil
+	}
+
+	links := findLinks(input)
+	switch {
+	case len(links) == 0:
+		return input, nil, nil
+	case len(links) > 1:
+		r.limitations = appendUnique(r.limitations, limitationLinksSkipped)
+		return input, nil, nil
+	}
+	link := links[0]
+	page, err := a.rag.Fetch(ctx, link)
 	if err != nil {
-		return "", nil, err
+		a.logger.Warn("link inside text not fetched", "requestId", request.RequestID, "error", err.Error())
+		limitation := limitationLinkNotFetched
+		if fetchRejectionCode(err) == FetchCodeUnsupportedHost {
+			limitation = limitationLinkUnsupported
+		}
+		r.limitations = appendUnique(r.limitations, fmt.Sprintf(limitation, link))
+		return input, nil, nil
 	}
+	r.limitations = appendUnique(r.limitations, fmt.Sprintf(limitationLinkFetched, link))
+	text := input + "\n\n" + pageText(page)
+	document := a.documentFromPage(page)
+	document.Text = text
+	return text, document, nil
+}
+
+func (a *Agent) documentFromPage(page FetchResponse) *Document {
 	fetchedAt := a.now().UTC().Format(time.RFC3339)
 	document := &Document{Text: page.Text, URL: stringPtr(page.URL), PublishedAt: page.PublishedAt, FetchedAt: &fetchedAt}
 	if page.Title != "" {
 		document.Title = stringPtr(page.Title)
 	}
-	text := page.Text
+	return document
+}
+
+func pageText(page FetchResponse) string {
 	if page.Title != "" {
-		text = page.Title + "\n" + text
+		return page.Title + "\n" + page.Text
 	}
-	return text, document, nil
+	return page.Text
+}
+
+var linkPattern = regexp.MustCompile(`https?://[^\s<>"']+`)
+
+// findLinks returns the http(s) addresses inside a text, without the punctuation that closes a sentence after them.
+func findLinks(text string) []string {
+	var links []string
+	for _, match := range linkPattern.FindAllString(text, -1) {
+		if link := strings.TrimRight(match, ".,;:!?)]}>"); link != "" {
+			links = append(links, link)
+		}
+	}
+	return links
 }
 
 // matchMaterial asks rag whether the submitted page is a known material (brief scenario I). The answer is context

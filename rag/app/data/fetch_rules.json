@@ -1,0 +1,7 @@
+{
+  "note": "Serwisy, których adresów nie pobieramy przy sprawdzaniu zgłoszenia (POST /fetch): filmy i nagrania (nie odczytujemy wideo ani dźwięku) oraz wpisy w serwisach społecznościowych, które oddają treść tylko skryptem albo po zalogowaniu. Dopasowanie po hoście i poddomenach. Obywatel dostaje komunikat, że ma wkleić tekst wpisu albo link do artykułu. To nie jest ocena wydawcy ani treści; zabezpieczeń serwisów nie obchodzimy.",
+  "unsupportedHosts": {
+    "video": ["youtube.com", "youtu.be", "tiktok.com", "vimeo.com", "twitch.tv", "rumble.com", "dailymotion.com"],
+    "social": ["facebook.com", "fb.com", "fb.watch", "instagram.com", "threads.net", "x.com", "twitter.com", "t.co", "linkedin.com", "snapchat.com"]
+  }
+}

@@ -262,7 +262,10 @@ async def fetch_url(request: FetchRequest) -> FetchResponse:
         async with httpx.AsyncClient(timeout=settings.fetch_timeout_seconds, follow_redirects=False) as client:
             page = await fetch_page(client, str(request.url))
     except FetchError as error:
-        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=FETCH_FAILED_MESSAGE.format(reason=error)) from error
+        raise HTTPException(
+            status_code=HTTP_UNPROCESSABLE,
+            detail={"message": FETCH_FAILED_MESSAGE.format(reason=error), "code": error.code},
+        ) from error
     truncated = len(page.text) > settings.fetch_max_text_chars
     return FetchResponse(
         url=page.url,
