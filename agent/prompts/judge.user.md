@@ -2,6 +2,7 @@ Twierdzenie do oceny:
 {{claim}}
 
 Dzisiejsza data: {{today}}
+Data publikacji sprawdzanego materiału: {{material_date}}
 
 {{context_xml}}
 

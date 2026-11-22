@@ -59,7 +59,10 @@ func (s promptSet) extractMessages(input string, maxClaims int) (system, user st
 }
 
 // judgeMessages puts the claim and rag's contextXml into the user message only: sources are data, never rules.
-func (s promptSet) judgeMessages(claim, contextXML, today string) (system, user string) {
-	user = render(s.judgeUser, map[string]string{"claim": claim, "context_xml": contextXML, "today": today})
+// materialDate is the publication date of the checked page, or the "unknown" label for text input and undated pages.
+func (s promptSet) judgeMessages(claim, contextXML, today, materialDate string) (system, user string) {
+	user = render(s.judgeUser, map[string]string{
+		"claim": claim, "context_xml": contextXML, "today": today, "material_date": materialDate,
+	})
 	return s.judgeSystem, user
 }

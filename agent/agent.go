@@ -55,13 +55,17 @@ type run struct {
 	startedAt time.Time
 	result    CheckResult
 	material  *MaterialMatch
+	// archival is set when the checked page is older than the freshness window (scenario B).
+	archival bool
 }
 
 // claimRun holds what one claim contributes to the answer; claims run in parallel, so each one writes here
 // and the results are merged in claim order afterwards.
 type claimRun struct {
-	request     VerifyRequest
-	limitations []string
+	request VerifyRequest
+	// materialDate is the publication date of the checked page (YYYY-MM-DD) or empty when unknown or for text input.
+	materialDate string
+	limitations  []string
 	injections  int
 	searchErrs  int
 	// factcheckDown is set when the fact-check service failed for this claim's search (CONTRACT.md §4).
@@ -152,6 +156,7 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 	r.result.Document = document
 	if request.InputType == InputTypeURL {
 		r.material = a.matchMaterial(ctx, r, document)
+		r.materialDate = a.noteMaterialAge(r, document)
 	}
 	if containsInstructions(text) {
 		r.injections++
@@ -171,16 +176,41 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		r.limitations = append(r.limitations, fmt.Sprintf(limitationClaimsSkipped, len(claims), len(claims)+omitted))
 	}
 
-	checked, err := a.checkClaims(ctx, r.request, claims)
+	checked, err := a.checkClaims(ctx, r.claimRun, claims)
 	if err != nil {
 		return a.technicalError(r, err), nil
 	}
 	for index := range checked {
 		r.mergeClaim(checked[index].run)
 		checked[index].claim.Span = findSpan(document.Text, claims[index].Fragment, claims[index].Text)
+		if r.archival {
+			checked[index].claim.Warnings = append(checked[index].claim.Warnings,
+				Warning{Type: WarningArchivalMaterial, Message: fmt.Sprintf(warningArchivalMaterial, r.materialDate)})
+		}
 		r.result.Claims = append(r.result.Claims, checked[index].claim)
 	}
 	return a.finish(r, StatusOK, ""), nil
+}
+
+// noteMaterialAge records the page's publication date for the judge and flags a page older than the freshness
+// window (brief scenario B: true material shown as current). The age is context beside the verdict, never a verdict.
+func (a *Agent) noteMaterialAge(r *run, document *Document) string {
+	if document == nil || document.PublishedAt == nil {
+		r.limitations = appendUnique(r.limitations, limitationMaterialDateUnknown)
+		return ""
+	}
+	published, err := time.Parse(time.RFC3339, *document.PublishedAt)
+	if err != nil {
+		a.logger.Warn("unparseable material date", "requestId", r.request.RequestID, "publishedAt", *document.PublishedAt)
+		r.limitations = appendUnique(r.limitations, limitationMaterialDateUnknown)
+		return ""
+	}
+	date := published.UTC().Format("2006-01-02")
+	if a.now().Sub(published) > freshnessWindow {
+		r.archival = true
+		r.limitations = appendUnique(r.limitations, fmt.Sprintf(limitationArchivalMaterial, date))
+	}
+	return date
 }
 
 type checkedClaim struct {
@@ -192,7 +222,7 @@ type checkedClaim struct {
 // The answer therefore does not depend on which search finishes first (CONTRACT.md §2: the same input must give the
 // same verdict). A failure surfaces after every worker stops, so a technical_error never carries partial claims.
 // An opinion needs no worker: it is not_verifiable by definition and is never searched.
-func (a *Agent) checkClaims(ctx context.Context, request VerifyRequest, claims []extractedClaim) ([]checkedClaim, error) {
+func (a *Agent) checkClaims(ctx context.Context, shared claimRun, claims []extractedClaim) ([]checkedClaim, error) {
 	results := make([]checkedClaim, len(claims))
 	errs := make([]error, len(claims))
 	semaphore := make(chan struct{}, claimConcurrency)
@@ -200,7 +230,7 @@ func (a *Agent) checkClaims(ctx context.Context, request VerifyRequest, claims [
 	for index, extracted := range claims {
 		claimID := fmt.Sprintf("c%d", index+1)
 		if extracted.isOpinion() {
-			results[index] = checkedClaim{claim: opinionClaim(claimID, extracted.Text), run: claimRun{request: request, abstained: true}}
+			results[index] = checkedClaim{claim: opinionClaim(claimID, extracted.Text), run: claimRun{request: shared.request, abstained: true}}
 			continue
 		}
 		wait.Add(1)
@@ -208,7 +238,7 @@ func (a *Agent) checkClaims(ctx context.Context, request VerifyRequest, claims [
 			defer wait.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			local := claimRun{request: request}
+			local := claimRun{request: shared.request, materialDate: shared.materialDate}
 			claim, err := a.checkClaim(ctx, &local, claimID, claimText)
 			if err != nil {
 				errs[index] = err
@@ -425,7 +455,11 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 
 // judge asks the model for a verdict; a malformed answer becomes an abstention, any other failure is returned.
 func (a *Agent) judge(ctx context.Context, r *claimRun, claimID, claimText, contextXML string) (judgeAnswer, error) {
-	system, user := a.prompts.judgeMessages(claimText, contextXML, a.now().Format("2006-01-02"))
+	materialDate := r.materialDate
+	if materialDate == "" {
+		materialDate = materialDateUnknown
+	}
+	system, user := a.prompts.judgeMessages(claimText, contextXML, a.now().Format("2006-01-02"), materialDate)
 	var answer judgeAnswer
 	completion, err := askJSON(ctx, a.provider, system, user, &answer)
 	r.addUsage(usageOf(completion))
