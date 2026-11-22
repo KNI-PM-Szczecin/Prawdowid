@@ -18,7 +18,7 @@ const (
 	discordChannelName     = "discord"
 	discordCommandName     = "factcheck"
 	discordQueryOption     = "query"
-	discordCheckTimeout    = 30 * time.Second
+	discordCheckTimeout    = 50 * time.Second // above the agent Verify budget (45 s)
 	discordMaxMessageRunes = 2000
 	discordTruncatedNote   = "\n\n(odpowiedź skrócona)"
 

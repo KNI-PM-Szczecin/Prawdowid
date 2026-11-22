@@ -20,8 +20,8 @@ import (
 const (
 	readHeaderTimeout = 10 * time.Second
 	idleTimeout       = 60 * time.Second
-	// writeTimeout must exceed the agent verification budget (25 s) so a slow check can still be answered.
-	writeTimeout    = 40 * time.Second
+	// writeTimeout must exceed the agent verification budget (45 s) so a slow check can still be answered.
+	writeTimeout    = 60 * time.Second
 	shutdownTimeout = 30 * time.Second
 	rateLimitWindow = time.Minute
 	purgeInterval   = time.Hour

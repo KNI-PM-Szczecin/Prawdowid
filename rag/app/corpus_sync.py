@@ -163,6 +163,7 @@ async def _index_pages(
     label: str,
     strip_boilerplate: bool,
     exempt_hosts: frozenset[str] = frozenset(),
+    allow_near_duplicate: bool = False,
 ) -> None:
     """Normal ingest path for every page (catalog, duplicates, chunking); one bad page never stops the run."""
     cleaned = (
@@ -184,7 +185,7 @@ async def _index_pages(
             state.failed += 1
             continue
         try:
-            await ingest_document(to_document(page, content), models, store)
+            await ingest_document(to_document(page, content), models, store, allow_near_duplicate=allow_near_duplicate)
             state.indexed += 1
         except DuplicateDocumentError as error:
             state.skipped_duplicates += 1
@@ -208,11 +209,13 @@ async def run_corpus_job(
     store: VectorStore,
     strip_boilerplate: bool = True,
     exempt_hosts: frozenset[str] = frozenset(),
+    allow_near_duplicate: bool = False,
 ) -> CorpusSyncState:
     """
     One background import at a time per job: loads pages, indexes them, keeps the state for the status endpoint.
     `strip_boilerplate` drops lines shared by many pages (menus, footers); legal texts must stay verbatim, so law
-    import turns it off.
+    import turns it off. `allow_near_duplicate` is for sources whose similar documents are still distinct facts,
+    e.g. the same MSZ wording issued for two countries.
     """
     if lock.locked():
         logger.warning("%s already running, request ignored", label)
@@ -222,7 +225,9 @@ async def run_corpus_job(
         try:
             pages = await load_pages(state)
             state.available = len(pages)
-            await _index_pages(pages, models, store, state, label, strip_boilerplate, exempt_hosts)
+            await _index_pages(
+                pages, models, store, state, label, strip_boilerplate, exempt_hosts, allow_near_duplicate
+            )
         except Exception as error:
             state.last_error = f"{type(error).__name__}: {error}"
             logger.exception("%s stopped", label)

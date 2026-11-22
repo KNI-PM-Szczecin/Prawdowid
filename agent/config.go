@@ -13,10 +13,11 @@ const (
 	defaultLLMBaseURL    = "http://127.0.0.1:52625/v1"
 	defaultLLMModel      = "qwen3:0.6b"
 	defaultMaxClaims     = 3
-	defaultVerifyTimeout = 25 * time.Second // CONTRACT.md §2
-	// CONTRACT.md §2 allows 12 s: the first measurement on Railway (rerank on a shared CPU) went over 8 s.
-	defaultRagTimeout     = 18 * time.Second
-	defaultLLMTimeout     = 10 * time.Second
+	defaultVerifyTimeout = 45 * time.Second // CONTRACT.md §2
+	// CONTRACT.md §2: the first question on a topic fills the corpus from gov.pl, follows secondary sources to the
+	// primary pages they cite and fetches travel notices on demand; later questions hit the ready corpus and cache.
+	defaultRagTimeout     = 30 * time.Second
+	defaultLLMTimeout     = 15 * time.Second
 	defaultSearchTopK     = 5
 	defaultExtractMaxText = 6000 // characters of page/submission text handed to the extraction prompt
 	// Hosted OpenAI list prices for gpt-6-luna (USD per 1M tokens, https://platform.openai.com/docs/pricing).

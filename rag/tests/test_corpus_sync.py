@@ -38,7 +38,7 @@ def fake_ingest(monkeypatch):
     seen_hashes: dict[str, str] = {}
     ingested: list[str] = []
 
-    async def ingest_document(document, models, store):
+    async def ingest_document(document, models, store, allow_near_duplicate=False):
         digest = content_hash(document.text)
         if digest in seen_hashes:
             raise DuplicateDocumentError(document.source.document_id, seen_hashes[digest])

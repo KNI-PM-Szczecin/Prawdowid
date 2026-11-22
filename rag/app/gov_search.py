@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin, urlparse
 
 import httpx
 
@@ -12,9 +12,11 @@ from app.catalog import resolve_entry
 from app.config import settings
 from app.corpus_rules import exclusion_reason
 from app.corpus_sync import Page, remove_boilerplate, to_document, web_document_id
+from app.countries import country_mentions, fold
 from app.embeddings import EmbeddingModels
 from app.fetcher import FetchError, fetch_page
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
+from app.lexical import WORD, content_words
 from app.models import ExternalSourceStatus, Passage, SearchRequest
 from app.vector_store import VectorStore
 
@@ -24,6 +26,9 @@ SOURCE_NAME = "gov_search"
 OFFICIAL_SOURCE_TYPE = "official"
 # Fetched pages share gov.pl navigation; a line on two of them is a menu, not content.
 BOILERPLATE_MIN_PAGES = 2
+# Polish inflects ("strajk", "strajku", "strajkiem"), so topic words are compared by their first letters.
+TOPIC_KEY_CHARS = 5
+TOPIC_WORD_MIN_CHARS = 3
 
 
 @dataclass(frozen=True)
@@ -61,6 +66,55 @@ def parse_hits(payload: dict) -> list[GovSearchHit]:
             )
         )
     return hits
+
+
+def _topic_keys(words: list[str]) -> set[str]:
+    return {fold(word)[:TOPIC_KEY_CHARS] for word in words if len(word) >= TOPIC_WORD_MIN_CHARS and not word.isdigit()}
+
+
+def _named_words(claim: str) -> list[str]:
+    """
+    Capitalised words inside a sentence (a city, a region, an institution); the first word of a sentence is
+    capitalised anyway and acronyms (ZUS, NATO) rarely appear in gov.pl titles, so neither is required.
+    """
+    named: list[str] = []
+    sentence_start = True
+    for word in WORD.findall(claim):
+        if not sentence_start and word[:1].isupper() and not word.isupper():
+            named.append(word)
+        sentence_start = False
+    return named
+
+
+def _hit_text(hit: GovSearchHit) -> str:
+    return f"{hit.title} {unquote(urlparse(hit.url).path)}"
+
+
+def relevant_hits(hits: list[GovSearchHit], claim: str) -> list[GovSearchHit]:
+    """
+    Drops gov.pl hits that cannot be about the claim, before anything is downloaded: excluded pages (schools, job
+    offers), hits whose title and address share no topic word with the claim, and, when the claim names a country or
+    another place, hits that do not name it (a strike in Belgium is no evidence about a strike in another country).
+    """
+    mentions = country_mentions(claim)
+    countries = {mention.country for mention in mentions}
+    country_words = {word for mention in mentions for word in mention.nominatives}
+    named_keys = _topic_keys([word for word in _named_words(claim) if fold(word) not in country_words])
+    topic_keys = _topic_keys([word for word in content_words(claim) if fold(word) not in country_words]) - named_keys
+    relevant: list[GovSearchHit] = []
+    for hit in hits:
+        if exclusion_reason(hit.url, hit.title) is not None:
+            continue
+        text = _hit_text(hit)
+        hit_keys = _topic_keys(content_words(text))
+        if topic_keys and not topic_keys & hit_keys:
+            continue
+        if countries and not countries & {mention.country for mention in country_mentions(text.lower())}:
+            continue
+        if not countries and named_keys and not named_keys & hit_keys:
+            continue
+        relevant.append(hit)
+    return relevant
 
 
 def select_hits(hits: list[GovSearchHit], max_pages: int) -> list[GovSearchHit]:
@@ -179,9 +233,11 @@ class GovSearchClient:
                 logger.exception("gov.pl gap fill: %s failed", page.document_id)
         return indexed
 
-    async def _fill(self, query: str, models: EmbeddingModels, store: VectorStore) -> int:
-        hits = select_hits(await self.search(query), settings.gov_search_max_pages)
+    async def _fill(self, query: str, claim: str, models: EmbeddingModels, store: VectorStore) -> int:
+        found = await self.search(query)
+        hits = select_hits(relevant_hits(found, claim), settings.gov_search_max_pages)
         if not hits:
+            logger.info("gov.pl gap fill: none of %d hits is about the claim", len(found))
             return 0
         async with self._lock:
             pages = await self._fetch(hits, datetime.now(UTC))
@@ -189,14 +245,17 @@ class GovSearchClient:
         logger.info("gov.pl gap fill: %d of %d chosen pages indexed", indexed, len(hits))
         return indexed
 
-    async def fill(self, query: str, models: EmbeddingModels, store: VectorStore) -> GapFillResult:
+    async def fill(
+        self, query: str, models: EmbeddingModels, store: VectorStore, claim: str | None = None
+    ) -> GapFillResult:
         """
         Runs inside the search request for at most gov_search_budget_seconds. A slower fill keeps running in the
         background, so the pages still reach the corpus for the next question; the current answer is not delayed.
+        `query` goes to the gov.pl search (keywords); `claim` (default: the query) decides which hits are relevant.
         """
         if not self.enabled:
             return GapFillResult(status="disabled")
-        task = asyncio.create_task(self._fill(query, models, store))
+        task = asyncio.create_task(self._fill(query, claim or query, models, store))
         try:
             indexed = await asyncio.wait_for(asyncio.shield(task), settings.gov_search_budget_seconds)
         except TimeoutError:

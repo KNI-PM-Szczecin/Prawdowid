@@ -8,6 +8,7 @@ from app.maintenance import (
     JOB_EVICTION,
     JOB_FEEDS_REFRESH,
     JOB_LAW_REFRESH,
+    JOB_ODYSEUSZ_REFRESH,
     JOB_OPTIMIZE,
     JOB_RECONCILE,
     register_maintenance_jobs,
@@ -40,6 +41,7 @@ def test_official_sources_are_refreshed_on_a_schedule(monkeypatch):
         JOB_CORPUS_REFRESH,
         JOB_LAW_REFRESH,
         JOB_FEEDS_REFRESH,
+        JOB_ODYSEUSZ_REFRESH,
     }
     refresh = scheduler.get_job(JOB_CORPUS_REFRESH)
     assert refresh.args[0] == ["https://www.gov.pl/web/premier/x"]
@@ -47,6 +49,18 @@ def test_official_sources_are_refreshed_on_a_schedule(monkeypatch):
     law = scheduler.get_job(JOB_LAW_REFRESH)
     assert law.args[2:] == (settings.law_refresh_max_chars, settings.law_part_max_chars)
     assert str(law.trigger.fields[4]) == settings.law_refresh_cron_day_of_week
+    odyseusz = scheduler.get_job(JOB_ODYSEUSZ_REFRESH)
+    assert odyseusz.trigger.interval.total_seconds() == settings.odyseusz_refresh_interval_minutes * 60
+    # Runs once right after start, in the background, not only after the first interval.
+    assert odyseusz.next_run_time is not None
+
+
+def test_odyseusz_refresh_follows_its_switch(monkeypatch):
+    monkeypatch.setattr(maintenance, "seed_urls", lambda: [])
+    monkeypatch.setattr(settings, "odyseusz_enabled", False)
+    scheduler = AsyncIOScheduler()
+    register_maintenance_jobs(scheduler, FakeStore(), object(), FakeStore(), FakeEuvsDisinfo(enabled=False))
+    assert JOB_ODYSEUSZ_REFRESH not in job_ids(scheduler)
 
 
 def test_refresh_and_euvsdisinfo_jobs_follow_their_switches(monkeypatch):

@@ -23,6 +23,8 @@ class SuffixStemmer:
 class LanguageProfile:
     stemmer: SuffixStemmer
     stopwords: set[str]
+    # Phrases a fact-checker uses to state its rating, strongest signal first (lower case).
+    rating_phrases: tuple[str, ...] = ()
 
 
 def load_profile(language_code: str) -> LanguageProfile:
@@ -34,4 +36,5 @@ def load_profile(language_code: str) -> LanguageProfile:
     return LanguageProfile(
         stemmer=SuffixStemmer(profile["suffixes"], profile["min_stem_length"]),
         stopwords=set(profile["stopwords"]),
+        rating_phrases=tuple(phrase.casefold() for phrase in profile.get("rating_phrases", [])),
     )

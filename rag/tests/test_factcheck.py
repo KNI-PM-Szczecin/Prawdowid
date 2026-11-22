@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.config import settings
-from app.factcheck import API_KEY_HEADER, FactCheckClient, parse_reviews, query_variants
+from app.factcheck import API_KEY_HEADER, FactCheckClient, matches_claim, parse_reviews, query_variants
 
 API_KEY = "test-factcheck-key"
 MAX_REVIEWS = 10
@@ -79,12 +79,122 @@ def test_sends_key_in_header_not_url_and_caches(monkeypatch):
     assert all(request.url.params["languageCode"] == "pl" for request in requests)
 
 
-def test_query_variants_add_keyword_form_once():
-    assert query_variants("Czy sieć 5G powoduje koronawirusa?") == [
-        "Czy sieć 5G powoduje koronawirusa?",
-        "sieć 5G powoduje koronawirusa",
+def test_query_variants_add_expanded_focused_and_core_phrasings_once():
+    assert query_variants("Zielonogródek wydaje na kolej około 900 mln zł.", "Zielonogródek kolej wydatki") == [
+        "Zielonogródek wydaje na kolej około 900 mln zł.",
+        "Zielonogródek wydaje kolej około 900 mln",
+        "Zielonogródek kolej wydatki",
+        "Zielonogródek kolej 900 mln",
+        "Zielonogródek kolej",
     ]
     assert query_variants("polexit") == ["polexit"]
+
+
+def test_focused_phrasings_drop_verbs_and_use_base_forms():
+    assert query_variants("Agencja ZPA usunęła depeszę o wypowiedzi polityka.")[2:] == [
+        "Agencja ZPA wypowiedzi polityka",
+        "Agencja ZPA depesza",
+    ]
+
+
+def test_review_with_other_figures_does_not_match_a_claim_with_numbers():
+    claim = "Zielonogródek wydaje na kolej około 900 mln zł."
+    same_topic = parse_reviews(
+        _review_payload("Zielonogródek wydaje na kolej mniej niż Borowo.", "https://w.example/a"), 1
+    )
+    same_figure = parse_reviews(
+        _review_payload("Kolej kosztuje Zielonogródek ok. 900 mln zł.", "https://w.example/b"), 1
+    )
+    assert not matches_claim(claim, same_topic[0])
+    assert matches_claim(claim, same_figure[0])
+
+
+def test_query_variants_capped_at_max_attempts(monkeypatch):
+    monkeypatch.setattr(settings, "factcheck_max_attempts", 2)
+    assert len(query_variants("Czy w fikcyjnym mieście Zielonogródku otwarto nowy most kolejowy?")) == 2
+
+
+def _review_payload(claim_text: str, url: str) -> dict:
+    return {
+        "claims": [
+            {
+                "text": claim_text,
+                "claimReview": [
+                    {"publisher": {"name": "Weryfikator A"}, "url": url, "textualRating": "Fałsz"},
+                ],
+            }
+        ]
+    }
+
+
+MATCHING = _review_payload("W Zielonogródku otwarto nowy most kolejowy.", "https://weryfikator-a.example/most")
+UNRELATED = _review_payload("Szczepionki zawierają mikroczipy.", "https://weryfikator-a.example/czipy")
+CLAIM = "Czy w Zielonogródku otwarto nowy most kolejowy nad rzeką?"
+
+
+def test_retries_shorter_phrasings_until_a_matching_review(monkeypatch):
+    monkeypatch.setattr(settings, "factcheck_api_key", API_KEY)
+    variants = query_variants(CLAIM)
+    matching_from = variants[3]
+    queries = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = request.url.params["query"]
+        queries.append(query)
+        if query == matching_from:
+            return httpx.Response(200, json=MATCHING)
+        return httpx.Response(200, json=UNRELATED if query == variants[0] else {})
+
+    result = asyncio.run(_client(handler).search(CLAIM))
+
+    assert result.status == "ok"
+    assert result.reviews[0].url == "https://weryfikator-a.example/most"
+    assert len(queries) == 4
+    assert queries[-1] == matching_from
+
+
+def test_no_retries_when_first_wave_matches(monkeypatch):
+    monkeypatch.setattr(settings, "factcheck_api_key", API_KEY)
+    queries = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.params["query"])
+        return httpx.Response(200, json=MATCHING)
+
+    asyncio.run(_client(handler).search(CLAIM))
+    assert len(queries) == 2
+
+
+def test_stops_after_max_attempts_when_nothing_matches(monkeypatch):
+    monkeypatch.setattr(settings, "factcheck_api_key", API_KEY)
+    queries = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.params["query"])
+        return httpx.Response(200, json=UNRELATED)
+
+    result = asyncio.run(_client(handler).search(CLAIM, "Zielonogródek most rzeka"))
+    assert result.status == "ok"
+    assert sorted(queries) == sorted(query_variants(CLAIM, "Zielonogródek most rzeka"))
+    assert len(queries) <= settings.factcheck_max_attempts
+    assert [review.url for review in result.reviews] == ["https://weryfikator-a.example/czipy"]
+
+
+def test_failed_retry_stops_retrying(monkeypatch):
+    monkeypatch.setattr(settings, "factcheck_api_key", API_KEY)
+    variants = query_variants(CLAIM)
+    queries = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = request.url.params["query"]
+        queries.append(query)
+        if query == variants[2]:
+            return httpx.Response(429, json={"error": "quota"})
+        return httpx.Response(200, json={})
+
+    result = asyncio.run(_client(handler).search(CLAIM))
+    assert result.status == "ok"
+    assert len(queries) == 3
 
 
 def test_one_failing_variant_still_returns_results(monkeypatch):

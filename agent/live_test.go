@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 type quotingProvider struct{ rag *RagClient }
@@ -47,7 +46,7 @@ func TestLiveRag(t *testing.T) {
 		ragURL = defaultRagURL
 	}
 	config := Config{RagURL: ragURL, LLMBaseURL: "http://unused", LLMModel: "stub", MaxClaims: 3, SearchTopK: 5,
-		VerifyTimeout: 25 * time.Second, RagTimeout: 8 * time.Second, LLMTimeout: 10 * time.Second, ExtractMaxText: 6000}
+		VerifyTimeout: defaultVerifyTimeout, RagTimeout: defaultRagTimeout, LLMTimeout: defaultLLMTimeout, ExtractMaxText: 6000}
 	rag := NewRagClient(ragURL, config.RagTimeout)
 	a, err := New(config, &quotingProvider{rag: rag}, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	if err != nil {

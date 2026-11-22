@@ -15,6 +15,14 @@
     "które", "który", "których", "którzy", "lub", "ma", "mi", "mnie", "może", "na", "nad", "nam", "nas",
     "nie", "nich", "niej", "nim", "niż", "no", "o", "od", "on", "ona", "one", "oni", "ono", "oraz", "po",
     "pod", "przez", "przy", "się", "są", "ta", "tak", "także", "tam", "te", "tego", "tej", "ten", "też",
-    "to", "tu", "tylko", "tym", "u", "w", "we", "więc", "wszystko", "z", "za", "ze", "że", "żeby"
+    "to", "tu", "tylko", "tym", "u", "w", "we", "więc", "wszystko", "z", "za", "ze", "że", "żeby",
+    "ostatnio", "niedawno", "wczoraj", "dzisiaj", "dziś", "jutro", "teraz", "obecnie", "aktualnie", "właśnie",
+    "naprawdę", "faktycznie", "rzeczywiście", "podobno",
+    "były", "będą", "jesteśmy", "zostać", "został", "została", "zostało", "zostały", "zostali",
+    "odbywa", "odbywał", "odbywała", "odbywało", "odbywały", "odbył", "odbyła", "odbyło", "odbyły", "odbędzie",
+    "miał", "miała", "miało", "miały", "mieli", "mają"
+  ],
+  "rating_phrases": [
+    "oceniamy", "ocena:", "nasza ocena", "częściowa prawda", "manipulacja", "nieweryfikowalne", "fałsz", "prawda"
   ]
 }

@@ -54,7 +54,7 @@ def test_the_host_exclusion_is_lifted_only_for_exempt_hosts_and_address_rules_st
 def ingested(monkeypatch):
     documents = {}
 
-    async def ingest_document(document, models, store):
+    async def ingest_document(document, models, store, allow_near_duplicate=False):
         qualify(document.source)
         documents[document.source.document_id] = document
 

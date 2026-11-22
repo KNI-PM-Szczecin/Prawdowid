@@ -224,6 +224,24 @@ class VectorStore:
         )
         return [json.loads(row["payload"]) for row in rows]
 
+    async def chunks_containing(self, source_id: str, phrases: list[str], limit: int) -> list[RetrievedChunk]:
+        """Chunks of one document whose text contains any of the phrases (case-insensitive); no vectors involved."""
+        rows = await db.pool().fetch(
+            f"""
+            SELECT point_id, payload::text AS payload FROM {self._table}
+            WHERE source_id = $1 AND lower(payload ->> 'text') LIKE ANY($2::text[])
+            LIMIT $3
+            """,
+            source_id,
+            [f"%{phrase.lower()}%" for phrase in phrases],
+            limit,
+        )
+        payloads = [(row["point_id"], json.loads(row["payload"])) for row in rows]
+        return [
+            RetrievedChunk(chunk_id=point_id, text=payload["text"], fusion_score=0.0, payload=payload)
+            for point_id, payload in payloads
+        ]
+
     async def hybrid_search(
         self, dense: list[float], lexical: list[str], limit: int, payload_filter: PayloadFilter | None
     ) -> list[RetrievedChunk]:

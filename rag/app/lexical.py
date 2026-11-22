@@ -18,6 +18,14 @@ def content_words(text: str) -> list[str]:
     return [word for word in WORD.findall(text.lower()) if word not in stopwords]
 
 
+def stem_word(word: str) -> str:
+    return _profile().stemmer.stem_word(word)
+
+
+def rating_phrases() -> tuple[str, ...]:
+    return _profile().rating_phrases
+
+
 def lexical_tokens(text: str) -> list[str]:
     """
     Content words cut to a stem by the language profile. PostgreSQL has no Polish text search configuration (Supabase

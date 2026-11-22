@@ -16,14 +16,16 @@ from app.embeddings import EmbeddingModels
 from app.factcheck import FACTCHECK_RELIABILITY, FACTCHECK_TIER, FactCheckClient, FactCheckResult, FactCheckReview
 from app.incidents import CATALOG_STATUS_NAME, build_campaign_alert
 from app.incidents import rerank_text as incident_rerank_text
+from app.lexical import rating_phrases
 from app.models import ExternalSourceStatus, Passage, SearchFilters, SearchRequest, SearchResponse
 from app.query_expansion import expand
-from app.vector_store import RetrievedChunk, VectorStore, build_filter
+from app.vector_store import STORE_ERRORS, RetrievedChunk, VectorStore, build_filter
 
 logger = logging.getLogger(__name__)
 
 MILLISECONDS_PER_SECOND = 1000
 INJECTION_FLAG = "suspected_injection"
+FAILED_SOURCE_STATUS = "error"
 
 _cache: TtlCache[str, tuple[str, SearchResponse]] = TtlCache(
     settings.search_cache_ttl_seconds, settings.search_cache_max_entries
@@ -47,6 +49,8 @@ def _remember(key: str, corpus_version: str, response: SearchResponse) -> None:
 
 FACTCHECK_SOURCE_TYPE = "factcheck"
 FACTCHECK_DOCUMENT_PREFIX = "factcheck:"
+# Chunks of one fact-check article read when looking for the one that states the rating; articles are short.
+RATING_CHUNK_CANDIDATES = 20
 
 Candidate = RetrievedChunk | FactCheckReview
 
@@ -149,6 +153,69 @@ def _corpus_passage(chunk: RetrievedChunk, row, score: float) -> Passage:
     )
 
 
+def _rating_rank(text: str, phrases: tuple[str, ...]) -> int | None:
+    """Position of the strongest rating phrase in the text (lower is stronger), None when it states no rating."""
+    lowered = text.casefold()
+    return next((rank for rank, phrase in enumerate(phrases) if phrase in lowered), None)
+
+
+def _unrated_factcheck_documents(passages: list[Passage], phrases: tuple[str, ...]) -> list[str]:
+    """Corpus fact-check articles among the results none of whose returned passages states the publisher's rating."""
+    factcheck_documents = dict.fromkeys(
+        passage.document_id
+        for passage in passages
+        if passage.source_type == FACTCHECK_SOURCE_TYPE
+        and not passage.document_id.startswith(FACTCHECK_DOCUMENT_PREFIX)
+    )
+    rated = {passage.document_id for passage in passages if _rating_rank(passage.passage, phrases) is not None}
+    return [document_id for document_id in factcheck_documents if document_id not in rated]
+
+
+async def add_factcheck_ratings(
+    passages: list[Passage], query: str, models: EmbeddingModels, store: VectorStore
+) -> list[Passage]:
+    """
+    A fact-check article cited without its rating leaves the judge with the reported claim but not the verdict on it.
+    For every corpus fact-check article among the results whose passages do not state the rating, the chunk of the
+    same article that does (rating phrases of the language profile) is added, at most one per article. It keeps its
+    own cross-encoder score; the best passages are never replaced. A failure here returns the passages unchanged.
+    """
+    phrases = rating_phrases()
+    unrated = _unrated_factcheck_documents(passages, phrases) if phrases else []
+    if not unrated:
+        return passages
+    present = {passage.chunk_id for passage in passages}
+    try:
+        rating_chunks: list[RetrievedChunk] = []
+        for document_id in unrated:
+            chunks = [
+                chunk
+                for chunk in await store.chunks_containing(document_id, list(phrases), RATING_CHUNK_CANDIDATES)
+                if chunk.chunk_id not in present and _rating_rank(chunk.text, phrases) is not None
+            ]
+            if chunks:
+                rating_chunks.append(min(chunks, key=lambda chunk: _rating_rank(chunk.text, phrases)))
+        metadata = await db.fetch_passage_metadata([chunk.chunk_id for chunk in rating_chunks])
+    except STORE_ERRORS:
+        logger.exception("Looking up the rating chunks of fact-check articles failed")
+        return passages
+    live = [
+        chunk
+        for chunk in rating_chunks
+        if (row := metadata.get(chunk.chunk_id)) is not None and _complete_corpus_metadata(row)
+    ]
+    if not live:
+        return passages
+    logits = await asyncio.to_thread(models.rerank, query, [chunk.text for chunk in live])
+    added = [
+        _corpus_passage(chunk, metadata[chunk.chunk_id], _relevance(logit))
+        for chunk, logit in zip(live, logits, strict=True)
+    ]
+    logger.info("Added the rating passage of %d fact-check articles", len(added))
+    # Stable sort: the contract orders results by score, and equal scores keep the earlier order.
+    return sorted([*passages, *added], key=lambda passage: passage.score, reverse=True)
+
+
 async def _skipped_factcheck() -> FactCheckResult:
     return FactCheckResult(status="skipped", reviews=[])
 
@@ -159,10 +226,15 @@ async def search_passages(
     store: VectorStore,
     factcheck: FactCheckClient,
     incidents: VectorStore,
+    refresh: bool = False,
 ) -> SearchResponse:
     """
     Full retrieval pipeline: query expansion -> parallel hybrid search in the corpus, the incident catalog and
     live Google Fact Check -> one cross-encoder rerank over all candidates -> metadata join.
+
+    Cached answers are tied to the corpus version, so any indexed or removed chunk (gap fill, Odyseusz, feeds) makes
+    them stale. `refresh` skips the cached answer and overwrites it. An answer in which an external source failed is
+    never cached: a transient outage must not stick to the claim for the whole cache lifetime.
 
     Returns at most request.top_k passages above rerank_min_score; an empty list means no relevant evidence.
     Incident catalog matches never enter `results` or `context_xml`: they only build `campaign_alert` (context).
@@ -172,7 +244,7 @@ async def search_passages(
     started_at = time.perf_counter()
     corpus_version = await db.corpus_version()
     cache_key = _cache_key(request)
-    cached = _cached(cache_key, corpus_version)
+    cached = None if refresh else _cached(cache_key, corpus_version)
     if cached is not None:
         elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
         logger.info("search served from cache in %d ms", elapsed_ms)
@@ -181,11 +253,10 @@ async def search_passages(
     payload_filter = build_filter(
         filters.source_types if filters else None, filters.published_after if filters else None
     )
-    factcheck_task = asyncio.create_task(
-        factcheck.search(request.query) if _factcheck_wanted(filters) else _skipped_factcheck()
-    )
-
     queries = await expand(request.query)
+    factcheck_task = asyncio.create_task(
+        factcheck.search(request.query, queries.keywords) if _factcheck_wanted(filters) else _skipped_factcheck()
+    )
     query_texts = [queries.original, queries.negative, queries.neutral]
     dense_vectors, lexical_vectors = await asyncio.to_thread(models.embed_queries, query_texts)
     *result_sets, incident_hits, catalog_size = await asyncio.gather(
@@ -256,6 +327,7 @@ async def search_passages(
                 break
         if skipped_incomplete:
             logger.info("Dropped %d passages without complete metadata", skipped_incomplete)
+        passages = await add_factcheck_ratings(passages, queries.original, models, store)
 
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     logger.info(
@@ -282,5 +354,8 @@ async def search_passages(
         external_sources=[factcheck_result.as_status(), catalog_status],
         campaign_alert=campaign_alert,
     )
-    _remember(cache_key, corpus_version, response)
+    if any(source.status == FAILED_SOURCE_STATUS for source in response.external_sources):
+        logger.info("search answer not cached: an external source failed")
+    else:
+        _remember(cache_key, corpus_version, response)
     return response

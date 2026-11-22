@@ -11,9 +11,11 @@ class Settings(BaseSettings):
     )
 
     # DATABASE_URL is shared with backend/ (Supabase session pooler); RAG_POSTGRES_DSN overrides it for rag/ only.
+    # Secrets carry repr=False so a printed Settings (pytest assertion diffs, logs) never shows them.
     postgres_dsn: str = Field(
         default="postgresql://rag@localhost:5432/rag",
         validation_alias=AliasChoices("RAG_POSTGRES_DSN", "DATABASE_URL"),
+        repr=False,
     )
     # Supabase free tier caps pooler connections and backend/ uses the same database.
     postgres_pool_max_size: int = 5
@@ -26,7 +28,7 @@ class Settings(BaseSettings):
     model_cache_dir: str = "/models"
 
     # Required for POST /ingest, DELETE /sources/{id} and POST /admin/eviction; empty = those endpoints are disabled.
-    admin_token: str = ""
+    admin_token: str = Field(default="", repr=False)
 
     dense_model: str = "BAAI/bge-m3"
     dense_dim: int = 1024
@@ -42,7 +44,7 @@ class Settings(BaseSettings):
 
     retrieval_limit_per_query: int = 30
     # Rerank budget: 12 chunks x 450 chars + 10 fact-checks + 10 incident variants is about 5 s on CPU
-    # (contract: rag max 12 s).
+    # (agent/ gives the whole rag call 30 s).
     candidate_pool_size: int = 12
     # One long page must not fill the rerank pool and starve independent evidence from other sources
     # (brief: the strength of a verdict comes from the number of independent confirmations).
@@ -65,17 +67,21 @@ class Settings(BaseSettings):
 
     # Google Fact Check Tools API, queried live in /search; empty key = source disabled, corpus search still works.
     factcheck_api_key: str = Field(
-        default="", validation_alias=AliasChoices("RAG_FACTCHECK_API_KEY", "FACTCHECK_API_KEY")
+        default="", validation_alias=AliasChoices("RAG_FACTCHECK_API_KEY", "FACTCHECK_API_KEY"), repr=False
     )
     factcheck_url: str = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
     factcheck_language: str = "pl"
     factcheck_page_size: int = 10
     factcheck_max_reviews: int = 10
-    # Kept well under rag's own 12 s budget in CONTRACT.md §2, so a slow Google never sinks the whole search.
-    factcheck_timeout_seconds: float = 4.0
+    # Kept well under the 30 s agent/ gives the whole rag call, so a slow Google never sinks the whole search.
+    factcheck_timeout_seconds: float = 6.0
     # Same query within the TTL reuses the answer: fewer paid calls and the same result for repeated checks.
     factcheck_cache_ttl_seconds: int = 3600
     factcheck_cache_max_entries: int = 1000
+    # Google's claim search is sensitive to wording: up to this many phrasings when nothing matching comes back.
+    factcheck_max_attempts: int = 5
+    # Wall time for the one-by-one retries after the first parallel wave; leaves room for rerank in rag's budget.
+    factcheck_retry_budget_seconds: float = 8.0
 
     # Catalog of known disinformation campaigns (EUvsDisinfo, organizer's incident base), matched locally per search.
     incident_collection_name: str = "disinfo_incidents"
@@ -108,6 +114,19 @@ class Settings(BaseSettings):
     feeds_refresh_interval_minutes: int = 60
     feeds_max_bytes: int = 1_000_000
     feeds_retry_delay_seconds: float = 3.0
+    # Odyseusz (MSZ): the travel notices behind odyseusz.gov.pl come from its public JSON API (the same calls the
+    # page makes, no login). Each country with a current notice becomes one document odyseusz:<ISO>, replaced when
+    # the notice changes. Imported at start and then every interval; a claim naming a country fetches that country's
+    # notice inside the gap-fill budget as well.
+    odyseusz_enabled: bool = True
+    odyseusz_api_url: str = "https://odyseusz.gov.pl/api/v1/informacje"
+    odyseusz_site: str = "https://odyseusz.gov.pl"
+    odyseusz_refresh_interval_minutes: int = 60
+    odyseusz_request_delay_seconds: float = 0.5
+    odyseusz_timeout_seconds: float = 5.0
+    odyseusz_max_bytes: int = 2_000_000
+    # A claim rarely names more countries than this; each one costs two API calls inside the search request.
+    odyseusz_max_countries_per_claim: int = 2
     corpus_refresh_cron_hour: int = 5
     law_refresh_cron_day_of_week: str = "mon"
     law_refresh_cron_hour: int = 6
@@ -126,8 +145,8 @@ class Settings(BaseSettings):
     corpus_fetch_user_agent: str = "Prawdowid/0.1 (hackathon demo fact-checking corpus)"
     # POST /fetch for agent/: text returned for claim extraction, the page itself is not stored.
     fetch_max_text_chars: int = 20_000
-    # Under agent/'s 12 s budget for the whole rag call; the corpus fetch below runs in the background.
-    fetch_timeout_seconds: float = 10.0
+    # Under agent/'s 30 s budget for the whole rag call; the corpus fetch below runs in the background.
+    fetch_timeout_seconds: float = 15.0
     # Curated demo documents (app/data/seed_documents.json) fill facts the demo needs; missing ids are indexed at start.
     seed_corpus_enabled: bool = True
 
@@ -140,7 +159,7 @@ class Settings(BaseSettings):
 
     # EUvsDisinfo MCP server (Streamable HTTP, stateless mode); empty token = import disabled.
     euvsdisinfo_token: str = Field(
-        default="", validation_alias=AliasChoices("RAG_EUVSDISINFO_TOKEN", "EUVSDISINFO_TOKEN")
+        default="", validation_alias=AliasChoices("RAG_EUVSDISINFO_TOKEN", "EUVSDISINFO_TOKEN"), repr=False
     )
     euvsdisinfo_url: str = "https://mcp.euvsd.info/mcp"
     euvsdisinfo_page_size: int = 100
@@ -153,7 +172,7 @@ class Settings(BaseSettings):
 
     # Gap filling from gov.pl: when the corpus has fewer relevant passages than gov_search_min_results, /search asks
     # the endpoint behind gov.pl/web/gov/szukaj (robots.txt allows all), indexes the best and the newest pages and
-    # searches again. The whole fill stays under gov_search_budget_seconds, inside rag's 18 s (CONTRACT.md §2).
+    # searches again. The whole fill stays under gov_search_budget_seconds, inside the 30 s agent/ gives rag.
     gov_search_enabled: bool = True
     gov_search_url: str = "https://www.gov.pl/api/data/search"
     gov_search_site: str = "https://www.gov.pl"
@@ -162,10 +181,10 @@ class Settings(BaseSettings):
     gov_search_min_results: int = 1
     # A lowered rerank threshold lets weakly related passages through; when even the best one scores below this, the
     # corpus has no clear answer and gov.pl is asked as well (true matches score about 0.75-0.85). Measured on the
-    # jury cases: 0.6 started a fill for many answerable claims and the indexing starved the next searches (12 s
-    # timeouts); 0.5 keeps the fill for claims whose best passage is clearly weak.
+    # jury cases: 0.6 started a fill for many answerable claims and the indexing starved the next searches (rag
+    # timeouts on agent's side); 0.5 keeps the fill for claims whose best passage is clearly weak.
     gov_search_sufficient_score: float = 0.5
-    gov_search_timeout_seconds: float = 3.0
+    gov_search_timeout_seconds: float = 5.0
     # Secondary -> primary hop (app/primary_hop.py): when gov.pl did not help either, Wikipedia articles about the event
     # are searched only to find the official pages they cite; those catalog pages are indexed as evidence.
     hop_enabled: bool = True
@@ -178,9 +197,9 @@ class Settings(BaseSettings):
     hop_cache_max_entries: int = 500
     hop_candidates_max: int = 60
     hop_max_pages: int = 3
-    hop_budget_seconds: float = 6.0
+    hop_budget_seconds: float = 10.0
     # A slower fill keeps running in the background, so its pages still reach the corpus for the next question.
-    gov_search_budget_seconds: float = 4.0
+    gov_search_budget_seconds: float = 10.0
     # A stored gov.pl page older than this is downloaded again when a question needs it, so evidence stays current.
     gov_search_refresh_days: int = 30
     gov_search_cache_ttl_seconds: int = 3600
@@ -194,12 +213,13 @@ class Settings(BaseSettings):
     # Optional OpenAI-compatible endpoint (e.g. hosted OpenAI or FastFlowLM) for query expansion; empty = rules only.
     expansion_llm_url: str = ""
     expansion_llm_model: str = "qwen3:0.6b"
-    expansion_llm_api_key: str = ""
+    expansion_llm_api_key: str = Field(default="", repr=False)
     # Sent only to api.openai.com, which rejects temperature on GPT-5/6 models; same defaults as agent/llm.go.
     expansion_llm_reasoning_effort: str = "none"
     expansion_llm_max_completion_tokens: int = 800
-    # Must fit inside rag's 8 s budget together with retrieval and reranking; on timeout the rules take over.
-    expansion_llm_timeout_seconds: float = 3.0
+    # Must fit inside agent's 30 s rag budget together with retrieval, reranking and gap filling; on timeout the
+    # rules take over.
+    expansion_llm_timeout_seconds: float = 5.0
     # The same claim gets the same auxiliary queries even if the provider is not perfectly deterministic.
     # Entries hold the derived queries (they keep the claim's wording) and expire after the TTL.
     expansion_cache_ttl_seconds: int = 3600
