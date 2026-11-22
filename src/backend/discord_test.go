@@ -144,7 +144,7 @@ func TestFormatDiscordReplyShortAndFull(t *testing.T) {
 	}
 
 	short := formatDiscordReply(result, false)
-	for _, want := range []string{"Fałszywe", "Źródła przeczą temu twierdzeniu.", "https://a.example/1", "Daj 🚨, aby zobaczyć więcej"} {
+	for _, want := range []string{"Twierdzenie: Polska jest w UE", "Fałszywe", "Źródła przeczą temu twierdzeniu.", "https://a.example/1", "Daj 🚨, aby zobaczyć więcej"} {
 		if !strings.Contains(short, want) {
 			t.Fatalf("short reply missing %q: %s", want, short)
 		}
