@@ -1,25 +1,103 @@
-# Prezentacja PDF: zarys 12 slajdów
+# Prezentacja PDF: propozycja 12 slajdów
 
-Limit: **12 slajdów** (`spec/brief.md` §4). Kolejność z briefu: problem, użytkownicy, architektura, demo, wyniki testów, ryzyka, dalsze kroki. Status: `[WDROŻONE]` jest w kodzie, `[ZAPLANOWANE]` nie, `[DO UZUPEŁNIENIA]` czeka na dane. Slajdu nie wolno opierać na funkcji, której nie ma w kodzie.
+Limity: **12 slajdów** (`spec/brief.md`, rozdział 4) i **10 MB** (instrukcja HackTribe). Kolejność wymagana przez brief: problem, użytkownicy, architektura, demonstracja, wyniki testów, ryzyka, dalsze kroki.
 
-| # | Slajd | Treść | Dowód / grafika | Status |
-|---|---|---|---|---|
-| 1 | Tytuł | Prawdowid, hasło, zespół KNIPM, zadanie MSZ, data | logo, nazwa zespołu | |
-| 2 | Problem | Fałszywe doniesienia krążą w komunikatorach szybciej niż je sprawdzamy. Płynny język modelu nie gwarantuje prawdy. Treści bywają prawdziwe, ale nieaktualne albo wyjęte z kontekstu | 1 liczba lub przykład z briefu | |
-| 3 | Użytkownicy | Obywatel, także z niskimi kompetencjami cyfrowymi. Administrator/analityk (powtarzające się pytania bez odpowiedzi) | persony, 2 zdania | |
-| 4 | Rozwiązanie | Sprawdzasz tak łatwo, jak wysyłasz wiadomość. Werdykt + źródła + granice wiedzy. Nie „sędzia prawdy” | schemat: zgłoszenie → twierdzenia (opinie jako „nie podlega weryfikacji”, podświetlenie w tekście) → dowody → werdykt | [WDROŻONE] pełny przepływ |
-| 5 | Architektura | Preact / Go (backend, agent) / Python (rag) / PostgreSQL + Qdrant. Kanały oddzielone od logiki (WWW + adapter demonstracyjny; brief §5 dopuszcza adapter, bo organizator nie zapewnia kont, numerów ani kluczy do komunikatorów). Model wymienny | diagram z `CONTRACT.md` | [WDROŻONE] rag, agent, backend |
-| 6 | Źródła i korpus | Urzędowe + wtórne + weryfikatorzy (Google Fact Check) + katalog kampanii (EUvsDisinfo) + akty z Dziennika Ustaw + uzupełnianie luk z gov.pl. Licencje, kwalifikacja, reguły wykluczania, wygaszanie, minimum 100 dok. / 10 domen | tabela z `sources_catalog.json` | [WDROŻONE] mechanizmy, [DO UZUPEŁNIENIA] liczby z `GET /sources` |
-| 7 | Jak decydujemy | Reguły werdyktu i wstrzymania się (`CONTRACT.md` §4): cytat obowiązkowy i sprawdzany dosłownie, zgodność liczb, ocena weryfikatora tylko tego samego twierdzenia, wydarzenia bieżące. Domena nigdy nie jest werdyktem | tabela reguł | [WDROŻONE] `agent/rules.go` |
-| 8 | Bezpieczeństwo i prywatność | Prompt injection (dane ≠ instrukcje, wykrywanie w zgłoszeniu i stronie), tokeny, maskowanie danych osobowych, retencja 30 dni, usuwanie sesji, limit żądań | schemat obrony | [WDROŻONE] injection, tokeny, maskowanie, retencja, usuwanie; [DO UZUPEŁNIENIA] miejsce przetwarzania (OpenAI i Google Fact Check poza EOG, bez deklaracji hostingu w EOG) |
-| 9 | Demo | 4 ekrany: potwierdzone ze źródłem, wstrzymanie się, zrzut ekranu sprawdzony przez OCR (scenariusz F, ograniczenia o OCR i dacie na obrazie), odpowiedź adaptera demonstracyjnego (`POST /api/channels/demo`, tekst jak z komunikatora) z tym samym wynikiem | zrzuty ekranu i okno terminala | [WDROŻONE] funkcje, [DO UZUPEŁNIENIA] zrzuty |
-| 10 | Wyniki testów | Miary z briefu z celami: macro-F1 ≥ 0,75, cytowania 95% / 85%, wstrzymanie 80%, injection 90%, czas ≤ 30 s, koszt 100 testów deklarowany i zmierzony (brief §6 wymaga obu liczb). Dodatkowo benchmark zewnętrzny (`eval/BENCHMARK.md`) | tabela z raportu `eval/reports` | [DO UZUPEŁNIENIA] raport |
-| 11 | Ryzyka i ograniczenia | Halucynacje, stronniczość źródeł, prywatność, prompt injection, dostępność, nadużycia. Czego nie obsługujemy: wideo i dźwięk, wyszukiwanie odwrotne obrazu (OCR zrzutów jest, bez oceny autentyczności), filmy i wpisy z serwisów społecznościowych (jawna odmowa), materiał spoza korpusu nie jest rozpoznawany (dopasowanie po adresie albo tytule i dacie), sprawy tylko z WWW, bot Discord | tabela z `docs/draft.md` i lista z `opis.md` | [WDROŻONE] analiza |
-| 12 | Koszt i dalsze kroki | Koszt 1000 zapytań, zależności i miejsce przetwarzania, pilotaż z MSZ (zamknięty korpus, kolejka ekspercka), kanały, języki | oś czasu 4–6 tygodni z briefu §9 | [DO UZUPEŁNIENIA] koszt |
+Znaczniki w nawiasach kwadratowych oznaczają dane do uzupełnienia i **trzeba je usunąć przed oddaniem**. Liczb z testów nie wpisujemy ręcznie ani nie poprawiamy: biorą się wyłącznie z prawdziwego przebiegu `eval/`.
 
-Do rozważenia w limicie 12 slajdów (kosztem połączenia 2 i 3 albo 11 i 12): osobny slajd o pętli moderatora (sprawy dla twierdzeń bez dowodów, grupowanie parafraz, `recommended` vs `forwarded`, lista `GET /api/admin/cases`) i o benchmarku z `eval/BENCHMARK.md` (zewnętrzny zbiór fact-checków, sędzia LLM, porównanie A/B, przegląd ręczny).
+## Zasady redakcyjne
+- Jedna myśl na slajd, tytuł jest wnioskiem, a nie nazwą działu.
+- Na slajdzie najwyżej około 40 słów tekstu, reszta to schemat, tabela lub zrzut ekranu.
+- Bez powtórzeń słów na początku kolejnych zdań i punktów.
+- Nic, czego nie ma w kodzie. Czego nie obsługujemy, mówimy wprost (wymóg briefu).
+- Zrzuty ekranu bez danych osobowych i kluczy.
 
-## Zasady
-- Jeden komunikat na slajd, wyniki liczbowe tylko z prawdziwego przebiegu `eval/` (bez ręcznego poprawiania).
-- Dane osobowe i klucze na zrzutach: zamaskować.
-- Przy każdym ograniczeniu napisać wprost, czego system nie obsługuje (wymóg briefu).
+## Slajdy
+
+### 1. Tytuł
+- **Tytuł:** Prawdowid
+- **Podtytuł:** Sprawdź doniesienie. Zobacz dowody.
+- Hackathon HackNation 2026, zadanie Ministerstwa Spraw Zagranicznych
+- Nazwa zespołu: [DO UZUPEŁNIENIA], skład: pięć osób
+- **Grafika:** logo i zrzut strony głównej
+
+### 2. Problem i użytkownicy
+- **Tytuł:** Płynna odpowiedź to jeszcze nie dowód
+- Fałsz rozchodzi się szybciej, niż da się go sprawdzić. Treść bywa nieaktualna, wyjęta z kontekstu albo dotyczy zdarzenia bez publikacji.
+- Model językowy brzmi pewnie nawet wtedy, gdy się myli.
+- **Dla kogo:** obywatel bez wiedzy technicznej oraz analityk, który chce widzieć powtarzające się pytania bez odpowiedzi.
+- **Grafika:** jedna liczba ze źródłem [DO UZUPEŁNIENIA albo pominąć], dwie ikony użytkowników
+
+### 3. Rozwiązanie: od zgłoszenia do werdyktu
+- **Tytuł:** Wklejasz, a my pokazujemy dowody
+- **Schemat w czterech krokach:** zgłoszenie (tekst, link, link ukryty w tekście, zrzut ekranu odczytany przez OCR) → twierdzenia (opinie i prognozy trafiają do „nie podlega weryfikacji”) → wyszukane źródła → werdykt z cytatem
+- **Grafika:** poziomy diagram z czterema polami i przykładem zgłoszenia
+
+### 4. Jak decydujemy
+- **Tytuł:** Reguły w kodzie, a nie opinia modelu
+- **Pięć werdyktów:** potwierdzone, fałszywe, wprowadzające w błąd, brak wystarczających dowodów, nie podlega weryfikacji. Awaria techniczna ma osobny status i nigdy nie jest werdyktem.
+- **Warunki:** cytat musi stać w źródle słowo w słowo. „Potwierdzone” i „fałszywe” wymagają źródła urzędowego, oceny weryfikatora faktów albo dwóch niezależnych wydawców wtórnych.
+- Gdy źródła się różnią, najpierw wyjaśniamy różnicę. Gdy dowodów brak, mówimy, czego nie ustalono. Sama domena, autor czy popularność nigdy nie przesądzają o werdykcie.
+- **Grafika:** tabela „sytuacja → odpowiedź systemu”
+
+### 5. Źródła i korpus
+- **Tytuł:** Każdy dowód ma datę, wydawcę i uzasadnienie wyboru
+- **Trzy rodzaje:** źródła urzędowe (gov.pl, akty prawne), weryfikatorzy faktów (Google Fact Check, zapytanie na żywo) i źródła wtórne
+- Katalog zaufanych źródeł z regułami kwalifikowania i wykluczania, ocena wieku materiału, lista źródeł do audytu
+- Znane kampanie dezinformacyjne (EUvsDisinfo) dają ostrzeżenie, a nie werdykt
+- **Liczby korpusu demonstracyjnego:** [DOKUMENTÓW], [DOMEN], [TYPÓW] (minimum z briefu: 100, 10 i 2)
+- **Grafika:** tabela z podziałem na rodzaje źródeł
+
+### 6. Architektura
+- **Tytuł:** Kanały oddzielone od logiki, model do wymiany
+- **Diagram:** strona WWW, bot Discord i adapter demonstracyjny → backend (Go) → agent (Go) → wyszukiwanie (Python) → Qdrant i PostgreSQL. Model językowy za jednym interfejsem. Całość w Dockerze, wdrożenie na Railway.
+- **Podpis pod diagramem:** zmiana modelu lub dostawcy nie wymaga przebudowy systemu
+- **Grafika:** schemat z `CONTRACT.md`
+
+### 7. Bezpieczeństwo i prywatność
+- **Tytuł:** Treść ze źródeł to dane, a nie polecenia
+- Wykrywanie poleceń ukrytych w zgłoszeniu i w pobranych stronach, próby są zliczane i zapisywane
+- Maskowanie e-maila, numeru PESEL, telefonu i IBAN przed zapisem. Przebieg można usunąć, a po 30 dniach znika sam.
+- Limit zapytań z jednego adresu, sekrety wyłącznie w zmiennych środowiska, log czasu, modelu, błędów, wstrzymań i kosztu
+- **Miejsce przetwarzania danych:** [DO UZUPEŁNIENIA: dostawca modelu, Google, baza]
+- **Grafika:** schemat „zgłoszenie → maskowanie → agent”
+
+### 8. Interfejs i dostępność
+- **Tytuł:** Prosta odpowiedź, dostępna dla każdego
+- Twierdzenia podświetlone w tekście, kliknięcie otwiera panel ze źródłami, siłą dowodów i ograniczeniami
+- Panel dostępności: kontrast (domyślny, wysoki jasny i ciemny), rozmiar tekstu od 100 do 200%, ograniczenie animacji
+- **Grafika:** dwa zrzuty ekranu, wynik i panel ustawień
+
+### 9. Kanały i pętla informacji
+- **Tytuł:** Ten sam wynik w każdym kanale, a pytania bez odpowiedzi trafiają do analityka
+- **Kanały:** strona WWW, bot Discord (komenda `/factcheck`) i adapter demonstracyjny. Wszystkie korzystają z jednej ścieżki weryfikacji.
+- **Pętla informacji:** pytania bez dowodów łączymy w sprawy razem z parafrazami. Sprawa jest „zalecona” po spełnieniu reguły, a „przekazana” dopiero wtedy, gdy webhook moderatora to potwierdzi.
+- **Grafika:** ta sama odpowiedź na stronie i na Discordzie obok siebie
+
+### 10. Demonstracja
+- **Tytuł:** Cztery sceny z działającego systemu
+- Potwierdzone ze źródłem i cytatem
+- Brak dowodów: system wstrzymuje się i mówi, czego nie ustalił
+- Zrzut ekranu odczytany przez OCR, z jawną uwagą o ograniczeniach
+- To samo pytanie na Discordzie z tym samym wynikiem
+- **Grafika:** cztery zrzuty z działającej instancji [DO UZUPEŁNIENIA]
+
+### 11. Wyniki testów
+- **Tytuł:** Mierzymy się według miar z zadania
+- **Tabela:** miara, cel, nasz wynik: trafność werdyktu (macro-F1 ≥ 0,75), pokrycie cytowań (≥ 95%), poprawność cytowań (≥ 85%), wstrzymanie się bez dowodów (≥ 80%), odporność na polecenia w treści (≥ 90%), czas (mediana ≤ 30 s), koszt 100 testów
+- **Zestawy:** własne 44 przypadki według scenariuszy A–J z briefu oraz osobny test na twierdzeniach ocenionych przez zewnętrznych weryfikatorów faktów
+- **Wyniki:** [DO UZUPEŁNIENIA z prawdziwego przebiegu `eval/`]. Pod tabelą: dane i polecenie do odtworzenia.
+
+### 12. Ryzyka, ograniczenia i dalsze kroki
+- **Tytuł:** Uczciwie o tym, czego jeszcze nie robimy
+- **Ryzyka z briefu:** halucynacje, stronniczość źródeł, prywatność, polecenia w treści, dostępność, nadużycia. Każde ma jedno zdanie o zabezpieczeniu.
+- **Czego nie obsługujemy:** wideo i dźwięku, odwrotnego wyszukiwania obrazu, eksportu danych (CSV, JSON, OpenCTI), wpisów z serwisów społecznościowych (jawna odmowa)
+- **Koszt 1000 zapytań:** [DO UZUPEŁNIENIA]. Zależności poza EOG: [DO UZUPEŁNIENIA].
+- **Dalsze kroki:** pilotaż z MSZ przez 4–6 tygodni na zamkniętym korpusie z kolejką ekspercką, potem kolejne kanały i języki
+- **Grafika:** oś czasu z briefu (rozdział 9)
+
+## Przed oddaniem
+- [ ] Usunięte wszystkie znaczniki `[DO UZUPEŁNIENIA]`
+- [ ] Liczby ze slajdów 5, 11 i 12 pochodzą z prawdziwych przebiegów
+- [ ] PDF ma najwyżej 12 slajdów i najwyżej 10 MB
+- [ ] Zrzuty ekranu bez danych osobowych i kluczy
+- [ ] Spis ograniczeń na slajdzie 12 zgadza się ze stanem kodu
