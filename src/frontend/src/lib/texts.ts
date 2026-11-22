@@ -160,6 +160,12 @@ export const texts = {
       description: "Nie znaleźliśmy wystarczających źródeł. To nie znaczy, że informacja jest fałszywa.",
     },
   } satisfies Record<SummaryLevel, { title: string; description: string }>,
+  // Same headline as the Discord bot (src/backend/discord.go), shown when every claim is an opinion or forecast.
+  summaryOpinion: {
+    title: "Nie podlega weryfikacji",
+    description:
+      "To opinia, ocena albo prognoza, a nie fakt. Nie da się jej potwierdzić ani obalić na podstawie źródeł, więc nie oceniamy jej prawdziwości.",
+  },
   summaryReasonsLabel: "Na jakiej podstawie",
   badges: {
     fresh_material: "Świeży",
@@ -216,7 +222,7 @@ export const texts = {
     insufficient_evidence: "Brak wystarczających dowodów",
     conflicting: "Sprzeczne źródła",
     partial: "Ustalono częściowo",
-    not_verifiable: "Nie da się sprawdzić",
+    not_verifiable: "Nie podlega weryfikacji",
   },
   claims: {
     listTitle: (count: number) => `Sprawdzone twierdzenia (${count})`,

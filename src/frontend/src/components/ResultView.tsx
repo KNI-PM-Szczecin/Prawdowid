@@ -94,7 +94,7 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
           </p>
         )}
 
-        {result.summary && <SummaryBox summary={result.summary} />}
+        {result.summary && <SummaryBox summary={result.summary} claims={result.claims} />}
         {result.campaignAlert && <CampaignAlertBox alert={result.campaignAlert} />}
         {result.materialMatch && <MaterialMatchBox match={result.materialMatch} />}
         <BadgeList badges={result.badges ?? []} />

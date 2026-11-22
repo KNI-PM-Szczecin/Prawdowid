@@ -1,5 +1,5 @@
 import { texts } from "./texts";
-import type { Claim, SummaryLevel } from "./types";
+import type { Claim, Summary, SummaryLevel } from "./types";
 
 export type Tone = "positive" | "negative" | "warning" | "neutral";
 
@@ -12,6 +12,13 @@ export const SUMMARY_TONE: Record<SummaryLevel, Tone> = {
   low: "negative",
   unknown: "neutral",
 };
+
+// The backend has no verdict-based summary for opinions (level "unknown", like an abstention), but "we could not
+// rate it" would suggest missing sources: when every claim is an opinion the headline says so instead.
+export function summaryCopy(summary: Summary, claims: Claim[]): { title: string; description: string } {
+  const opinionsOnly = claims.length > 0 && claims.every((claim) => claim.verdict === "not_verifiable");
+  return summary.level === "unknown" && opinionsOnly ? texts.summaryOpinion : texts.summary[summary.level];
+}
 
 // Until agent/ returns claims[].conflict (CONTRACT.md §1a), sources with both roles mean a conflict.
 export function hasConflict(claim: Claim): boolean {
