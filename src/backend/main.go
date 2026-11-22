@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -171,8 +172,13 @@ func healthHandler(logger *slog.Logger, pool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
+// writeJSON sends body as JSON. A rate-limited answer also says when to come back (Retry-After, the length of the
+// fixed rate-limit window as an upper bound), so clients and test scripts can wait instead of reporting a failure.
 func writeJSON(logger *slog.Logger, writer http.ResponseWriter, statusCode int, body any) {
 	writer.Header().Set("Content-Type", "application/json")
+	if statusCode == http.StatusTooManyRequests {
+		writer.Header().Set("Retry-After", strconv.Itoa(int(rateLimitWindow/time.Second)))
+	}
 	writer.WriteHeader(statusCode)
 	if err := json.NewEncoder(writer).Encode(body); err != nil {
 		logger.Error("write response failed", "error", err)

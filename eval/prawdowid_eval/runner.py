@@ -7,9 +7,23 @@ from pydantic import BaseModel
 from prawdowid_eval.cases import Case
 
 CHECK_PATH = "/api/check"
-# Contract budget for agent.Verify is 25 s; the margin covers backend overhead and slow first requests.
+# Contract budget for agent.Verify is 45 s; the margin covers backend overhead and slow first requests.
 REQUEST_TIMEOUT_SECONDS = 60.0
 MILLISECONDS_PER_SECOND = 1000
+# The backend limits checks per client and minute. A rate-limited answer says nothing about verification quality, so
+# the run waits (Retry-After, capped) and sends the case again instead of recording a technical_error.
+HTTP_TOO_MANY_REQUESTS = 429
+RATE_LIMIT_RETRIES = 2
+RATE_LIMIT_DEFAULT_WAIT_SECONDS = 60.0
+RATE_LIMIT_MAX_WAIT_SECONDS = 60.0
+
+
+def _retry_after_seconds(response: httpx.Response) -> float:
+    try:
+        wait = float(response.headers.get("Retry-After", RATE_LIMIT_DEFAULT_WAIT_SECONDS))
+    except ValueError:
+        wait = RATE_LIMIT_DEFAULT_WAIT_SECONDS
+    return min(max(wait, 0.0), RATE_LIMIT_MAX_WAIT_SECONDS)
 
 
 class RunRecord(BaseModel):
@@ -21,13 +35,25 @@ class RunRecord(BaseModel):
     error: str | None
 
 
-def run_case(client: httpx.Client, case: Case, repeat: int) -> RunRecord:
-    """Sends one case to POST /api/check; transport errors are recorded, not raised, so a run never stops midway."""
+def run_case(client: httpx.Client, case: Case, repeat: int, sleep=time.sleep) -> RunRecord:
+    """
+    Sends one case to POST /api/check; transport errors are recorded, not raised, so a run never stops midway.
+    A 429 is retried up to RATE_LIMIT_RETRIES times after Retry-After; the time spent waiting is not counted.
+    """
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        record, response = _send(client, case, repeat)
+        if response is None or response.status_code != HTTP_TOO_MANY_REQUESTS or attempt == RATE_LIMIT_RETRIES:
+            return record
+        sleep(_retry_after_seconds(response))
+    return record
+
+
+def _send(client: httpx.Client, case: Case, repeat: int) -> tuple[RunRecord, httpx.Response | None]:
     started_at = time.perf_counter()
     try:
         response = client.post(CHECK_PATH, json={"input": case.input, "inputType": case.input_type})
     except httpx.HTTPError as error:
-        return RunRecord(
+        record = RunRecord(
             case_id=case.id,
             repeat=repeat,
             http_status=None,
@@ -35,11 +61,12 @@ def run_case(client: httpx.Client, case: Case, repeat: int) -> RunRecord:
             error=f"{type(error).__name__}: {error}",
             elapsed_ms=round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND),
         )
+        return record, None
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     try:
         body = response.json()
     except json.JSONDecodeError:
-        return RunRecord(
+        record = RunRecord(
             case_id=case.id,
             repeat=repeat,
             http_status=response.status_code,
@@ -47,9 +74,11 @@ def run_case(client: httpx.Client, case: Case, repeat: int) -> RunRecord:
             error="Odpowiedź nie jest JSON-em",
             elapsed_ms=elapsed_ms,
         )
-    return RunRecord(
+        return record, response
+    record = RunRecord(
         case_id=case.id, repeat=repeat, http_status=response.status_code, body=body, error=None, elapsed_ms=elapsed_ms
     )
+    return record, response
 
 
 def run_cases(
