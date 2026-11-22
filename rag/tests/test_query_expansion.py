@@ -8,7 +8,11 @@ from app import query_expansion
 from app.config import settings
 
 EXPANSION_ANSWER = json.dumps(
-    {"negative": "Nieprawda, że strefa buforowa działa.", "neutral": "strefa buforowa granica"}
+    {
+        "negative": "Nieprawda, że strefa buforowa działa.",
+        "neutral": "strefa buforowa granica",
+        "keywords": "strefa buforowa",
+    }
 )
 OPENAI_URL = "https://api.openai.com/v1"
 LOCAL_URL = "http://127.0.0.1:52625/v1"
@@ -141,3 +145,27 @@ def test_is_hosted_openai_only_for_exact_host():
     assert query_expansion.is_hosted_openai("https://api.openai.com/v1")
     assert not query_expansion.is_hosted_openai("https://api.openai.com.evil.example/v1")
     assert not query_expansion.is_hosted_openai("http://127.0.0.1:52625/v1")
+
+
+def test_keywords_come_from_the_model_and_fall_back_to_content_words(monkeypatch):
+    configure(monkeypatch, OPENAI_URL)
+    assert asyncio.run(query_expansion.expand("Strefa buforowa działa.")).keywords == "strefa buforowa"
+
+    configure(monkeypatch, OPENAI_URL)
+    FakeAsyncClient.content = json.dumps({"negative": "n", "neutral": "m"})
+    assert asyncio.run(query_expansion.expand("Czy w Krakowie była strefa buforowa?")).keywords == (
+        "krakowie strefa buforowa"
+    )
+
+
+def test_rules_keywords_drop_function_words_and_cap_the_length(monkeypatch):
+    monkeypatch.setattr(settings, "expansion_llm_url", "")
+    query_expansion._cache.clear()
+    result = asyncio.run(
+        query_expansion.expand(
+            "Za zbrodnie w Krakowie w zeszłym roku odpowiada obcokrajowiec według policji i prokuratury"
+        )
+    )
+    assert result.method == "rules"
+    assert result.keywords == "zbrodnie krakowie zeszłym roku odpowiada obcokrajowiec"
+    assert len(result.keywords.split()) <= query_expansion.RULES_KEYWORDS_MAX_WORDS

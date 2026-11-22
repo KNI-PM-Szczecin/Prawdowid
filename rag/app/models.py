@@ -120,6 +120,8 @@ class ExpandedQueries(ApiModel):
     original: str
     negative: str
     neutral: str
+    # Few nouns and proper names for keyword search engines (gov.pl), which drown in a whole sentence.
+    keywords: str
     method: Literal["llm", "rules"]
 
 
