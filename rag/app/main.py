@@ -109,8 +109,9 @@ async def lifespan(app: FastAPI):
     if settings.seed_corpus_enabled:
         seed_report = await ensure_seed_corpus(app.state.models, store)
         logger.info(
-            "Seed corpus: %d indexed, %d already present, %d duplicates, %d failed",
+            "Seed corpus: %d indexed (%d without vectors here), %d already present, %d duplicates, %d failed",
             seed_report.indexed,
+            seed_report.missing_vectors,
             seed_report.already_present,
             seed_report.skipped_duplicates,
             seed_report.failed,
