@@ -55,6 +55,8 @@ docker compose up -d --build
 ```
 `postgres` się wtedy nie startuje, a `backend` i `rag` łączą się z Supabase.
 
+**Uwaga: lokalny `rag` nie może używać bazy produkcji.** Teksty i wektory korpusu są w Qdrancie, a stan fragmentów (aktywny czy usunięty) w PostgreSQL. Gdy kilka środowisk ma wspólną bazę, ale każde własny Qdrant, każda ponowna indeksacja (seed przy starcie, `fetch_corpus`, `import_law`) zapisuje nowe fragmenty tylko do swojego Qdranta i oznacza stare jako usunięte we wspólnej bazie. Inne środowiska tracą wtedy swoje fragmenty i wyszukiwanie zwraca pustą listę, więc każde twierdzenie dostaje `insufficient_evidence`. Objaw w logu `rag`: `Seed document ... has no vectors in this Qdrant` albo `Skipped N of M retrieved chunks without active metadata`. Lokalnie używaj profilu `local-db`, a jeśli `backend` ma zostać na Supabase, ustaw `rag/` osobną bazę przez `RAG_POSTGRES_DSN`.
+
 ## Zasilanie korpusu
 
 `rag` przy starcie sam uzupełnia korpus z `rag/app/data/seed_documents.json` (dosłowne fragmenty źródeł z datami i linkami, liczba w pliku) i katalog kampanii z `rag/app/data/seed_incidents.json`, więc podstawowe fakty i scenariusz I działają bez ręcznego zasilania. Strony-listy i strony główne są wykluczane regułami z `rag/app/data/corpus_rules.json`, a ustawy wchodzą z tabeli `Law` przez `POST /admin/corpus/law` (opis w `rag/README.md`). Endpointy administracyjne wymagają nagłówka `X-Admin-Token` z wartością `RAG_ADMIN_TOKEN`.

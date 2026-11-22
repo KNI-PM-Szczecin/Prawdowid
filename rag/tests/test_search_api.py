@@ -231,6 +231,24 @@ def test_equal_scores_prefer_the_newer_passage(client):
     assert passages[0] == "Nowszy komunikat."
 
 
+def test_stale_points_do_not_take_the_rerank_pool_from_live_evidence(client, monkeypatch):
+    stale = [
+        RetrievedChunk(chunk_id=uuid4(), text=f"Usunięty fragment {index}.", fusion_score=0.99, payload={})
+        for index in range(settings.candidate_pool_size)
+    ]
+    live = RetrievedChunk(chunk_id=uuid4(), text="Poseł X głosował przeciw ustawie Y.", fusion_score=0.1)
+    stale_ids = {chunk.chunk_id for chunk in stale}
+
+    async def metadata_only_for_live(chunk_ids):
+        return {chunk_id: _metadata_row(chunk_id) for chunk_id in chunk_ids if chunk_id not in stale_ids}
+
+    monkeypatch.setattr(db, "fetch_passage_metadata", metadata_only_for_live)
+    app.state.store = FakeStore([*stale, live])
+    app.state.models = FakeModels({**{chunk.text: RELEVANT_LOGIT for chunk in stale}, live.text: RELEVANT_LOGIT})
+    results = client.post("/search", json=QUERY).json()["results"]
+    assert [item["passage"] for item in results] == [live.text]
+
+
 def test_passage_without_publication_date_is_not_returned(client, monkeypatch):
     async def metadata_without_date(chunk_ids):
         return {chunk_id: {**_metadata_row(chunk_id), "published_at": None} for chunk_id in chunk_ids}
