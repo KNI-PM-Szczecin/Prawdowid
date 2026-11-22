@@ -5,13 +5,6 @@
   border-top: 1px solid var(--line);
   background: var(--page);
 
-  // The claim drawer covers the right half of the viewport on wide screens; the footer text stays beside it.
-  @include from-lg {
-    .app:has(.result-view--with-panel) & {
-      padding-right: 50%;
-    }
-  }
-
   &__inner {
     display: flex;
     flex-wrap: wrap;

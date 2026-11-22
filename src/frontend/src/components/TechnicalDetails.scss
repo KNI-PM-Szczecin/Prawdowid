@@ -3,6 +3,7 @@
 .technical-details {
   border: $border solid var(--line);
   border-radius: $radius-md;
+  background: var(--page);
   padding: 1rem;
 
   &__summary {
