@@ -259,7 +259,7 @@ func discordVerdictHeadline(verdict string) string {
 	case agent.VerdictMisleading:
 		return "Wprowadzające w błąd"
 	case agent.VerdictInsufficientEvidence:
-		return "Brak wystarczających dowodów"
+		return "Niepewne"
 	case agent.VerdictNotVerifiable:
 		return "Nie podlega weryfikacji"
 	default:

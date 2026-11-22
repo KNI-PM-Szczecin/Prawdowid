@@ -161,7 +161,7 @@ func TestDemoReplyShowsMaterialMatchWithBasisOutsideVerdict(t *testing.T) {
 		t.Fatal(err)
 	}
 	reply := string(replyBytes)
-	for _, want := range []string{"Znamy ten materiał", "Depesza PAP", "zgodny tytuł, zgodna data publikacji", "https://pap.pl/depesza", "Brak wystarczających dowodów"} {
+	for _, want := range []string{"Znamy ten materiał", "Depesza PAP", "zgodny tytuł, zgodna data publikacji", "https://pap.pl/depesza", "Niepewne"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("reply missing %q: %s", want, reply)
 		}
@@ -202,7 +202,7 @@ func TestDemoReplyStatesAbstentionHonestly(t *testing.T) {
 	reply := string(replyBytes)
 
 	for _, want := range []string{
-		"Brak wystarczających dowodów",
+		"Niepewne",
 		"System wstrzymuje się od oceny.",
 		"Brak komunikatu urzędu.",
 		"Źródła: brak",

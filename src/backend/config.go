@@ -14,7 +14,7 @@ const (
 	defaultDatabaseMaxConns = 5
 	// Checks per client address and minute. A jury or a test script runs dozens of cases from one address; at 20 the
 	// fast answers (opinions, abstentions) tripped the limit. Abuse protection still holds at this rate.
-	defaultRateLimit = 60
+	defaultRateLimit        = 60
 	defaultRetentionDays    = 30
 	defaultArchivalDays     = 365
 	defaultRagURL           = "http://localhost:8001"
