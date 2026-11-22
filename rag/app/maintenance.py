@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -62,13 +62,14 @@ def register_maintenance_jobs(
             args=[models, store],
         )
     if settings.odyseusz_enabled:
-        # First run right after start, in the background: travel notices change daily and the corpus may be empty.
+        # First run a while after start (odyseusz_first_run_delay_minutes), so the full import does not compete with
+        # the first checks for CPU; until then the on-demand fetch serves claims that name a country.
         scheduler.add_job(
             refresh_odyseusz,
             "interval",
             id=JOB_ODYSEUSZ_REFRESH,
             minutes=settings.odyseusz_refresh_interval_minutes,
-            next_run_time=datetime.now(UTC),
+            next_run_time=datetime.now(UTC) + timedelta(minutes=settings.odyseusz_first_run_delay_minutes),
             args=[models, store],
         )
     if settings.corpus_refresh_enabled:

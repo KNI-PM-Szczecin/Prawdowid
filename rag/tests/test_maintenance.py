@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app import maintenance
@@ -51,8 +53,11 @@ def test_official_sources_are_refreshed_on_a_schedule(monkeypatch):
     assert str(law.trigger.fields[4]) == settings.law_refresh_cron_day_of_week
     odyseusz = scheduler.get_job(JOB_ODYSEUSZ_REFRESH)
     assert odyseusz.trigger.interval.total_seconds() == settings.odyseusz_refresh_interval_minutes * 60
-    # Runs once right after start, in the background, not only after the first interval.
+    # The first full import waits odyseusz_first_run_delay_minutes, so it does not slow the first checks after start.
     assert odyseusz.next_run_time is not None
+    delay = odyseusz.next_run_time - datetime.now(UTC)
+    assert timedelta(minutes=settings.odyseusz_first_run_delay_minutes - 1) < delay
+    assert delay <= timedelta(minutes=settings.odyseusz_first_run_delay_minutes)
 
 
 def test_odyseusz_refresh_follows_its_switch(monkeypatch):
