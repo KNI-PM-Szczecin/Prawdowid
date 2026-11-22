@@ -104,6 +104,109 @@ func TestTruncateReplyKeepsDiscordLimit(t *testing.T) {
 	}
 }
 
+func TestDiscordReactionEmoji(t *testing.T) {
+	tests := []struct {
+		verdict string
+		want    string
+	}{
+		{agent.VerdictFalse, discordReactionAlarm},
+		{agent.VerdictMisleading, discordReactionAlarm},
+		{agent.VerdictInsufficientEvidence, discordReactionQuestion},
+		{agent.VerdictNotVerifiable, discordReactionQuestion},
+		{agent.VerdictConfirmed, discordReactionConfirmed},
+	}
+	for _, test := range tests {
+		if got := discordReactionEmoji(agent.Claim{Verdict: test.verdict}); got != test.want {
+			t.Fatalf("discordReactionEmoji(%s) = %q, want %q", test.verdict, got, test.want)
+		}
+	}
+}
+
+func TestDiscordConfidence(t *testing.T) {
+	tests := []struct {
+		strength string
+		want     string
+	}{
+		{agent.StrengthStrong, discordConfidenceStrong},
+		{agent.StrengthModerate, discordConfidenceModerate},
+		{agent.StrengthWeak, discordConfidenceWeak},
+		{agent.StrengthNone, ""},
+	}
+	for _, test := range tests {
+		if got := discordConfidence(test.strength); got != test.want {
+			t.Fatalf("discordConfidence(%s) = %q, want %q", test.strength, got, test.want)
+		}
+	}
+}
+
+func TestFormatDiscordReplyShortAndFull(t *testing.T) {
+	result := agent.CheckResult{
+		Status: agent.StatusOK,
+		Claims: []agent.Claim{{
+			ID:               "c1",
+			Text:             "Polska jest w UE",
+			Verdict:          agent.VerdictFalse,
+			Justification:    "Źródła przeczą temu twierdzeniu.",
+			EvidenceStrength: agent.StrengthStrong,
+			StrengthReasons:  []string{"Oficjalne źródło zaprzecza."},
+			Sources: []agent.SourceRef{
+				{ID: "s1", Title: "Źródło 1", Publisher: "Wydawca 1", URL: "https://a.example/1"},
+				{ID: "s2", Title: "Źródło 2", Publisher: "Wydawca 2", URL: "https://a.example/2"},
+				{ID: "s3", Title: "Źródło 3", Publisher: "Wydawca 3", URL: "https://a.example/3"},
+				{ID: "s4", Title: "Źródło 4", Publisher: "Wydawca 4", URL: "https://a.example/4"},
+				{ID: "s5", Title: "Źródło 5", Publisher: "Wydawca 5", URL: "https://a.example/5"},
+			},
+		}},
+		Limitations: []string{"Ograniczenie."},
+	}
+
+	short := formatDiscordReply(result, false)
+	for _, want := range []string{"Fałszywe — pewność 90%", "Źródła przeczą temu twierdzeniu.", "https://a.example/1", "Daj 🚨, aby zobaczyć więcej"} {
+		if !strings.Contains(short, want) {
+			t.Fatalf("short reply missing %q: %s", want, short)
+		}
+	}
+	if strings.Contains(short, "https://a.example/5") {
+		t.Fatalf("short reply must cap sources at %d: %s", discordMaxShortSources, short)
+	}
+	if strings.Contains(short, "Ograniczenie") {
+		t.Fatalf("short reply must hide limitations: %s", short)
+	}
+
+	full := formatDiscordReply(result, true)
+	for _, want := range []string{"https://a.example/5", "Oficjalne źródło zaprzecza.", "Ograniczenie.", "Kliknij 🚨 ponownie, aby zwinąć"} {
+		if !strings.Contains(full, want) {
+			t.Fatalf("full reply missing %q: %s", want, full)
+		}
+	}
+	if count := utf8.RuneCountInString(full); count > discordMaxMessageRunes {
+		t.Fatalf("full reply has %d runes, over the %d limit", count, discordMaxMessageRunes)
+	}
+}
+
+func TestDiscordReplyAbstentionHasNoConfidence(t *testing.T) {
+	result := agent.CheckResult{
+		Status: agent.StatusOK,
+		Claims: []agent.Claim{{
+			ID:               "c1",
+			Text:             "To opinia.",
+			Verdict:          agent.VerdictNotVerifiable,
+			Justification:    "To opinia, nie fakt.",
+			EvidenceStrength: agent.StrengthNone,
+		}},
+	}
+	short := formatDiscordReply(result, false)
+	if !strings.Contains(short, "Nie podlega weryfikacji") {
+		t.Fatalf("short reply missing verdict label: %s", short)
+	}
+	if strings.Contains(short, "pewność") {
+		t.Fatalf("abstention must not show a confidence percentage: %s", short)
+	}
+	if !strings.Contains(short, "Daj ❓, aby zobaczyć więcej") {
+		t.Fatalf("abstention must hint with the question emoji: %s", short)
+	}
+}
+
 func TestDiscordChannelRunsSharedPipelineWithSameLabels(t *testing.T) {
 	handlers, saved := newTestHandlers(func(_ context.Context, request agent.VerifyRequest) (agent.CheckResult, error) {
 		return agent.CheckResult{
