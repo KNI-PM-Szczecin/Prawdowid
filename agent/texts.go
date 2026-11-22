@@ -13,8 +13,8 @@ const (
 		"Wklej tekst do sprawdzenia; zrzut ekranu możesz dodać przyciskiem ze zdjęciem."
 	msgUnsupportedService = "Nie odczytujemy filmów, nagrań ani wpisów z serwisów społecznościowych " +
 		"(YouTube, TikTok, Facebook, Instagram, X). Wklej treść wpisu albo link do artykułu z tekstem."
-	msgEmptyInput           = "Wpisz informację do sprawdzenia albo wklej adres strony."
-	msgOutOfScopeRequest    = "Prawdowid sprawdza doniesienia i twierdzenia o faktach. Nie pisze tekstów (np. przepisów, " +
+	msgEmptyInput        = "Wpisz informację do sprawdzenia albo wklej adres strony."
+	msgOutOfScopeRequest = "Prawdowid sprawdza doniesienia i twierdzenia o faktach. Nie pisze tekstów (np. przepisów, " +
 		"wierszy) i nie wyraża własnych opinii. Wklej informację, którą chcesz sprawdzić, np. „Od stycznia bilety " +
 		"w Gdańsku są darmowe”."
 	msgFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów z powodu błędu dostępu do zewnętrznej usługi, " +
@@ -48,6 +48,9 @@ const (
 
 	warningInjection  = "Jedno ze źródeł zawierało polecenia skierowane do systemu; zostały zignorowane."
 	warningSuspicious = "Model zgłosił, że treść źródeł zawierała polecenia; zostały zignorowane."
+	warningNoCoverage = "Nie znaleźliśmy żadnej publikacji potwierdzającej to zdarzenie, choć o czymś tak poważnym " +
+		"pisałyby media albo instytucje. To silny sygnał, że informacja może być nieprawdziwa. Zachowaj ostrożność " +
+		"i nie udostępniaj jej dalej bez sprawdzenia w oficjalnych komunikatach."
 
 	limitationInputInstructions = "Zgłoszenie zawierało polecenia skierowane do systemu. " +
 		"Potraktowaliśmy je jako zwykły tekst i nie zmieniły zasad sprawdzania."

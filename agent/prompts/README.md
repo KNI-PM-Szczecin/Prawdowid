@@ -18,6 +18,8 @@ Pliki w tym folderze to konfiguracja modelu, nie kod (`AGENTS.md`: konfiguracja 
 
 ## Najważniejsze zasady promptu `judge` (stan po poprawkach z testów 22.11)
 
+- „Fałszywe” obejmuje źródło opisujące aktualny stan nie do pogodzenia z twierdzeniem, choć mu dosłownie nie zaprzecza (wsparcie zamiast wojny, inne kompetencje organu) (zasada 4).
+- Pole `szeroko_opisane` w JSON sędziego: zdarzenie ogólnokrajowe, które powinno już się wydarzyć. Przy wstrzymaniu bez rozstrzygającego źródła Go dodaje ostrzeżenie „Nie znaleźliśmy żadnej publikacji… silny sygnał, że informacja może być nieprawdziwa”; werdykt zostaje `insufficient_evidence` (scenariusz D briefu).
 - „Potwierdzone” obejmuje tę samą treść innymi słowami i liczbę wynikającą wprost z wyliczenia w źródle (zasada 4), żeby przepis sformułowany inaczej niż twierdzenie nie dawał wstrzymania.
 - Prawdziwa przesłanka z fałszywym wnioskiem („X, więc Y”) i uogólnienie prawdziwe tylko dla części przypadków lub okresu („wszyscy”, „bez żadnych ograniczeń”) → `wprowadzajace_w_blad` (zasada 4); ocena weryfikatora faktów ma pierwszeństwo.
 - Stan, który był prawdziwy i się zmienił (dawna liczba, stary przepis, dawny podział), to `wprowadzajace_w_blad`, nie `falszywe` (zasada 11). `falszywe` tylko wtedy, gdy nic w źródłach nie wskazuje, że twierdzenie było kiedyś albo w innym ujęciu prawdziwe (zasada 4).
