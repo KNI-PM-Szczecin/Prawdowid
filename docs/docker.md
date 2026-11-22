@@ -117,5 +117,5 @@ Do pracy nad kodem uruchom infrastrukturę z `rag/` (`cd rag && docker compose -
 ## Czego ten zestaw nie obejmuje
 
 - **Obrazy z `deploy/` budują się na Railway** (wdrożenie działa pod jednym publicznym adresem, zob. `README.md`, sekcja Wdrożenie). Błąd lokalnego `docker compose build` zgłoś w PR.
-- **Drugi kanał** to adapter demonstracyjny `POST /api/channels/demo` w procesie `backend` (dopuszczony przez brief zamiast komunikatora). Bot Discord nie jest zaimplementowany, a `DISCORD_BOT_TOKEN` nie jest przez kod czytany.
+- **Drugi kanał** to adapter demonstracyjny `POST /api/channels/demo` w procesie `backend` (dopuszczony przez brief zamiast komunikatora). Bot Discord (komenda `/factcheck`, `src/backend/discord.go`) działa w procesie `backend`, gdy ustawiony jest `DISCORD_BOT_TOKEN` (opcjonalnie `DISCORD_GUILD_ID`).
 - **Rag nie ma publicznego adresu**, więc endpointów administracyjnych na Railway nie wywołasz z zewnątrz: użyj `railway ssh` do usługi `rag` albo `backend` (`http://rag.railway.internal:8000`).

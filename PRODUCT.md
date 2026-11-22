@@ -12,7 +12,7 @@ Obywatel w Polsce, także z niskimi kompetencjami cyfrowymi, który trafił na d
 
 ## Product Purpose
 
-Prawdowid pozwala sprawdzić doniesienie tak łatwo jak wysłać wiadomość: przez WWW i drugi kanał (adapter demonstracyjny `POST /api/channels/demo` z odpowiedzią tekstową jak w komunikatorze; bot Discord planowany). Wskazuje twierdzenia do sprawdzenia, porównuje je z korpusem wiarygodnych źródeł i zwraca ocenę z dowodami, albo uczciwie wstrzymuje się od oceny. Sukces: obywatel rozumie, na czym opiera się ocena, i może sam sprawdzić źródła. Produkt nie jest „automatycznym sędzią prawdy”, wspiera świadomą ocenę.
+Prawdowid pozwala sprawdzić doniesienie tak łatwo jak wysłać wiadomość: przez WWW i drugi kanał (adapter demonstracyjny `POST /api/channels/demo` z odpowiedzią tekstową jak w komunikatorze; bot Discord z komendą `/factcheck`). Wskazuje twierdzenia do sprawdzenia, porównuje je z korpusem wiarygodnych źródeł i zwraca ocenę z dowodami, albo uczciwie wstrzymuje się od oceny. Sukces: obywatel rozumie, na czym opiera się ocena, i może sam sprawdzić źródła. Produkt nie jest „automatycznym sędzią prawdy”, wspiera świadomą ocenę.
 
 ## Positioning
 
