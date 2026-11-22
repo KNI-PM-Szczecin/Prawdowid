@@ -111,6 +111,19 @@ func TestOffTaskRequestIsDetected(t *testing.T) {
 	}
 }
 
+func TestSentenceInAnotherLanguageGoesThroughExtraction(t *testing.T) {
+	for _, foreign := range []string{"Borowo has had a new bridge since 2020.", "Borowo hat seit 2020 eine neue Brücke."} {
+		if isSingleStatement(foreign) {
+			t.Errorf("a sentence in another language must be translated by extraction: %q", foreign)
+		}
+	}
+	for _, polish := range []string{"Most w Borowie ma 120 metrów.", "Kadencja Sejmu trwa 4 lata."} {
+		if !looksPolish(polish) {
+			t.Errorf("Polish sentence not recognized: %q", polish)
+		}
+	}
+}
+
 func TestTwoStatementsJoinedByConjunctionGoThroughExtraction(t *testing.T) {
 	if isSingleStatement("Jan Kowalski jest radnym i mieszka w centrum Borowa.") {
 		t.Fatal("two statements joined by i must be split by extraction")

@@ -482,7 +482,41 @@ func isSingleStatement(input string) bool {
 	if len([]rune(trimmed)) > maxSingleStatementRunes || strings.Contains(trimmed, "\n") || strings.HasSuffix(trimmed, "?") {
 		return false
 	}
-	return !sentenceBoundary.MatchString(trimmed) && !joinsTwoStatements(trimmed)
+	return !sentenceBoundary.MatchString(trimmed) && !joinsTwoStatements(trimmed) && looksPolish(trimmed)
+}
+
+// polishFunctionWords are short words that almost every Polish sentence has and English lacks ("a", "to", "i", "we",
+// "do" and "pod" are left out: they are English words too).
+var polishFunctionWords = map[string]bool{
+	"w": true, "z": true, "ze": true, "na": true, "się": true, "jest": true, "nie": true, "że": true, "od": true,
+	"o": true, "po": true, "przez": true, "dla": true, "był": true, "była": true, "było": true, "są": true,
+	"czy": true, "oraz": true, "jak": true, "tylko": true, "przy": true, "nad": true, "za": true, "lat": true,
+	"roku": true,
+}
+
+const polishDiacritics = "ąćęłńóśźż"
+
+// polishDigraphs are letter pairs common in Polish and rare in English ("Kadencja Sejmu trwa" has no diacritics).
+var polishDigraphs = []string{"rz", "sz", "cz", "dz", "cj"}
+
+// looksPolish tells a Polish sentence from one in another language. Text in another language goes through extraction,
+// which writes the claim in Polish, because the corpus, gov.pl and the fact-check search are Polish.
+func looksPolish(text string) bool {
+	lowered := strings.ToLower(text)
+	if strings.ContainsAny(lowered, polishDiacritics) {
+		return true
+	}
+	for _, digraph := range polishDigraphs {
+		if strings.Contains(lowered, digraph) {
+			return true
+		}
+	}
+	for _, word := range strings.FieldsFunc(lowered, func(character rune) bool { return !unicode.IsLetter(character) }) {
+		if polishFunctionWords[word] {
+			return true
+		}
+	}
+	return false
 }
 
 // clauseConjunction splits a sentence into the parts it joins; minClauseWords on both sides tells two statements
