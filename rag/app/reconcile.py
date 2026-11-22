@@ -13,8 +13,9 @@ async def reconcile_vectors(store: VectorStore, include_unknown: bool = False) -
     """
     Removes vector rows that PostgreSQL no longer counts as active, and soft-deletes active metadata that has no
     vector. PostgreSQL is the lifecycle authority (soft delete, eviction, prune); a point it marks deleted is stale
-    and would only cost reranker time before being dropped at the metadata join. Points PostgreSQL has never seen are reported, and deleted only on request:
-    an import in progress writes the vectors first, so an unknown point may simply be seconds old.
+    and would only cost reranker time before being dropped at the metadata join. Points PostgreSQL has never seen
+    are reported, and deleted only on request: an import in progress writes the vectors first, so an unknown point
+    may simply be seconds old.
     """
     states = await db.chunk_states()
     stale = []
