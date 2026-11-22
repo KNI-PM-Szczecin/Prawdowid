@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     qdrant_timeout_seconds: int = 5
     postgres_command_timeout_seconds: float = 5.0
     collection_name: str = "evidence_chunks"
+    # One database belongs to one Qdrant: a re-ingest marks the old chunks deleted in PostgreSQL but writes vectors
+    # only to its own Qdrant, so a second Qdrant on the same database silently empties the first one's search.
+    # True for one start hands the database to this Qdrant (e.g. after its volume was wiped); see app/instance.py.
+    claim_database: bool = False
     model_cache_dir: str = "/models"
 
     # Required for POST /ingest, DELETE /sources/{id} and POST /admin/eviction; empty = those endpoints are disabled.

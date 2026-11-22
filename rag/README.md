@@ -14,7 +14,7 @@ docker compose --env-file ../.env up -d --build                      # baza w Su
 docker compose --env-file ../.env --profile local-db up -d --build   # lokalny Postgres, DATABASE_URL puste
 ```
 
-Baza: `DATABASE_URL` z `../.env`, wspólna z `backend/` (Supabase, Session pooler, opis w `../README.md`). `RAG_POSTGRES_DSN` nadpisuje ją tylko dla `rag/`. Jedna baza na jeden Qdrant: lokalny `rag` nie może pisać do bazy produkcji, bo ponowna indeksacja w jednym środowisku unieważnia fragmenty w Qdrancie drugiego (szczegóły w `../docs/docker.md`, tryb z Supabase). Limit połączeń: `RAG_POSTGRES_POOL_MAX_SIZE` (5).
+Baza: `DATABASE_URL` z `../.env`, wspólna z `backend/` (Supabase, Session pooler, opis w `../README.md`). `RAG_POSTGRES_DSN` nadpisuje ją tylko dla `rag/`. Jedna baza na jeden Qdrant: lokalny `rag` nie może pisać do bazy produkcji, bo ponowna indeksacja w jednym środowisku unieważnia fragmenty w Qdrancie drugiego (szczegóły w `../docs/docker.md`, tryb z Supabase). `rag` z obcym Qdrantem na bazie nie startuje (tabela `rag_instance`); `RAG_CLAIM_DATABASE=true` na jeden start przekazuje bazę temu Qdrantowi. Limit połączeń: `RAG_POSTGRES_POOL_MAX_SIZE` (5).
 
 Lokalnie bez Dockera (Qdrant i ewentualnie Postgres nadal z compose): `uv sync`, potem `uv run uvicorn app.main:app --port 8001`. Ustawienia czyta z `../.env` i `rag/.env` (`DATABASE_URL`, `RAG_QDRANT_URL`, `RAG_MODEL_CACHE_DIR`). Nową paczkę dodajesz przez `uv add <paczka>`.
 

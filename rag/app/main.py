@@ -25,6 +25,7 @@ from app.gov_search import GovSearchClient
 from app.gov_search import wanted as gov_search_wanted
 from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
+from app.instance import ensure_database_owner
 from app.law_import import import_law, law_state
 from app.maintenance import register_maintenance_jobs
 from app.material import match_material
@@ -92,6 +93,7 @@ async def lifespan(app: FastAPI):
     await db.connect()
     store = VectorStore()
     await store.ensure_collection()
+    await ensure_database_owner(store)
     app.state.store = store
     app.state.models = EmbeddingModels()
     incidents = VectorStore(settings.incident_collection_name)
