@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     law_import_max_chars: int = 50_000_000
     # Below DOCUMENT_MAX_CHARS of the ingest model; longer acts are split on article boundaries.
     law_part_max_chars: int = 450_000
+    # Official sources are refreshed on a schedule (brief: timeliness, source maintenance): the seed pages are
+    # fetched again every day and the Dz.U. acts re-imported once a week, so a newer consolidated text replaces
+    # the old one. The same imports can still be started by hand through the admin endpoints.
+    corpus_refresh_enabled: bool = True
+    corpus_refresh_cron_hour: int = 5
+    law_refresh_cron_day_of_week: str = "mon"
+    law_refresh_cron_hour: int = 6
+    law_refresh_max_chars: int = 4_000_000
     # A line present in at least this share of scraped pages is navigation boilerplate, not content.
     corpus_boilerplate_share: float = 0.3
     corpus_boilerplate_min_documents: int = 3
