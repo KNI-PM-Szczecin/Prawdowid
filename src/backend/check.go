@@ -279,9 +279,23 @@ func normalizeResult(result agent.CheckResult) agent.CheckResult {
 	return result
 }
 
+// maxStoredDocumentRunes bounds the checked text kept in the audit log: enough to review a run, not a copy of
+// whole pages (brief: minimal retention, no archiving of full content).
+const maxStoredDocumentRunes = 5000
+
 // maskResultForStorage returns a copy of the result with personal data hidden in the free text that is stored
-// (claim text, justification, source title and quote); the answer sent to the user is not changed.
+// (checked document, claim text, justification, source title and quote) and the document cut to
+// maxStoredDocumentRunes; the answer sent to the user is not changed.
 func maskResultForStorage(result agent.CheckResult) agent.CheckResult {
+	if result.Document != nil {
+		document := *result.Document
+		document.Text = maskPersonalData(truncateRunes(document.Text, maxStoredDocumentRunes))
+		if document.Title != nil {
+			title := maskPersonalData(*document.Title)
+			document.Title = &title
+		}
+		result.Document = &document
+	}
 	claims := make([]agent.Claim, len(result.Claims))
 	for claimIndex, claim := range result.Claims {
 		claim.Text = maskPersonalData(claim.Text)
