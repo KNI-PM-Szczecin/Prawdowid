@@ -847,6 +847,38 @@ func TestAllExtractedClaimsAreCheckedInOrder(t *testing.T) {
 	}
 }
 
+// The model abstained, but two independent publishers settle the whole claim the same way: that is a verdict.
+func TestTwoIndependentSupportingSourcesConfirmDespiteACautiousModel(t *testing.T) {
+	second := secondNewsPassage()
+	judge := judgeWith("brak_dowodow",
+		citation(newsChunk, "kadencja Sejmu trwa cztery lata", "potwierdza"),
+		citation(secondNewsChunk, secondNewsQuote, "potwierdza"))
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith(newsPassage(), second)}),
+		claimSejm, InputTypeText)
+
+	claim := result.Claims[0]
+	if claim.Verdict != VerdictConfirmed || claim.EvidenceStrength != StrengthStrong {
+		t.Fatalf("expected confirmed on two independent sources, got %+v", claim)
+	}
+}
+
+func TestOneSourceOrSourcesOnBothSidesStayAnAbstention(t *testing.T) {
+	cases := [][]SourceRef{
+		{{Publisher: "Portal", Role: RoleSupports}},
+		{{Publisher: "Portal", Role: RoleSupports}, {Publisher: "portal ", Role: RoleSupports}},
+		{{Publisher: "Portal", Role: RoleSupports}, {Publisher: "Gazeta", Role: RoleSupports}, {Publisher: "Radio", Role: RoleRefutes}},
+		{{Publisher: "Portal", Role: RoleContext}, {Publisher: "Gazeta", Role: RoleContext}},
+	}
+	for _, sources := range cases {
+		if verdict, ok := corroborated(sources); ok {
+			t.Errorf("%+v must not settle the claim, got %s", sources, verdict)
+		}
+	}
+	if verdict, ok := corroborated([]SourceRef{{Publisher: "Portal", Role: RoleRefutes}, {Publisher: "Gazeta", Role: RoleRefutes}}); !ok || verdict != VerdictFalse {
+		t.Fatalf("two independent refuting sources give false, got %s", verdict)
+	}
+}
+
 const titleChunk = "66666666-6666-6666-6666-666666666666"
 
 // The key date is only in the title of the page: quoting the title refutes a claim with another date.

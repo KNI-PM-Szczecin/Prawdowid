@@ -399,6 +399,12 @@ func decide(claimID, proposed string, modelMissing *string, sources []SourceRef,
 			result.missing = stringPtr(missingFactcheckMismatch)
 		}
 	}
+	if result.verdict == VerdictInsufficientEvidence && result.consistent {
+		if verdict, ok := corroborated(sources); ok {
+			result.verdict = verdict
+			result.limitations = append(result.limitations, fmt.Sprintf(limitationCorroborated, claimID))
+		}
+	}
 	switch result.verdict {
 	case VerdictNotVerifiable:
 		result.missing = nil
@@ -440,6 +446,27 @@ func decide(claimID, proposed string, modelMissing *string, sources []SourceRef,
 }
 
 func stringPtr(value string) *string { return &value }
+
+// corroborated reads the citations of a model that abstained: at least minIndependentSecnd different publishers
+// settling the whole claim the same way (prompt: "potwierdza"/"obala" only for a source that settles all of it),
+// with no publisher on the other side, is a verdict, not a lack of evidence. One source never is.
+func corroborated(sources []SourceRef) (string, bool) {
+	publishers := map[string]map[string]bool{RoleSupports: {}, RoleRefutes: {}}
+	for _, source := range sources {
+		if byRole, decisive := publishers[source.Role]; decisive {
+			byRole[strings.ToLower(strings.TrimSpace(source.Publisher))] = true
+		}
+	}
+	supporting, refuting := len(publishers[RoleSupports]), len(publishers[RoleRefutes])
+	switch {
+	case supporting >= minIndependentSecnd && refuting == 0:
+		return VerdictConfirmed, true
+	case refuting >= minIndependentSecnd && supporting == 0:
+		return VerdictFalse, true
+	default:
+		return "", false
+	}
+}
 
 const maxSingleStatementRunes = 300
 
