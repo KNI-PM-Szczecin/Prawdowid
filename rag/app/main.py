@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import secrets
+import time
 from contextlib import asynccontextmanager
 from typing import Annotated
 from urllib.parse import urlparse
@@ -22,6 +23,7 @@ from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.feeds import feed_state, refresh_feeds
 from app.fetcher import FetchError, fetch_page
+from app.gov_search import SOURCE_NAME as GOV_SEARCH_STATUS_NAME
 from app.gov_search import GovSearchClient
 from app.gov_search import wanted as gov_search_wanted
 from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
@@ -36,6 +38,7 @@ from app.models import (
     EuvsDisinfoSyncStatus,
     EvictionReport,
     ExternalSourceInfo,
+    ExternalSourceStatus,
     FetchRequest,
     FetchResponse,
     HealthResponse,
@@ -89,6 +92,7 @@ OCR_UNAVAILABLE_MESSAGE = "Odczyt tekstu z obrazu jest chwilowo niedostępny."
 NEAR_DUPLICATE_MESSAGE = "Dokument {document_id} ma niemal tę samą treść co {duplicate_of} (parafraza). Nie wgrano."
 EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
 NO_CACHE_DIRECTIVE = "no-cache"
+SKIPPED_STATUS = "skipped"
 
 
 @asynccontextmanager
@@ -235,37 +239,53 @@ async def search(
     background_tasks: BackgroundTasks,
     cache_control: Annotated[str | None, Header()] = None,
 ) -> SearchResponse:
-    """`Cache-Control: no-cache` recomputes the answer and overwrites the cached one (eval runs, corrected data)."""
+    """
+    `Cache-Control: no-cache` recomputes the answer and overwrites the cached one (eval runs, corrected data).
+    The gap fill runs only in what is left of search_total_budget_seconds; past it the answer goes out as it is and
+    the fill finishes in the background.
+    """
+    started_at = time.monotonic()
     refresh = NO_CACHE_DIRECTIVE in (cache_control or "").casefold()
     response = await search_passages(
         request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents, refresh=refresh
     )
     if gov_search_wanted(request, response.results):
-        # gov.pl search is keyword-based: the whole sentence of a claim buries the relevant pages in noise.
-        gap_query = response.expanded_queries.keywords or request.query
-        # The MSZ notice for a country named in the claim is fetched beside gov.pl, within the same budget.
-        gap_fill, odyseusz_fill = await asyncio.gather(
-            app.state.gov_search.fill(gap_query, app.state.models, app.state.store, claim=request.query),
-            app.state.odyseusz.fill(request.query, app.state.models, app.state.store),
-        )
-        if gap_fill.indexed or odyseusz_fill.indexed:
-            response = await search_passages(
-                request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
-            )
-        fill_statuses = [gap_fill.as_status()]
-        if gov_search_wanted(request, response.results):
-            # gov.pl did not help either: find the official pages that secondary sources cite for this event.
-            hop = await app.state.primary_hop.fill(request.query, gap_query, app.state.models, app.state.store)
-            if hop.indexed:
-                response = await search_passages(
-                    request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
-                )
-            fill_statuses.append(hop.as_status())
-        response = response.model_copy(update={"external_sources": [*response.external_sources, *fill_statuses]})
+        remaining = settings.search_total_budget_seconds - (time.monotonic() - started_at)
+        try:
+            response = await asyncio.wait_for(_fill_and_search_again(request, response), max(remaining, 0.0))
+        except TimeoutError:
+            logger.info("search budget reached, answering without the gap fill (it continues in the background)")
+            skipped = ExternalSourceStatus(name=GOV_SEARCH_STATUS_NAME, status=SKIPPED_STATUS, results=0)
+            response = response.model_copy(update={"external_sources": [*response.external_sources, skipped]})
     corpus_chunk_ids = [item.chunk_id for item in response.results if item.source_type != FACTCHECK_SOURCE_TYPE]
     if corpus_chunk_ids:
         background_tasks.add_task(db.register_reads, corpus_chunk_ids)
     return response
+
+
+async def _fill_and_search_again(request: SearchRequest, response: SearchResponse) -> SearchResponse:
+    """gov.pl and Odyseusz fill, then the primary hop when that did not help; searches again after each indexing."""
+    # gov.pl search is keyword-based: the whole sentence of a claim buries the relevant pages in noise.
+    gap_query = response.expanded_queries.keywords or request.query
+    # The MSZ notice for a country named in the claim is fetched beside gov.pl, within the same budget.
+    gap_fill, odyseusz_fill = await asyncio.gather(
+        app.state.gov_search.fill(gap_query, app.state.models, app.state.store, claim=request.query),
+        app.state.odyseusz.fill(request.query, app.state.models, app.state.store),
+    )
+    if gap_fill.indexed or odyseusz_fill.indexed:
+        response = await search_passages(
+            request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+        )
+    fill_statuses = [gap_fill.as_status()]
+    if gov_search_wanted(request, response.results):
+        # gov.pl did not help either: find the official pages that secondary sources cite for this event.
+        hop = await app.state.primary_hop.fill(request.query, gap_query, app.state.models, app.state.store)
+        if hop.indexed:
+            response = await search_passages(
+                request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
+            )
+        fill_statuses.append(hop.as_status())
+    return response.model_copy(update={"external_sources": [*response.external_sources, *fill_statuses]})
 
 
 @app.post("/ingest", response_model=list[IngestResult], dependencies=AdminOnly)

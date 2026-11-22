@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     # Google's claim search is sensitive to wording: up to this many phrasings when nothing matching comes back.
     factcheck_max_attempts: int = 5
     # Wall time for the one-by-one retries after the first parallel wave; leaves room for rerank in rag's budget.
-    factcheck_retry_budget_seconds: float = 8.0
+    factcheck_retry_budget_seconds: float = 4.0
 
     # Catalog of known disinformation campaigns (EUvsDisinfo, organizer's incident base), matched locally per search.
     incident_collection_name: str = "disinfo_incidents"
@@ -200,9 +200,13 @@ class Settings(BaseSettings):
     hop_cache_max_entries: int = 500
     hop_candidates_max: int = 60
     hop_max_pages: int = 3
-    hop_budget_seconds: float = 10.0
+    hop_budget_seconds: float = 6.0
     # A slower fill keeps running in the background, so its pages still reach the corpus for the next question.
-    gov_search_budget_seconds: float = 10.0
+    gov_search_budget_seconds: float = 6.0
+    # Wall time for one /search including gap fill, Odyseusz and the primary hop. It stays under every rag timeout the
+    # agent may run with (RAG_TIMEOUT_SECONDS 18 on older deployments, 30 by default): an answer without the fill is
+    # better than a timeout, and the fill still finishes in the background for the next question.
+    search_total_budget_seconds: float = 14.0
     # A stored gov.pl page older than this is downloaded again when a question needs it, so evidence stays current.
     gov_search_refresh_days: int = 30
     gov_search_cache_ttl_seconds: int = 3600
