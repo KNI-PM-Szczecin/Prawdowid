@@ -76,12 +76,17 @@ $column-width: 40rem;
   }
 
   // Figma: the claim panel sits on a blurred wash of its verdict colour (top-right). clip-path keeps the
-  // wash inside the drawer. On wide screens the drawer is the second grid column, sticky below the header
-  // with the viewport's height, and scrolls on its own; it ends with the result, so the footer runs under
-  // both columns at full width. It slides in; the reduced-motion switch in global.scss shortens the
-  // transition to nothing.
+  // wash inside the drawer. On phones and tablets the drawer covers the whole screen, header included, and
+  // scrolls on its own until the user closes it with X. On wide screens it is the second grid column, sticky
+  // below the header with the viewport's height; it ends with the result, so the footer runs under both
+  // columns at full width. It slides in; the reduced-motion switch in global.scss shortens the transition
+  // to nothing.
   &__side {
-    position: relative;
+    position: fixed;
+    inset: 0;
+    // Above the sticky header (z-index 2): the drawer is the whole screen until it is closed.
+    z-index: 3;
+    background: var(--page);
     clip-path: inset(0);
     transition: transform $duration-panel $ease-out, opacity $duration-panel ease;
 
@@ -92,9 +97,12 @@ $column-width: 40rem;
 
     @include from-lg {
       position: sticky;
+      inset: auto;
       top: var(--header-height, 0px);
+      z-index: auto;
       align-self: start;
       height: calc(100dvh - var(--header-height, 0px));
+      background: none;
 
       @starting-style {
         transform: translateX(2rem);
@@ -118,10 +126,17 @@ $column-width: 40rem;
   }
 
   &__side-inner {
+    height: 100%;
+    overflow-y: auto;
+    // The page behind the drawer does not scroll when the drawer reaches its end.
+    overscroll-behavior: contain;
+    padding: 1.5rem 1rem;
+
+    @include from-sm {
+      padding-inline: 2rem;
+    }
+
     @include from-lg {
-      height: 100%;
-      overflow-y: auto;
-      overscroll-behavior: contain;
       padding: 2rem;
     }
 
