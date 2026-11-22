@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import time
+from collections import Counter
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -64,6 +65,20 @@ def _merge_candidates(result_sets: list[list[RetrievedChunk]], pool_size: int) -
     return sorted(best_by_id.values(), key=lambda chunk: chunk.fusion_score, reverse=True)[:pool_size]
 
 
+def _diversify(chunks: list[RetrievedChunk], max_per_document: int) -> list[RetrievedChunk]:
+    """Caps chunks per document, so one long page cannot fill the rerank pool and starve independent
+    evidence from other publishers (brief: verdict strength comes from independent confirmations)."""
+    selected: list[RetrievedChunk] = []
+    per_document: Counter[str] = Counter()
+    for chunk in chunks:  # already sorted by fusion score
+        document = chunk.payload.get("source_id") or str(chunk.chunk_id)
+        if per_document[document] >= max_per_document:
+            continue
+        per_document[document] += 1
+        selected.append(chunk)
+    return selected[: settings.candidate_pool_size]
+
+
 def _factcheck_wanted(filters: SearchFilters | None) -> bool:
     return filters is None or not filters.source_types or FACTCHECK_SOURCE_TYPE in filters.source_types
 
@@ -72,6 +87,14 @@ def _within_date_filter(review: FactCheckReview, filters: SearchFilters | None) 
     if filters is None or filters.published_after is None:
         return True
     return review.review_date is not None and review.review_date > filters.published_after
+
+
+def _published_key(candidate: Candidate) -> str:
+    """Publication date as a comparable ISO string; a missing date sorts oldest. Recency only breaks
+    score ties — it never overrides the cross-encoder (brief: prefer current material, no domain shortcuts)."""
+    if isinstance(candidate, FactCheckReview):
+        return candidate.review_date.isoformat() if candidate.review_date else ""
+    return candidate.payload.get("published_at") or ""
 
 
 def _flags(text: str, label: str) -> list[str]:
@@ -174,7 +197,13 @@ async def search_passages(
     )
     factcheck_result = await factcheck_task
     reviews = [review for review in factcheck_result.reviews if _within_date_filter(review, filters)]
-    candidates: list[Candidate] = [*_merge_candidates(list(result_sets), settings.candidate_pool_size), *reviews]
+    candidates: list[Candidate] = [
+        *_diversify(
+            _merge_candidates(list(result_sets), settings.retrieval_limit_per_query),
+            settings.pool_max_chunks_per_document,
+        ),
+        *reviews,
+    ]
 
     corpus_candidates = [candidate for candidate in candidates if isinstance(candidate, RetrievedChunk)]
     metadata_task = asyncio.create_task(db.fetch_passage_metadata([chunk.chunk_id for chunk in corpus_candidates]))
@@ -194,7 +223,12 @@ async def search_passages(
         scored = list(zip(candidates, relevances[: len(candidates)], strict=True))
         campaign_alert = build_campaign_alert(list(zip(incident_hits, relevances[len(candidates) :], strict=True)))
         ranked = sorted(
-            (pair for pair in scored if pair[1] >= settings.rerank_min_score),
+            sorted(
+                (pair for pair in scored if pair[1] >= settings.rerank_min_score),
+                key=lambda pair: _published_key(pair[0]),
+                reverse=True,
+            ),
+            # Stable sort: equal scores keep the recency order of the inner sort.
             key=lambda pair: pair[1],
             reverse=True,
         )

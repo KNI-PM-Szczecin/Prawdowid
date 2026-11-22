@@ -295,7 +295,7 @@ async def fetch_corpus(
     async def load_pages(state: CorpusSyncState) -> list[Page]:
         pages: list[Page] = []
         async with httpx.AsyncClient(
-            timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=True, transport=transport
+            timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=False, transport=transport
         ) as client:
             for url in urls:
                 try:

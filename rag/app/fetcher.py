@@ -7,6 +7,7 @@ from html.parser import HTMLParser
 import httpx
 
 from app.config import settings
+from app.url_guard import BlockedURLError, assert_public_url
 
 HTML_CONTENT_TYPES = ("text/html", "application/xhtml+xml")
 SKIPPED_ELEMENTS = {"script", "style", "noscript", "svg", "template", "iframe", "head"}
@@ -147,22 +148,58 @@ def extract_text(html: str) -> tuple[str, str]:
     return title, text
 
 
+async def _read_limited(response: httpx.Response) -> bytes:
+    """Reads the body enforcing the size limit mid-stream, so an oversized page is rejected before
+    it is fully downloaded and held in memory."""
+    received = 0
+    chunks: list[bytes] = []
+    async for chunk in response.aiter_bytes():
+        received += len(chunk)
+        if received > settings.corpus_fetch_max_bytes:
+            raise FetchError(f"page larger than {settings.corpus_fetch_max_bytes} bytes")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
-    try:
-        response = await client.get(url, headers={"User-Agent": settings.corpus_fetch_user_agent})
-        response.raise_for_status()
-    except httpx.HTTPStatusError as error:
-        raise FetchError(f"HTTP {error.response.status_code}") from error
-    except httpx.HTTPError as error:
-        raise FetchError(type(error).__name__) from error
-    content_type = response.headers.get("content-type", "")
-    if not content_type.startswith(HTML_CONTENT_TYPES):
-        raise FetchError(f"not HTML: {content_type.split(';')[0] or 'unknown'}")
-    if len(response.content) > settings.corpus_fetch_max_bytes:
-        raise FetchError(f"page larger than {settings.corpus_fetch_max_bytes} bytes")
-    title, text = extract_text(response.text)
-    if not text:
-        raise FetchError("no visible text (JavaScript-only page?)")
-    if title.casefold().startswith(BOT_WALL_TITLES):
-        raise FetchError(f"anti-bot wall: {title}")
-    return FetchedPage(url=str(response.url), title=title, text=text, published_at=extract_published_at(response.text))
+    """
+    Fetches one public page. The URL and every redirect target are resolved and checked against
+    non-public address ranges first, so a citizen-supplied URL cannot reach internal services or the
+    cloud metadata endpoint; redirects are followed manually for exactly that reason. The body is read
+    with a mid-stream size limit.
+    """
+    current = url
+    for _hop in range(settings.corpus_fetch_max_redirects + 1):
+        try:
+            await assert_public_url(current)
+        except BlockedURLError as error:
+            raise FetchError(f"blocked: {error}") from error
+        try:
+            async with client.stream(
+                "GET", current, headers={"User-Agent": settings.corpus_fetch_user_agent}, follow_redirects=False
+            ) as response:
+                # Redirects first: httpx raise_for_status treats an unfollowed 3xx as an error.
+                if response.is_redirect:
+                    if response.next_request is None:
+                        raise FetchError("redirect without a target")
+                    current = str(response.next_request.url)
+                    continue
+                response.raise_for_status()
+                content_type = response.headers.get("content-type", "")
+                charset = response.charset_encoding or "utf-8"
+                body = await _read_limited(response)
+                page_url = str(response.url)
+        except httpx.HTTPStatusError as error:
+            raise FetchError(f"HTTP {error.response.status_code}") from error
+        except httpx.HTTPError as error:
+            raise FetchError(type(error).__name__) from error
+        if not content_type.startswith(HTML_CONTENT_TYPES):
+            raise FetchError(f"not HTML: {content_type.split(';')[0] or 'unknown'}")
+        html = body.decode(charset, errors="replace")
+        title, text = extract_text(html)
+        if not text:
+            raise FetchError("no visible text (JavaScript-only page?)")
+        if title.casefold().startswith(BOT_WALL_TITLES):
+            raise FetchError(f"anti-bot wall: {title}")
+        return FetchedPage(url=page_url, title=title, text=text, published_at=extract_published_at(html))
+    raise FetchError("too many redirects")

@@ -46,6 +46,7 @@ Rozgrzewka: przy starcie, przed przyjęciem pierwszego żądania (`app/warmup.py
 - `POST /ingest`, `DELETE /sources/{documentId}` i `POST /admin/eviction` wymagają nagłówka `X-Admin-Token` równego `RAG_ADMIN_TOKEN`. Bez tokena zwracają 401, a gdy token nie jest skonfigurowany, 403.
 - `POST /search`, `GET /sources` i `GET /health` są otwarte, bo służą do odczytu.
 - Każdy nieobsłużony błąd zwraca `503 index_unavailable`, nigdy pustą listę udającą brak dowodów.
+- Guard URL (`app/url_guard.py`): URL podany przez obywatela (i każdy cel przekierowania, bo redirecty są robione ręcznie) musi wskazywać wyłącznie publiczne adresy — http/https, porty 80/443, wszystkie wyniki DNS poza loopback, sieciami prywatnymi i link-local (w tym metadanymi chmury `169.254.169.254`). Pobieranie strumieniowe z limitem 2 MB w trakcie pobierania. Atrapy i usługi lokalne (np. `host.docker.internal` dla ekspansji LLM) tym guardem nie przechodzą i nie muszą — dotyczy on tylko URL-i od użytkownika i listy zasilania korpusu.
 
 ## Architektura
 

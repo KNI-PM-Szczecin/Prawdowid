@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Rerank budget: 12 chunks x 450 chars + 10 fact-checks + 10 incident variants is about 5 s on CPU
     # (contract: rag max 12 s).
     candidate_pool_size: int = 12
+    # One long page must not fill the rerank pool and starve independent evidence from other sources
+    # (brief: the strength of a verdict comes from the number of independent confirmations).
+    pool_max_chunks_per_document: int = 3
     rerank_top_k: int = 5
     # Small models (Qwen3 0.6B on FastFlowLM) lose recall in long prompts; more than 7 passages drowns the rules.
     rerank_top_k_max: int = 7
@@ -98,6 +101,9 @@ class Settings(BaseSettings):
     corpus_fetch_max_urls: int = 100
     corpus_fetch_timeout_seconds: float = 15.0
     corpus_fetch_max_bytes: int = 2_000_000
+    # Redirects are followed manually and every target is re-checked by the URL guard.
+    corpus_fetch_max_redirects: int = 5
+    corpus_fetch_max_bytes: int = 2_000_000
     corpus_fetch_delay_seconds: float = 0.5
     corpus_fetch_user_agent: str = "Prawdowid/0.1 (hackathon demo fact-checking corpus)"
     # POST /fetch for agent/: text returned for claim extraction, the page itself is not stored.
@@ -135,6 +141,7 @@ class Settings(BaseSettings):
     # Must fit inside rag's 8 s budget together with retrieval and reranking; on timeout the rules take over.
     expansion_llm_timeout_seconds: float = 3.0
     # The same claim gets the same auxiliary queries even if the provider is not perfectly deterministic.
+    # Entries hold the derived queries (they keep the claim's wording) and expire after the TTL.
     expansion_cache_ttl_seconds: int = 3600
     expansion_cache_max_entries: int = 500
 

@@ -96,7 +96,7 @@ async def _expand_with_llm(claim: str) -> ExpandedQueries:
     )
 
 
-_cache: dict[str, tuple[float, ExpandedQueries]] = {}
+_cache: dict[str, tuple[float, tuple[str, str, str]]] = {}
 
 
 def _cache_key(claim: str) -> str:
@@ -108,13 +108,19 @@ def _cached(claim: str) -> ExpandedQueries | None:
     entry = _cache.get(_cache_key(claim))
     if entry is None or entry[0] < time.monotonic():
         return None
-    return entry[1]
+    negative, neutral, method = entry[1]
+    return ExpandedQueries(original=claim, negative=negative, neutral=neutral, method=method)
 
 
 def _remember(claim: str, queries: ExpandedQueries) -> None:
+    # Keyed by hash; the derived queries still contain the claim's wording (a negation is not a hash),
+    # so retention is bounded by the TTL and documented in README (brief: defined retention).
     if len(_cache) >= settings.expansion_cache_max_entries:
         _cache.pop(next(iter(_cache)))
-    _cache[_cache_key(claim)] = (time.monotonic() + settings.expansion_cache_ttl_seconds, queries)
+    _cache[_cache_key(claim)] = (
+        time.monotonic() + settings.expansion_cache_ttl_seconds,
+        (queries.negative, queries.neutral, queries.method),
+    )
 
 
 async def expand(claim: str) -> ExpandedQueries:
