@@ -5,6 +5,15 @@
 		reverse_proxy {$BACKEND_URL:http://backend:3001}
 	}
 
+	# Backend health probes; without this the SPA fallback below answered them with the home page and a 200.
+	handle /health {
+		reverse_proxy {$BACKEND_URL:http://backend:3001}
+	}
+
+	handle /livez {
+		reverse_proxy {$BACKEND_URL:http://backend:3001}
+	}
+
 	handle {
 		root * /srv
 		try_files {path} /index.html
