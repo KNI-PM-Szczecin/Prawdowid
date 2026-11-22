@@ -1,14 +1,19 @@
 # Prawdowid — sprawdź doniesienie tak łatwo, jak wysłać wiadomość
 
-Obywatel wkleja tekst albo link, a Prawdowid wyodrębnia twierdzenia, porównuje je z wiarygodnymi
-źródłami i pokazuje werdykt z uzasadnieniem, siłą podstawy i źródłami z cytatem. Gdy dowodów brakuje,
-uczciwie wstrzymuje się od oceny zamiast zgadywać.
+Wklejasz tekst albo link. Prawdowid wyodrębnia twierdzenia, szuka ich w wiarygodnych źródłach
+i pokazuje werdykt z uzasadnieniem, siłą podstawy i cytatem. Gdy dowodów brakuje, uczciwie
+wstrzymuje się od oceny zamiast zgadywać.
 
 Prototyp przygotowany na **HackNation 2026** dla zadania **Ministerstwa Spraw Zagranicznych**.
 
-![Strona główna: wklej link albo tekst, wyjaśnienie procesu i pięć możliwych ocen](docs/screenshots/home.png)
+## Sprawdź na żywo
 
-## Demo na żywo — https://testdomain07.com (bez logowania)
+- **Bot Discord: <https://discord.gg/KZquUu47t>** — wbij na nasz serwer i wpisz `/factcheck`.
+  Bot przechodzi przez całą ścieżkę weryfikacji (backend → agent → rag), więc wynik jest
+  identyczny jak na stronie WWW. Tam testujemy integrację bota z resztą systemu.
+- **Strona WWW: <https://testdomain07.com>** (bez logowania).
+
+![Strona główna: wklej link albo tekst, wyjaśnienie procesu i pięć możliwych ocen](docs/screenshots/home.png)
 
 | | |
 | --- | --- |
@@ -31,7 +36,8 @@ Prototyp przygotowany na **HackNation 2026** dla zadania **Ministerstwa Spraw Za
                                                                           └── usługi zewnętrzne:
                                                                               OpenAI (gpt-6-luna), Google Fact Check,
                                                                               wyszukiwarka gov.pl, Odyseusz (MSZ),
-                                                                              Wikidata, EUvsDisinfo, Wikipedia
+                                                                              Wikidata, EUvsDisinfo, Wikipedia,
+                                                                              RSS policji, Dziennik Ustaw
 ```
 
 - **Pięć ocen twierdzenia** (prawda, fałsz, wprowadza w błąd, brak dowodów, nie podlega weryfikacji);
@@ -46,11 +52,46 @@ Prototyp przygotowany na **HackNation 2026** dla zadania **Ministerstwa Spraw Za
 
 ## Korpus i źródła
 
-**350 dokumentów, 34 domeny, 2 typy źródeł** (minimum z briefu: 100 / 10 / 2) plus katalog **203 spraw
-EUvsDisinfo** — dopasowanie daje tylko alert kontekstowy, nigdy werdykt. Aktualne liczby:
-[`GET /api/sources`](https://testdomain07.com/api/sources) ·
+Korpus demo to **350 dokumentów z 34 domen** (minimum z briefu: 100 / 10 / 2) plus katalog
+**203 spraw EUvsDisinfo** — dopasowanie daje tylko alert kontekstowy, nigdy werdykt. Aktualne
+liczby: [`GET /api/sources`](https://testdomain07.com/api/sources) ·
 [katalog źródeł](https://testdomain07.com/api/sources/catalog) ·
 [usługi zewnętrzne](https://testdomain07.com/api/sources/external).
+
+Wołane na żywo przy każdym pytaniu:
+
+- **Google Fact Check** — gotowe weryfikacje organizacji fact-checkingowych; wymaga
+  `FACTCHECK_API_KEY`, bez klucza jest wyłączone; limit czasu 6 s, cache 1 h.
+- **Wyszukiwarka gov.pl** — dociąga strony rządowe, gdy w korpusie brakuje trafień albo najlepsze
+  trafienie jest słabe (wynik poniżej 0,5); pobrane strony zostają w korpusie.
+- **Polska Wikipedia** — tylko po adresy oficjalnych stron, na które powołuje się artykuł;
+  sama Wikipedia nie jest dowodem, dowodem są zaindeksowane strony z katalogu.
+- **Odyseusz MSZ** — komunikaty dla podróżujących; gdy twierdzenie wymienia kraj, jego komunikat
+  pobieramy od razu, poza tym import co godzinę.
+- **Wikidata** — dane o osobach wymienionych w twierdzeniu (daty życia, krótki opis), np. żeby
+  obalić „wizytę" osoby, która nie żyje; bez klucza, najwyżej 2 osoby na pytanie, limit czasu 4 s.
+
+Aktualizowane cyklicznie w tle:
+
+- **EUvsDisinfo** — katalog kampanii dezinformacyjnych przez serwer MCP `mcp.euvsd.info`;
+  wymaga `EUVSDISINFO_TOKEN`, synchronizacja codziennie o 2:00; bez tokenu działa tylko seed
+  z `seed_incidents.json`. Pokazujemy wyłącznie jako kontekst, nigdy jako werdykt.
+- **RSS policji** (KGP i Małopolska) — co godzinę.
+- **Strony seed** (`seed_urls.json`: gov.pl, stat.gov.pl, senat.gov.pl, eur-lex, ZUS, WHO i inne) —
+  ponowne pobieranie codziennie o 5:00.
+- **Dziennik Ustaw** (`law_acts.json`) — ponowny import co tydzień w poniedziałek.
+- **Scraper zespołu** — zapisuje strony do tabel `ScrappedData` i `Law` we wspólnej bazie Supabase,
+  skąd rag synchronizuje je do korpusu.
+
+Infrastruktura (to nie są źródła dowodów): model językowy zgodny z API OpenAI (`LLM_BASE_URL`,
+domyślnie lokalny FastFlowLM, opcjonalnie hostowane OpenAI; rag używa go też do rozszerzania
+zapytań), Supabase (Postgres + pgvector) na indeks wektorowy i dane scrapera, a lokalnie — bez
+żadnych wywołań zewnętrznych — modele BGE (wektory i reranker) oraz Tesseract do OCR.
+
+Stan usług na żywo, katalogu kampanii i ich włączenia zwraca
+[`GET /api/sources/external`](https://testdomain07.com/api/sources/external); razem z pełną listą
+korpusu i katalogiem źródeł daje to komplet źródeł do audytu (szczegóły:
+[`rag/README.md`](rag/README.md)).
 
 ## Wyniki testów
 
@@ -81,7 +122,8 @@ Drugą odpowiedź jak w komunikatorze dostaniesz przez:
 ```
 curl -X POST http://localhost:8080/api/channels/demo -H "Content-Type: application/json" --data-binary @wiadomosc.json
 ```
-Bot Discord (`/factcheck`, ta sama ścieżka weryfikacji): konfiguracja w [`src/backend/README.md`](src/backend/README.md).
+Bot Discord (`/factcheck`) działa na naszym serwerze (link na górze); konfiguracja we własnym
+wdrożeniu: [`src/backend/README.md`](src/backend/README.md).
 
 ## Struktura
 
@@ -95,7 +137,7 @@ eval/                    44 przypadki ze scenariuszy A–J + benchmark dezinform
 docs/, deploy/           dokumentacja i Dockerfile'e (wdrożenie)
 ```
 
-Zasady pracy dla ludzi i agentów AI: [`AGENTS.md`](AGENTS.md). Kontrakty między modułami: [`CONTRACT.md`](CONTRACT.md).
+Kontrakty między modułami: [`CONTRACT.md`](CONTRACT.md).
 
 ## Ograniczenia
 
