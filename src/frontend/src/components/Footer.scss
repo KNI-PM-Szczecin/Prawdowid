@@ -26,6 +26,13 @@
     line-height: 1.55;
   }
 
+  &__links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    list-style: none;
+  }
+
   &__link {
     display: inline-flex;
     flex-shrink: 0;

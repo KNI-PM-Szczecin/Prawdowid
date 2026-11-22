@@ -114,6 +114,10 @@ func run(logger *slog.Logger) error {
 	mux.HandleFunc("DELETE /api/checks/{requestId}", checks.deleteCheck)
 	mux.HandleFunc("POST /api/channels/demo", demo.handle)
 	mux.HandleFunc("GET /api/admin/cases", adminCasesHandler(logger, cases, config.ModeratorToken))
+	sources := newSourcesProxy(logger, config.RagURL, sourcesProxyTimeout)
+	mux.HandleFunc("GET /api/sources", sources.handle)
+	mux.HandleFunc("GET /api/sources/catalog", sources.handle)
+	mux.HandleFunc("GET /api/sources/external", sources.handle)
 
 	server := &http.Server{
 		Addr:              ":" + config.Port,

@@ -58,6 +58,8 @@ curl -X POST http://localhost:8080/api/channels/demo -H "Content-Type: applicati
 ```
 gdzie `wiadomosc.json` to `{"text": "treść do sprawdzenia"}` w UTF-8. Odpowiedź jest zwykłym tekstem z werdyktem, siłą podstawy, uzasadnieniem i źródłami, jak w komunikatorze. To samo zgłoszenie przez WWW i ten adapter daje ten sam wynik merytoryczny (scenariusz G). Bot Discord nie jest zaimplementowany.
 
+Lista źródeł do audytu (wymóg briefu): `GET /api/sources` (dokumenty korpusu z tytułem, wydawcą, datami, licencją i linkiem), `GET /api/sources/catalog` (katalog zaufanych źródeł z zasadami kwalifikacji), `GET /api/sources/external` (usługi zewnętrzne i co dostają). Linki są w stopce strony.
+
 Zrzut ekranu albo zdjęcie z tekstem (scenariusz F; przycisk na stronie albo):
 ```
 curl -X POST http://localhost:8080/api/check/image -F "image=@zrzut.png"
