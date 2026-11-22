@@ -1,0 +1,4 @@
+# Zewnętrzne dane testowe
+
+- `deepset_prompt_injections_en.txt`, `deepset_benign.txt`: wiersze ze zbioru [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections) (licencja Apache-2.0), pobrane 22.11.2026 przez API `datasets-server.huggingface.co`. Plik ataków to wiersze z etykietą 1 bez tych, które heurystyka słów kluczowych uznała za niemieckie lub hiszpańskie (zbiór jest wielojęzyczny, nasz detektor obsługuje polski i angielski). Plik łagodny to wszystkie wiersze z etykietą 0. Jedna próba na linię, bez zmian w treści poza scaleniem białych znaków.
+- Zbiór liczy jako injection także prośby „nie na temat” (żart, kod SQL, odgrywanie roli), więc wykrywalność heurystyki jest tu niższa niż na próbach nadpisania instrukcji. Używamy go jako regresji (`tests/test_injection_external.py`), nie jako miary z briefu.
