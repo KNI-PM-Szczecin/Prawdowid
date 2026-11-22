@@ -1,0 +1,15 @@
+@use "../styles/mixins" as *;
+
+.msz-logo {
+  display: block;
+  width: auto;
+  max-width: 100%;
+
+  &--header {
+    height: 2.5rem;
+  }
+
+  &--footer {
+    height: 3rem;
+  }
+}

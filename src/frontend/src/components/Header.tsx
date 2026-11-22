@@ -2,6 +2,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { texts } from "../lib/texts";
 import "./Header.scss";
 import { AccessibilityIcon } from "./Icons";
+import { MszLogo } from "./MszLogo";
 
 // Read by ResultView.scss: the fixed claim drawer starts below the sticky header.
 const HEADER_HEIGHT_PROPERTY = "--header-height";
@@ -33,16 +34,19 @@ export function Header({ onHome, onOpenAccessibility, notice }: HeaderProps) {
   return (
     <header ref={headerRef} class="header">
       <div class="header__inner">
-        <a
-          href="/"
-          onClick={(event) => {
-            event.preventDefault();
-            onHome();
-          }}
-          class="header__brand"
-        >
-          {texts.appName}
-        </a>
+        <div class="header__brand-group">
+          <a
+            href="/"
+            onClick={(event) => {
+              event.preventDefault();
+              onHome();
+            }}
+            class="header__brand"
+          >
+            {texts.appName}
+          </a>
+          <MszLogo variant="header" />
+        </div>
         <nav aria-label={texts.nav.label}>
           <button type="button" onClick={onOpenAccessibility} class="header__accessibility">
             <AccessibilityIcon class="header__accessibility-icon" />
