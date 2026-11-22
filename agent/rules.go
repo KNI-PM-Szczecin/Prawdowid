@@ -77,6 +77,7 @@ func quoteInPassage(quote, passage string) bool {
 func validateCitations(citations []judgeCitation, passages map[string]Passage) (valid []SourceRef, dropped int) {
 	valid = []SourceRef{} // never nil: the contract promises a list, and JSON must say [] not null
 	seen := map[string]bool{}
+	byDocument := map[string]int{}
 	for _, citation := range citations {
 		passage, ok := passages[citation.ID]
 		if !ok || seen[citation.ID] || !quoteInPassage(citation.Quote, passage.Passage) {
@@ -84,6 +85,17 @@ func validateCitations(citations []judgeCitation, passages map[string]Passage) (
 			continue
 		}
 		seen[citation.ID] = true
+		// Two fragments of one document are one source for the citizen and one confirmation for the rules; a decisive
+		// role wins over context, otherwise the first quote stays.
+		if index, duplicate := byDocument[passage.DocumentID]; duplicate {
+			if valid[index].Role == RoleContext && mapRole(citation.Role) != RoleContext {
+				valid[index].ID = passage.ChunkID
+				valid[index].Role = mapRole(citation.Role)
+				valid[index].Quote = strings.TrimSpace(citation.Quote)
+			}
+			continue
+		}
+		byDocument[passage.DocumentID] = len(valid)
 		valid = append(valid, SourceRef{
 			ID:          passage.ChunkID,
 			Title:       passage.Title,
@@ -296,6 +308,18 @@ func decide(claimID, proposed string, modelMissing *string, sources []SourceRef,
 func stringPtr(value string) *string { return &value }
 
 const maxSingleStatementRunes = 300
+
+// minClaimWords: a single word ("Polska", "test", "x") states nothing that sources could confirm or refute, and rag/
+// rejects queries under 3 characters, which would surface as a technical error instead of a request to clarify.
+const minClaimWords = 2
+
+// hasEnoughWords reports whether the text has at least minClaimWords words of letters or digits.
+func hasEnoughWords(text string) bool {
+	words := strings.FieldsFunc(text, func(character rune) bool {
+		return !unicode.IsLetter(character) && !unicode.IsDigit(character)
+	})
+	return len(words) >= minClaimWords
+}
 
 // A sentence ends with . ! ? or … followed by a capital letter. An ordinal number ("po 65. roku życia") is followed by
 // a lowercase word, so it does not split the statement.

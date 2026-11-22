@@ -1,4 +1,7 @@
+import asyncio
+import ipaddress
 import re
+import socket
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -9,6 +12,12 @@ import httpx
 from app.config import settings
 
 HTML_CONTENT_TYPES = ("text/html", "application/xhtml+xml")
+# A citizen's URL must never reach the private network (other services, cloud metadata), so every hop is checked.
+ALLOWED_SCHEMES = {"http", "https"}
+ALLOWED_PORTS = {None, 80, 443}
+MAX_REDIRECTS = 5
+# agent/ waits 12 s for rag (RAG_TIMEOUT_SECONDS); a slower page must end here as unreadable, not as a timeout there.
+PAGE_FETCH_DEADLINE_SECONDS = 8.0
 SKIPPED_ELEMENTS = {"script", "style", "noscript", "svg", "template", "iframe", "head"}
 BLOCK_ELEMENTS = {
     "p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "br", "tr", "td", "th", "table",
@@ -143,14 +152,69 @@ def extract_text(html: str) -> tuple[str, str]:
     return title, text
 
 
+async def resolve_host(host: str) -> list[str]:
+    """IP addresses of a host name; a module function so tests can replace DNS."""
+    infos = await asyncio.get_running_loop().getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    return [info[4][0] for info in infos]
+
+
+def _is_public(address: str) -> bool:
+    ip = ipaddress.ip_address(address.split("%", 1)[0])
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return ip.is_global
+
+
+async def _ensure_public(url: httpx.URL) -> None:
+    """Rejects other schemes and ports and any host that resolves to a non-public address (SSRF)."""
+    if url.scheme not in ALLOWED_SCHEMES or url.port not in ALLOWED_PORTS:
+        raise FetchError("address not allowed")
+    host = url.host
+    try:
+        addresses = [str(ipaddress.ip_address(host))]
+    except ValueError:
+        try:
+            addresses = await resolve_host(host)
+        except OSError as error:
+            raise FetchError("DNS lookup failed") from error
+    try:
+        public = bool(addresses) and all(_is_public(address) for address in addresses)
+    except ValueError as error:
+        raise FetchError("address not allowed") from error
+    if not public:
+        raise FetchError("address not allowed")
+
+
+async def _get_public(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    """GET that follows redirects itself, so each hop is checked before it is requested."""
+    target = httpx.URL(url)
+    for _ in range(MAX_REDIRECTS + 1):
+        await _ensure_public(target)
+        try:
+            response = await client.get(
+                target, headers={"User-Agent": settings.corpus_fetch_user_agent}, follow_redirects=False
+            )
+        except httpx.HTTPError as error:
+            raise FetchError(type(error).__name__) from error
+        if not response.is_redirect:
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                raise FetchError(f"HTTP {error.response.status_code}") from error
+            return response
+        location = response.headers.get("location")
+        if not location:
+            raise FetchError("redirect without location")
+        target = target.join(location)
+    raise FetchError("too many redirects")
+
+
 async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
     try:
-        response = await client.get(url, headers={"User-Agent": settings.corpus_fetch_user_agent})
-        response.raise_for_status()
-    except httpx.HTTPStatusError as error:
-        raise FetchError(f"HTTP {error.response.status_code}") from error
-    except httpx.HTTPError as error:
-        raise FetchError(type(error).__name__) from error
+        async with asyncio.timeout(PAGE_FETCH_DEADLINE_SECONDS):
+            response = await _get_public(client, url)
+    except TimeoutError as error:
+        raise FetchError("page did not answer in time") from error
     content_type = response.headers.get("content-type", "")
     if not content_type.startswith(HTML_CONTENT_TYPES):
         raise FetchError(f"not HTML: {content_type.split(';')[0] or 'unknown'}")

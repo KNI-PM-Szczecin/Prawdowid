@@ -130,6 +130,10 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		return a.finish(r, StatusNeedsClarification, msgEmptyInput), nil
 	}
 
+	if request.InputType != InputTypeURL && !hasEnoughWords(input) {
+		return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
+	}
+
 	text, document, err := a.resolveInput(ctx, request)
 	if err != nil {
 		if errors.Is(err, ErrFetchRejected) {
@@ -249,7 +253,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 	}
 	claims := make([]string, 0, len(answer.Claims))
 	for _, claim := range answer.Claims {
-		if trimmed := strings.TrimSpace(claim.Text); trimmed != "" {
+		if trimmed := strings.TrimSpace(claim.Text); hasEnoughWords(trimmed) {
 			claims = append(claims, trimmed)
 		}
 		if len(claims) == a.config.MaxClaims {
@@ -257,7 +261,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 		}
 	}
 	if len(claims) == 0 {
-		if statement, ok := questionAsStatement(text); ok {
+		if statement, ok := questionAsStatement(text); ok && hasEnoughWords(statement) {
 			a.logger.Info("extraction found no claim in a yes/no question, checking the question as a statement")
 			return []string{statement}, 0, usageOf(completion), nil
 		}

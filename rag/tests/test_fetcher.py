@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
+from app import fetcher as fetcher_module
 from app.config import settings
 from app.fetcher import FetchError, extract_published_at, extract_text, fetch_page
 
@@ -82,3 +83,103 @@ def test_fetch_page_reads_publication_date_from_metadata():
 def test_fetch_page_rejects_errors_non_html_empty_and_oversized(response):
     with pytest.raises(FetchError):
         asyncio.run(fetch_page(_client(lambda request: response), "https://www.gov.pl/x"))
+
+
+PAGE = httpx.Response(200, text="<html><head><title>Strona</title></head><body><p>Treść.</p></body></html>",
+                      headers={"content-type": "text/html"})  # fmt: skip
+
+
+def _recording_client(responses: dict[str, httpx.Response]) -> tuple[httpx.AsyncClient, list[str]]:
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return responses.get(str(request.url), PAGE)
+
+    return _client(handler), requested
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1:80/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://10.0.0.5/",
+        "http://100.64.0.1/",
+        "http://[::1]/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://[fd12:3456::1]/",
+        "http://0.0.0.0/",
+    ],
+)
+def test_fetch_page_never_requests_private_addresses(url):
+    client, requested = _recording_client({})
+    with pytest.raises(FetchError, match="not allowed"):
+        asyncio.run(fetch_page(client, url))
+    assert requested == []
+
+
+def test_fetch_page_rejects_host_that_resolves_to_private_network(monkeypatch):
+    async def internal(host: str) -> list[str]:
+        return ["fd12:3456::7"] if host.endswith(".railway.internal") else ["93.184.216.34"]
+
+    monkeypatch.setattr(fetcher_module, "resolve_host", internal)
+    client, requested = _recording_client({})
+    with pytest.raises(FetchError, match="not allowed"):
+        asyncio.run(fetch_page(client, "http://rag.railway.internal/sources"))
+    assert requested == []
+
+
+@pytest.mark.parametrize(
+    "url", ["http://example.org:6333/", "https://example.org:8000/docs", "ftp://example.org/x", "file:///etc/passwd"]
+)
+def test_fetch_page_rejects_other_ports_and_schemes(url):
+    client, requested = _recording_client({})
+    with pytest.raises(FetchError):
+        asyncio.run(fetch_page(client, url))
+    assert requested == []
+
+
+def test_fetch_page_stops_redirect_into_private_network():
+    redirect = httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data/"})
+    client, requested = _recording_client({"https://example.org/short": redirect})
+    with pytest.raises(FetchError, match="not allowed"):
+        asyncio.run(fetch_page(client, "https://example.org/short"))
+    assert requested == ["https://example.org/short"]
+
+
+def test_fetch_page_follows_public_redirect_and_reports_final_url():
+    redirect = httpx.Response(301, headers={"location": "/article"})
+    client, requested = _recording_client({"https://example.org/old": redirect})
+    page = asyncio.run(fetch_page(client, "https://example.org/old"))
+    assert requested == ["https://example.org/old", "https://example.org/article"]
+    assert page.url == "https://example.org/article"
+
+
+def test_fetch_page_gives_up_on_redirect_loop():
+    loop = httpx.Response(302, headers={"location": "https://example.org/loop"})
+    client, requested = _recording_client({"https://example.org/loop": loop})
+    with pytest.raises(FetchError, match="too many redirects"):
+        asyncio.run(fetch_page(client, "https://example.org/loop"))
+    assert len(requested) == fetcher_module.MAX_REDIRECTS + 1
+
+
+def test_fetch_page_rejects_unresolvable_host(monkeypatch):
+    async def missing(host: str) -> list[str]:
+        raise OSError("no such host")
+
+    monkeypatch.setattr(fetcher_module, "resolve_host", missing)
+    with pytest.raises(FetchError, match="DNS"):
+        asyncio.run(fetch_page(_recording_client({})[0], "https://nie-ma-takiej-domeny.example/"))
+
+
+def test_slow_page_ends_as_fetch_error_before_agent_timeout(monkeypatch):
+    monkeypatch.setattr(fetcher_module, "PAGE_FETCH_DEADLINE_SECONDS", 0.05)
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(1)
+        return PAGE
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(slow))
+    with pytest.raises(FetchError, match="in time"):
+        asyncio.run(fetch_page(client, "https://example.org/slow"))
