@@ -224,7 +224,9 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
         request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
     )
     if gov_search_wanted(request, response.results):
-        gap_fill = await app.state.gov_search.fill(request.query, app.state.models, app.state.store)
+        # gov.pl search is keyword-based: the whole sentence of a claim buries the relevant pages in noise.
+        gap_query = response.expanded_queries.keywords or request.query
+        gap_fill = await app.state.gov_search.fill(gap_query, app.state.models, app.state.store)
         if gap_fill.indexed:
             response = await search_passages(
                 request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents

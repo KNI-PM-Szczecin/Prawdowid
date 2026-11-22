@@ -435,6 +435,7 @@ def test_gov_search_fills_the_gap_and_the_search_runs_again(client, monkeypatch)
 
     body = client.post("/search", json=QUERY).json()
 
-    assert app.state.gov_search.queries == [QUERY["query"]]
+    # gov.pl search is keyword-based, so it gets the claim's content words, not the whole sentence
+    assert app.state.gov_search.queries == ["poseł x poparł ustawę y"]
     assert [result["passage"] for result in body["results"]] == [found_later.text]
     assert {"name": "gov_search", "status": "ok", "results": 1} in body["externalSources"]
