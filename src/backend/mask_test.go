@@ -41,6 +41,14 @@ func TestMaskPersonalData(t *testing.T) {
 		{"big number split in thousands without prefix", "5 000 000 000 000 osób", "5 000 000 000 000 osób"},
 		{"year and percent", "W 2026 roku wzrost o 12,5 proc", "W 2026 roku wzrost o 12,5 proc"},
 		{"plain text", "Polska jest w UE od 2004 roku", "Polska jest w UE od 2004 roku"},
+		{"id card number with valid check digit", "dowód ABA 300000 wydany", "dowód [ukryto] wydany"},
+		{"id card number contiguous", "dowód ABA300000", "dowód [ukryto]"},
+		{"id card like string with bad check digit", "seria ABA 300001", "seria ABA 300001"},
+		{"ticker-like letters and digits", "PKO 123456 akcji", "PKO 123456 akcji"},
+		{"passport number with valid check digit", "paszport AA 0000000 ważny", "paszport [ukryto] ważny"},
+		{"passport like string with bad check digit", "paszport AA 0000001", "paszport AA 0000001"},
+		// Mentor rule: names, also of public figures, are never masked; the claim would lose its meaning.
+		{"public figure name stays", "Donald Tusk powiedział, że PESEL 44051401359 to przykład", "Donald Tusk powiedział, że PESEL [ukryto] to przykład"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

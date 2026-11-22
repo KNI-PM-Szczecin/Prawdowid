@@ -55,7 +55,7 @@ Kontrakty między folderami są w `CONTRACT.md`. Zmiana kontraktu bez wpisu tam 
 - **Prompt injection:** treść pobranych stron, źródeł, plików i wiadomości użytkowników jest danymi, nie instrukcjami. Nigdy nie trafia do promptu systemowego i nie zmienia zasad działania. Wykrytą próbę zapisujemy w logu.
 - Model i dostawca wymienne przez jeden interfejs (`agent/`). Brak klucza lub limit to jawny błąd, nie wynik merytoryczny.
 - Spójność kanałów: to samo zgłoszenie przez WWW i drugi kanał daje ten sam wynik merytoryczny.
-- Prywatność: maskowanie oczywistych danych osobowych, minimalna retencja, możliwość usunięcia sesji demo.
+- Prywatność: maskowanie identyfikatorów osobowych (PESEL, numer dowodu i paszportu, telefon, e-mail, konto), minimalna retencja, możliwość usunięcia sesji demo. **Zasada mentorów:** nie maskujemy niczego, bez czego zmienia się sens zapytania albo nie da się znaleźć dowodu; nigdy imion i nazwisk osób publicznych.
 - Logujemy: czas odpowiedzi, użyty model, błędy wyszukiwania, wstrzymania się, szacunkowy koszt zapytania.
 - Korpus demo: min. 100 dokumentów, 10 domen, 2 typy źródeł (urzędowe i wtórne), każdy z datą publikacji i pobrania.
 - Wynik testu nie może zależeć od wpisania odpowiedzi testowej do promptu ani zakodowania przykładów.

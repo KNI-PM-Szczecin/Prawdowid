@@ -56,7 +56,7 @@ Celowo **nie** proponujemy: logowania obywatela, kolejki asynchronicznej (budże
 | `input` | string | wymagane, 1–5000 znaków po przycięciu spacji |
 | `inputType` | `"text"` \| `"url"` | wymagane; front wykrywa URL sam (zaczyna się od `http://` lub `https://`) |
 
-Nieznane pola → odrzucenie (`DisallowUnknownFields`). Backend maskuje e-mail, IBAN, PESEL i telefon (zamiennik `[ukryto]`, `src/backend/mask.go`) **przed** zapisem przebiegu, a wejście tekstowe także przed wysłaniem do `agent/`. URL idzie do `agent/` bez maskowania (maskowana jest tylko kopia zapisana w bazie); treść pobranej strony nie jest maskowana.
+Nieznane pola → odrzucenie (`DisallowUnknownFields`). Backend maskuje e-mail, IBAN, PESEL, numer dowodu osobistego, numer paszportu i telefon (zamiennik `[ukryto]`, `src/backend/mask.go`; PESEL, dowód i paszport tylko z poprawną sumą kontrolną, kwoty i daty chronione) **przed** zapisem przebiegu, a wejście tekstowe także przed wysłaniem do `agent/`. Imion i nazwisk nie maskujemy nigdy, w szczególności osób publicznych (zasada mentorów: nie maskować niczego, bez czego zmienia się sens zapytania albo nie da się znaleźć dowodu). URL idzie do `agent/` bez maskowania (maskowana jest tylko kopia zapisana w bazie); treść pobranej strony nie jest maskowana.
 
 ### Kody HTTP (z kontraktu)
 

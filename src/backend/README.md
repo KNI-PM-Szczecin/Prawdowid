@@ -19,7 +19,7 @@ Bez `DATABASE_URL` albo bez połączenia z bazą backend kończy działanie z ja
 - `GET /health` → `{"status":"ok","database":"ok"}` albo 503 z `"database":"unavailable"` (sonda gotowości).
 
 ## API
-- `POST /api/check`: `{"input": "...", "inputType": "text|url"}` → `CheckResult` (CONTRACT.md §1 i §1a: backend dolicza `summary` i `badges`). Wejście jest walidowane, dane osobowe (e-mail, PESEL, telefon) maskowane przed `agent/` i przed zapisem, potem `agent.Verify`. Przebieg trafia do tabeli `check_runs` (tworzona przy starcie, RLS włączony). Błąd zapisu nie psuje odpowiedzi.
+- `POST /api/check`: `{"input": "...", "inputType": "text|url"}` → `CheckResult` (CONTRACT.md §1 i §1a: backend dolicza `summary` i `badges`). Wejście jest walidowane, identyfikatory osobowe (e-mail, PESEL, numer dowodu i paszportu, telefon, IBAN; nigdy imiona i nazwiska, zob. `mask.go`) maskowane przed `agent/` i przed zapisem, potem `agent.Verify`. Przebieg trafia do tabeli `check_runs` (tworzona przy starcie, RLS włączony). Błąd zapisu nie psuje odpowiedzi.
 - `POST /api/channels/demo`: drugi kanał (adapter demonstracyjny z briefu), `{"text": "..."}` → odpowiedź tekstowa z werdyktem, siłą podstawy, uzasadnieniem i źródłami; ta sama ścieżka weryfikacji co WWW, więc ten sam wynik merytoryczny.
 - `DELETE /api/checks/{requestId}`: usuwa zapisany przebieg (`204`, `404`, `400` dla złego identyfikatora, `503` przy awarii bazy).
 - `GET /api/admin/cases`: lista spraw dla analityka (pętla informacji), wymaga `MODERATOR_TOKEN`.
