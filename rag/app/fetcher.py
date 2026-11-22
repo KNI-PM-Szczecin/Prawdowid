@@ -102,16 +102,54 @@ def extract_published_at(html: str) -> datetime | None:
     return None
 
 
+# Page chrome that is never the material to check: menus, side panels, footers, forms (and the same roles in ARIA).
+BOILERPLATE_ELEMENTS = {"nav", "aside", "footer", "form"}
+BOILERPLATE_ROLES = {"navigation", "banner", "contentinfo", "complementary", "search"}
+# The main content of a page; the longest one wins (a news page also has <article> teasers of other stories).
+CONTENT_ELEMENTS = {"article", "main"}
+CONTENT_ROLES = {"main", "article"}
+# A content region shorter than this is a teaser or an empty shell; the page minus its chrome is used instead.
+MIN_CONTENT_CHARS = 400
+VOID_ELEMENTS = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
+}  # fmt: skip
+
+
 class _TextExtractor(HTMLParser):
+    """Collects visible text pieces and remembers, for each piece, the content region and chrome it sits in."""
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.title_parts: list[str] = []
-        self.parts: list[str] = []
+        # (text, content region ids, inside chrome)
+        self.pieces: list[tuple[str, tuple[int, ...], bool]] = []
         self._skip_depth = 0
         self._svg_depth = 0
         self._in_title = False
+        self._open: dict[str, int] = {}
+        # (tag, open count of that tag when it started, kind, region id)
+        self._tracked: list[tuple[str, int, str, int]] = []
+        self._next_region = 0
+
+    def _context(self) -> tuple[tuple[int, ...], bool]:
+        regions = tuple(region for _, _, kind, region in self._tracked if kind == "content")
+        chrome = any(kind == "chrome" for _, _, kind, _ in self._tracked)
+        return regions, chrome
+
+    def _append(self, text: str) -> None:
+        regions, chrome = self._context()
+        self.pieces.append((text, regions, chrome))
 
     def handle_starttag(self, tag: str, attrs) -> None:
+        if tag not in VOID_ELEMENTS:
+            self._open[tag] = self._open.get(tag, 0) + 1
+            role = (dict(attrs).get("role") or "").strip().lower()
+            in_content = any(kind == "content" for _, _, kind, _ in self._tracked)
+            if tag in CONTENT_ELEMENTS or role in CONTENT_ROLES:
+                self._tracked.append((tag, self._open[tag], "content", self._next_region))
+                self._next_region += 1
+            elif tag in BOILERPLATE_ELEMENTS or role in BOILERPLATE_ROLES or (tag == "header" and not in_content):
+                self._tracked.append((tag, self._open[tag], "chrome", -1))
         if tag in SKIPPED_ELEMENTS:
             self._skip_depth += 1
             self._svg_depth += tag == "svg"
@@ -119,7 +157,7 @@ class _TextExtractor(HTMLParser):
             # Only the document title: <title> inside inline SVG icons (accessibility widgets) is not the page title.
             self._in_title = True
         elif tag in BLOCK_ELEMENTS:
-            self.parts.append("\n")
+            self._append("\n")
 
     def handle_endtag(self, tag: str) -> None:
         if tag in SKIPPED_ELEMENTS and self._skip_depth:
@@ -128,24 +166,48 @@ class _TextExtractor(HTMLParser):
         elif tag == "title" and not self._svg_depth:
             self._in_title = False
         elif tag in BLOCK_ELEMENTS:
-            self.parts.append("\n")
+            self._append("\n")
+        if self._open.get(tag):
+            level = self._open[tag]
+            self._open[tag] = level - 1
+            while self._tracked and any(name == tag and start >= level for name, start, _, _ in self._tracked):
+                self._tracked.pop()
 
     def handle_data(self, data: str) -> None:
         if self._in_title:
             self.title_parts.append(data)
         elif not self._skip_depth:
-            self.parts.append(data)
+            self._append(data)
+
+
+def _lines(pieces: list[str]) -> str:
+    lines = [WHITESPACE.sub(" ", line).strip() for line in "".join(pieces).splitlines()]
+    return "\n".join(line for line in lines if line)
 
 
 def extract_text(html: str) -> tuple[str, str]:
-    """Title and visible text, one line per block element; scripts, styles and the head are dropped."""
+    """
+    Title and the main text, one line per block element; scripts, styles and the head are dropped.
+    The longest <article>/<main> region is used when it holds real content, otherwise the page without its
+    navigation, side panels, footers and forms; the whole visible text only when nothing else is left.
+    """
     extractor = _TextExtractor()
     extractor.feed(html)
     extractor.close()
-    lines = [WHITESPACE.sub(" ", line).strip() for line in "".join(extractor.parts).splitlines()]
-    text = "\n".join(line for line in lines if line)
     title = WHITESPACE.sub(" ", " ".join(extractor.title_parts)).strip()
-    return title, text
+    regions: dict[int, list[str]] = {}
+    for text, region_ids, chrome in extractor.pieces:
+        if not chrome:
+            for region in region_ids:
+                regions.setdefault(region, []).append(text)
+    region_texts = [_lines(parts) for parts in regions.values()]
+    best = max(region_texts, key=len, default="")
+    if len(best) >= MIN_CONTENT_CHARS:
+        return title, best
+    without_chrome = _lines([text for text, _, chrome in extractor.pieces if not chrome])
+    if without_chrome:
+        return title, without_chrome
+    return title, _lines([text for text, _, _ in extractor.pieces])
 
 
 async def _read_limited(response: httpx.Response) -> bytes:
