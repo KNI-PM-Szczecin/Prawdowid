@@ -4,9 +4,12 @@ import json
 import logging
 import math
 import time
+from collections import Counter
 from datetime import UTC, datetime
+from uuid import UUID
 
 from app import db
+from app.caching import TtlCache
 from app.config import settings
 from app.context import build_context_xml, contains_instructions
 from app.embeddings import EmbeddingModels
@@ -22,7 +25,9 @@ logger = logging.getLogger(__name__)
 MILLISECONDS_PER_SECOND = 1000
 INJECTION_FLAG = "suspected_injection"
 
-_cache: dict[str, tuple[float, str, SearchResponse]] = {}
+_cache: TtlCache[str, tuple[str, SearchResponse]] = TtlCache(
+    settings.search_cache_ttl_seconds, settings.search_cache_max_entries
+)
 
 
 def _cache_key(request: SearchRequest) -> str:
@@ -31,15 +36,13 @@ def _cache_key(request: SearchRequest) -> str:
 
 def _cached(key: str, corpus_version: str) -> SearchResponse | None:
     entry = _cache.get(key)
-    if entry is None or entry[0] < time.monotonic() or entry[1] != corpus_version:
+    if entry is None or entry[0] != corpus_version:
         return None
-    return entry[2]
+    return entry[1]
 
 
 def _remember(key: str, corpus_version: str, response: SearchResponse) -> None:
-    if len(_cache) >= settings.search_cache_max_entries:
-        _cache.pop(next(iter(_cache)))
-    _cache[key] = (time.monotonic() + settings.search_cache_ttl_seconds, corpus_version, response)
+    _cache.put(key, (corpus_version, response))
 
 
 FACTCHECK_SOURCE_TYPE = "factcheck"
@@ -54,13 +57,27 @@ def _relevance(logit: float) -> float:
 
 
 def _merge_candidates(result_sets: list[list[RetrievedChunk]], pool_size: int) -> list[RetrievedChunk]:
-    best_by_id: dict = {}
+    best_by_id: dict[UUID, RetrievedChunk] = {}
     for results in result_sets:
         for chunk in results:
             current = best_by_id.get(chunk.chunk_id)
             if current is None or chunk.fusion_score > current.fusion_score:
                 best_by_id[chunk.chunk_id] = chunk
     return sorted(best_by_id.values(), key=lambda chunk: chunk.fusion_score, reverse=True)[:pool_size]
+
+
+def _diversify(chunks: list[RetrievedChunk], max_per_document: int) -> list[RetrievedChunk]:
+    """Caps chunks per document, so one long page cannot fill the rerank pool and starve independent
+    evidence from other publishers (brief: verdict strength comes from independent confirmations)."""
+    selected: list[RetrievedChunk] = []
+    per_document: Counter[str] = Counter()
+    for chunk in chunks:  # already sorted by fusion score
+        document = chunk.payload.get("source_id") or str(chunk.chunk_id)
+        if per_document[document] >= max_per_document:
+            continue
+        per_document[document] += 1
+        selected.append(chunk)
+    return selected[: settings.candidate_pool_size]
 
 
 def _factcheck_wanted(filters: SearchFilters | None) -> bool:
@@ -71,6 +88,14 @@ def _within_date_filter(review: FactCheckReview, filters: SearchFilters | None) 
     if filters is None or filters.published_after is None:
         return True
     return review.review_date is not None and review.review_date > filters.published_after
+
+
+def _published_key(candidate: Candidate) -> str:
+    """Publication date as a comparable ISO string; a missing date sorts oldest. Recency only breaks
+    score ties — it never overrides the cross-encoder (brief: prefer current material, no domain shortcuts)."""
+    if isinstance(candidate, FactCheckReview):
+        return candidate.review_date.isoformat() if candidate.review_date else ""
+    return candidate.payload.get("published_at") or ""
 
 
 def _flags(text: str, label: str) -> list[str]:
@@ -173,7 +198,13 @@ async def search_passages(
     )
     factcheck_result = await factcheck_task
     reviews = [review for review in factcheck_result.reviews if _within_date_filter(review, filters)]
-    candidates: list[Candidate] = [*_merge_candidates(list(result_sets), settings.candidate_pool_size), *reviews]
+    candidates: list[Candidate] = [
+        *_diversify(
+            _merge_candidates(list(result_sets), settings.retrieval_limit_per_query),
+            settings.pool_max_chunks_per_document,
+        ),
+        *reviews,
+    ]
 
     corpus_candidates = [candidate for candidate in candidates if isinstance(candidate, RetrievedChunk)]
     metadata_task = asyncio.create_task(db.fetch_passage_metadata([chunk.chunk_id for chunk in corpus_candidates]))
@@ -193,7 +224,12 @@ async def search_passages(
         scored = list(zip(candidates, relevances[: len(candidates)], strict=True))
         campaign_alert = build_campaign_alert(list(zip(incident_hits, relevances[len(candidates) :], strict=True)))
         ranked = sorted(
-            (pair for pair in scored if pair[1] >= settings.rerank_min_score),
+            sorted(
+                (pair for pair in scored if pair[1] >= settings.rerank_min_score),
+                key=lambda pair: _published_key(pair[0]),
+                reverse=True,
+            ),
+            # Stable sort: equal scores keep the recency order of the inner sort.
             key=lambda pair: pair[1],
             reverse=True,
         )

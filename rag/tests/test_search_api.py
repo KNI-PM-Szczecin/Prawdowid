@@ -173,6 +173,49 @@ def test_search_returns_empty_list_when_nothing_is_relevant(client):
     assert response.json()["results"] == []
 
 
+def test_rerank_pool_is_diversified_across_documents(client):
+    chunks = [
+        RetrievedChunk(
+            chunk_id=uuid4(),
+            text=f"Fragment {index} komunikatu A.",
+            fusion_score=1.0 - index / 10,
+            payload={"source_id": "doc-a"},
+        )
+        for index in range(5)
+    ]
+    independent = RetrievedChunk(
+        chunk_id=uuid4(),
+        text="Niezależne potwierdzenie z innego serwisu.",
+        fusion_score=0.95,
+        payload={"source_id": "doc-b"},
+    )
+    app.state.store = FakeStore([*chunks, independent])
+    app.state.models = FakeModels({**{chunk.text: RELEVANT_LOGIT for chunk in chunks[:3]}, independent.text: 7.5})
+    passages = [item["passage"] for item in client.post("/search", json=QUERY).json()["results"]]
+    assert len(passages) == 4
+    assert "Niezależne potwierdzenie z innego serwisu." in passages
+    assert "Fragment 3 komunikatu A." not in passages and "Fragment 4 komunikatu A." not in passages
+
+
+def test_equal_scores_prefer_the_newer_passage(client):
+    older = RetrievedChunk(
+        chunk_id=uuid4(),
+        text="Starszy komunikat.",
+        fusion_score=0.99,
+        payload={"source_id": "doc-old", "published_at": "2025-01-01T00:00:00+00:00"},
+    )
+    newer = RetrievedChunk(
+        chunk_id=uuid4(),
+        text="Nowszy komunikat.",
+        fusion_score=0.9,
+        payload={"source_id": "doc-new", "published_at": "2026-06-01T00:00:00+00:00"},
+    )
+    app.state.store = FakeStore([older, newer])
+    app.state.models = FakeModels({older.text: RELEVANT_LOGIT, newer.text: RELEVANT_LOGIT})
+    passages = [item["passage"] for item in client.post("/search", json=QUERY).json()["results"]]
+    assert passages[0] == "Nowszy komunikat."
+
+
 def test_passage_without_publication_date_is_not_returned(client, monkeypatch):
     async def metadata_without_date(chunk_ids):
         return {chunk_id: {**_metadata_row(chunk_id), "published_at": None} for chunk_id in chunk_ids}

@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 import re
 from uuid import uuid4
 
@@ -10,7 +11,12 @@ from app.embeddings import EmbeddingModels
 from app.models import DocumentIn, IngestResult
 from app.vector_store import ChunkPoint, VectorStore
 
+logger = logging.getLogger(__name__)
+
 PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
+# Sentence boundary for splitting oversize paragraphs; abbreviations (np. „r.", „tzn.") may split early,
+# which is safe: chunks stay under the limit either way.
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 WHITESPACE = re.compile(r"\s+")
 
 
@@ -28,9 +34,37 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(WHITESPACE.sub(" ", text).strip().casefold().encode("utf-8")).hexdigest()
 
 
-def _split_long(text: str, max_chars: int, overlap: int) -> list[str]:
+def _split_hard(text: str, max_chars: int, overlap: int) -> list[str]:
     step = max_chars - overlap
     return [text[start : start + max_chars] for start in range(0, max(len(text) - overlap, 1), step)]
+
+
+def _split_long(text: str, max_chars: int, overlap: int) -> list[str]:
+    """
+    Splits an oversize paragraph at sentence boundaries first, so citations never break mid-sentence.
+    A single sentence longer than `max_chars` (tables, walls of text) is the only case cut with overlap.
+    """
+    sentences = SENTENCE_END.split(text)
+    if len(sentences) == 1:
+        return _split_hard(text, max_chars, overlap)
+    chunks: list[str] = []
+    current: list[str] = []
+    current_length = 0
+    for sentence in sentences:
+        if len(sentence) > max_chars:
+            if current:
+                chunks.append(" ".join(current))
+                current, current_length = [], 0
+            chunks.extend(_split_hard(sentence, max_chars, overlap))
+            continue
+        if current and current_length + len(sentence) + 1 > max_chars:
+            chunks.append(" ".join(current))
+            current, current_length = [], 0
+        current.append(sentence)
+        current_length += len(sentence) + 1
+    if current:
+        chunks.append(" ".join(current))
+    return chunks
 
 
 def chunk_text(text: str, max_chars: int, overlap: int) -> list[str]:
@@ -100,8 +134,17 @@ async def ingest_document(
     await db.upsert_source_with_chunks(source, text_hash, chunk_ids)
 
     if previous_ids:
-        await store.delete(previous_ids)
+        # PostgreSQL is the source of truth: chunks marked deleted stop being evidence even when the index
+        # delete fails, so old text can never reappear in results (the reverse order could).
         await db.mark_chunks_deleted(previous_ids)
+        try:
+            await store.delete(previous_ids)
+        except Exception:
+            logger.exception(
+                "Failed to delete %d old chunks of %s from the index; they are hidden by metadata",
+                len(previous_ids),
+                source.document_id,
+            )
 
     return IngestResult(
         document_id=source.document_id,
@@ -112,9 +155,18 @@ async def ingest_document(
 
 
 async def delete_document_chunks(document_id: str, store: VectorStore) -> int:
-    """Hard delete in Qdrant, soft delete in Postgres; returns how many chunks were active (0 = nothing to delete)."""
+    """Hard delete in Qdrant, soft delete in Postgres; returns how many chunks were active (0 = nothing to delete).
+    Chunks are marked deleted in PostgreSQL first: a failing index delete must never bring the text
+    back into results, and points hidden by metadata are invisible to search until the optimizer merges."""
     chunk_ids = await db.active_chunk_ids_for_document(document_id)
     if chunk_ids:
-        await store.delete(chunk_ids)
         await db.mark_chunks_deleted(chunk_ids)
+        try:
+            await store.delete(chunk_ids)
+        except Exception:
+            logger.exception(
+                "Failed to delete %d chunks of %s from the index; they are hidden by metadata",
+                len(chunk_ids),
+                document_id,
+            )
     return len(chunk_ids)

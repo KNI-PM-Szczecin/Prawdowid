@@ -21,7 +21,7 @@ from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
 from app.fetcher import FetchError, fetch_page
-from app.incidents import incident_point_id, index_incidents, load_seed_incidents
+from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
 from app.law_import import import_law, law_state
 from app.models import (
@@ -102,10 +102,12 @@ async def lifespan(app: FastAPI):
             seed_report.skipped_duplicates,
             seed_report.failed,
         )
-    if settings.seed_incidents_enabled and await incidents.count() == 0:
+    if settings.seed_incidents_enabled:
         try:
-            seeded = await index_incidents(load_seed_incidents(), app.state.models, incidents)
-            logger.info("Seed incident catalog: %d entries", seeded)
+            # Upserted at every start, not only when the catalog is empty: an EUvsDisinfo import can run
+            # first and then the demo-critical cases would never arrive (they fall outside newest-N).
+            seeded = await ensure_seed_incidents(app.state.models, incidents)
+            logger.info("Seed incident catalog ensured: %d entries", seeded)
         except Exception:
             logger.exception("Seeding the incident catalog failed; search continues without it")
 
@@ -224,7 +226,10 @@ async def ingest(request: IngestRequest) -> list[IngestResult]:
 async def fetch_url(request: FetchRequest) -> FetchResponse:
     """Page text for agent/ when the user submits a URL; nothing is stored, the same parser as for the corpus."""
     try:
-        async with httpx.AsyncClient(timeout=settings.corpus_fetch_timeout_seconds, follow_redirects=True) as client:
+        # fetch_timeout_seconds, not the corpus one: agent/ gives rag 12 s, so a 15 s page would be a
+        # guaranteed technical_error on agent's side before this endpoint ever answered. Redirects are
+        # followed inside fetch_page, with a URL guard check on every target.
+        async with httpx.AsyncClient(timeout=settings.fetch_timeout_seconds, follow_redirects=False) as client:
             page = await fetch_page(client, str(request.url))
     except FetchError as error:
         raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=FETCH_FAILED_MESSAGE.format(reason=error)) from error

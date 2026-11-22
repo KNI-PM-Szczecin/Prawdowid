@@ -39,3 +39,6 @@ ALTER TABLE document_metadata
 
 CREATE INDEX IF NOT EXISTS idx_document_metadata_active
     ON document_metadata (is_deleted, tier, protected_until);
+
+-- Duplicate detection runs per ingested document; a full scan of sources would dominate bulk corpus syncs.
+CREATE INDEX IF NOT EXISTS idx_sources_content_hash ON sources (content_hash);

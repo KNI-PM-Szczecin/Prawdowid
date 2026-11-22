@@ -30,7 +30,7 @@ SELECT a.chunk_id, a.source_id,
 FROM active a
 JOIN topic_share t ON t.topic_tag = a.topic_tag
 WHERE a.tier > $7 AND (a.protected_until IS NULL OR NOW() > a.protected_until)
-ORDER BY eviction_score DESC
+ORDER BY eviction_score DESC, a.chunk_id
 """
 
 ACTIVE_DOCUMENTS_SQL = """

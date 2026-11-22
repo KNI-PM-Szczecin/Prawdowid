@@ -24,6 +24,16 @@ def test_chunk_text_skips_blank_paragraphs():
     assert chunk_text("\n\n   \n\nTekst", MAX_CHARS, OVERLAP) == ["Tekst"]
 
 
+def test_chunk_text_splits_oversize_paragraph_at_sentence_boundaries():
+    sentence = "Ala ma kota, a kot ma ale."
+    paragraph = " ".join([sentence] * 5)
+    chunks = chunk_text(paragraph, MAX_CHARS, OVERLAP)
+    assert len(chunks) == 2
+    assert all(len(chunk) <= MAX_CHARS for chunk in chunks)
+    # A citation never starts or ends in the middle of a sentence when the text has sentence boundaries.
+    assert all(chunk.endswith(sentence) for chunk in chunks)
+
+
 def test_polish_stemmer_maps_inflected_forms_to_same_stem():
     stemmer = load_profile("pl").stemmer
     assert stemmer.stem_word("ustawy") == stemmer.stem_word("ustawą") == stemmer.stem_word("ustawie")

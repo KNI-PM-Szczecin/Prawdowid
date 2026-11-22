@@ -141,3 +141,21 @@ def test_sync_respects_max_cases_and_records_failure():
     assert state.last_indexed == PAGE_SIZE
     assert "HTTP 500" in state.last_error
     assert not state.running
+
+
+def test_sync_stops_on_page_shorter_than_requested():
+    """A server-side page-size cap must not skip cases nor loop: offset advances by what arrived, not by the request."""
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        arguments = json.loads(request.content)["params"]["arguments"]
+        calls.append(arguments)
+        # Server caps every page at one case and reports no total.
+        return _cases_response(arguments["offset"], 1, sse=False)
+
+    client = EuvsDisinfoClient(transport=httpx.MockTransport(handler))
+    state = asyncio.run(sync_cases(client, FakeModels(), FakeIncidentStore(), max_cases=10))
+
+    assert len(calls) == 1
+    assert state.last_indexed == 1
+    assert state.last_error is None
