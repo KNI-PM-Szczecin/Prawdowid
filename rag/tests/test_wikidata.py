@@ -3,7 +3,7 @@ import asyncio
 import httpx
 
 from app.config import settings
-from app.wikidata import WikidataClient, format_time, parse_people, person_mentions
+from app.wikidata import Role, WikidataClient, describe_roles, format_time, parse_people, person_mentions
 
 PERSON_ID = "Q100"
 NAMESAKE_ID = "Q200"
@@ -46,7 +46,31 @@ def _transport(calls: list[dict]) -> httpx.MockTransport:
 
 def test_person_mentions_keep_titles_and_full_names():
     assert person_mentions("Królowa Zofia odwiedziła Sejm w ostatni piątek.") == ["Królowa Zofia", "Sejm"]
-    assert person_mentions("wszystko małymi literami") == []
+
+
+def test_lowercase_claim_uses_the_first_pair_of_content_words():
+    assert person_mentions("zofia kowalska należy do partii zielonych") == ["Zofia Kowalska"]
+    assert person_mentions("a w o i") == []
+
+
+def test_describe_roles_separates_current_and_past():
+    roles = (
+        Role(kind="P102", entity_id="Q1", start=2001, end=None),
+        Role(kind="P102", entity_id="Q2", start=1990, end=2001),
+        Role(kind="P39", entity_id="Q3", start=2019, end=None),
+        Role(kind="P39", entity_id="Q4", start=2006, end=2007),
+        Role(kind="P39", entity_id="Q9", start=2000, end=None),
+    )
+    labels = {"Q1": "Partia Zielonych", "Q2": "Stronnictwo Borowskie", "Q3": "radna", "Q4": "burmistrz Borowa"}
+
+    lines = describe_roles(roles, labels)
+
+    assert lines == (
+        "Przynależność partyjna (według Wikidaty, bez daty zakończenia): Partia Zielonych (od 2001 r.).",
+        "Wcześniejsza przynależność partyjna: Stronnictwo Borowskie (1990-2001 r.).",
+        "Pełnione funkcje (bez daty zakończenia w Wikidacie): radna (od 2019 r.).",
+        "Wcześniejsze funkcje: burmistrz Borowa (2006-2007 r.).",
+    )
 
 
 def test_format_time_by_precision():
@@ -77,10 +101,36 @@ def test_first_human_in_search_order_is_the_person_meant(monkeypatch):
 def test_no_names_or_disabled_means_no_request(monkeypatch):
     calls: list[dict] = []
     client = WikidataClient(transport=_transport(calls))
-    assert asyncio.run(client.people("bez nazw własnych")).status == "skipped"
+    assert asyncio.run(client.people("123 456 ???")).status == "skipped"
     monkeypatch.setattr(settings, "wikidata_enabled", False)
     assert asyncio.run(client.people("Królowa Zofia")).status == "disabled"
     assert calls == []
+
+
+def test_party_and_office_labels_reach_the_passage(monkeypatch):
+    monkeypatch.setattr(settings, "wikidata_enabled", True)
+    member = _entity("Q500", "Zofia Kowalska", human=True, description="polska polityczka")
+    member["claims"]["P102"] = [
+        {
+            "mainsnak": {"datavalue": {"value": {"id": "Q600"}}},
+            "qualifiers": {"P580": [{"datavalue": {"value": {"time": "+2001-01-01T00:00:00Z"}}}]},
+        }
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params = dict(request.url.params)
+        if params["action"] == "wbsearchentities":
+            return httpx.Response(200, json={"search": [{"id": "Q500"}]})
+        if params.get("props") == "labels":
+            return httpx.Response(200, json={"entities": {"Q600": {"labels": {"pl": {"value": "Partia Zielonych"}}}}})
+        return httpx.Response(200, json={"entities": {"Q500": member}})
+
+    client = WikidataClient(transport=httpx.MockTransport(handler))
+    result = asyncio.run(client.people("zofia kowalska należy do partii zielonych"))
+
+    assert "Przynależność partyjna (według Wikidaty, bez daty zakończenia): Partia Zielonych (od 2001 r.)." in (
+        result.facts[0].passage_text
+    )
 
 
 def test_failure_is_an_error_status_not_an_exception(monkeypatch):

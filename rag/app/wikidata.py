@@ -1,7 +1,8 @@
 import asyncio
+import itertools
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -9,6 +10,7 @@ import httpx
 
 from app.caching import TtlCache
 from app.config import settings
+from app.languages import load_profile
 from app.models import ExternalSourceStatus
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,27 @@ MONTHS = (
 )
 # Wikidata time precision 11 is a day; coarser values (year, month) are shown as the year only.
 DAY_PRECISION = 11
+PARTY, POSITION = "P102", "P39"
+START, END = "P580", "P582"
+# Past offices shown per person, most recent first; current ones are always shown.
+MAX_PAST_POSITIONS = 3
+# Polish first, then the multilingual label that many people now have instead of a Polish one.
+LABEL_LANGUAGES = "pl|mul"
+# wbgetentities accepts at most 50 ids per request.
+MAX_LABEL_IDS = 50
+# A name written in lowercase ("jarosław kaczyński należy…") is looked up as the first pair of adjacent content words.
+MIN_NAME_WORD_LENGTH = 3
+LOWERCASE_WORD = re.compile(r"[a-ząćęłńóśźż]+")
+
+
+@dataclass(frozen=True)
+class Role:
+    """A party membership or an office, with the years from its start and end qualifiers when Wikidata has them."""
+
+    kind: str
+    entity_id: str
+    start: int | None
+    end: int | None
 
 
 @dataclass(frozen=True)
@@ -49,6 +72,8 @@ class PersonFact:
     born: str | None
     died: str | None
     modified: datetime | None
+    roles: tuple[Role, ...] = ()
+    role_lines: tuple[str, ...] = ()
 
     @property
     def fact_id(self) -> UUID:
@@ -65,7 +90,8 @@ class PersonFact:
         # Formatted dates end with "r.", which already closes the sentence.
         born = f" Data urodzenia: {self.born}" if self.born else ""
         died = f" Data śmierci: {self.died}" if self.died else " W danych nie ma daty śmierci."
-        return f"{self.label}{description}.{born}{died}"
+        roles = "".join(f" {line}" for line in self.role_lines)
+        return f"{self.label}{description}.{born}{died}{roles}"
 
     @property
     def rerank_text(self) -> str:
@@ -82,9 +108,80 @@ class WikidataResult:
 
 
 def person_mentions(text: str) -> list[str]:
-    """Capitalised names in the claim, longest first per position, without duplicates."""
-    mentions = dict.fromkeys(match.group(0) for match in PERSON_MENTION.finditer(text))
-    return list(mentions)[: settings.wikidata_max_people]
+    """
+    Capitalised names in the claim, without duplicates. A claim written without any capital letter gets its first
+    pair of adjacent content words as the candidate name ("jarosław kaczyński należy…" -> "Jarosław Kaczyński").
+    """
+    mentions = list(dict.fromkeys(match.group(0) for match in PERSON_MENTION.finditer(text)))
+    if not mentions and not any(character.isupper() for character in text):
+        stopwords = load_profile(settings.corpus_language).stopwords
+        words = LOWERCASE_WORD.findall(text)
+        for first, second in itertools.pairwise(words):
+            if all(len(word) >= MIN_NAME_WORD_LENGTH and word not in stopwords for word in (first, second)):
+                mentions.append(f"{first.capitalize()} {second.capitalize()}")
+                break
+    return mentions[: settings.wikidata_max_people]
+
+
+def _year(value: dict | None) -> int | None:
+    match = re.match(r"^[+-](\d{1,4})", str((value or {}).get("time") or ""))
+    return int(match.group(1)) if match else None
+
+
+def _qualifier_time(statement: dict, prop: str) -> dict | None:
+    for qualifier in statement.get("qualifiers", {}).get(prop, []):
+        value = qualifier.get("datavalue", {}).get("value")
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _roles(claims: dict) -> tuple[Role, ...]:
+    roles: list[Role] = []
+    for kind in (PARTY, POSITION):
+        for statement in claims.get(kind, []):
+            value = statement.get("mainsnak", {}).get("datavalue", {}).get("value")
+            if isinstance(value, dict) and value.get("id"):
+                roles.append(
+                    Role(
+                        kind=kind,
+                        entity_id=value["id"],
+                        start=_year(_qualifier_time(statement, START)),
+                        end=_year(_qualifier_time(statement, END)),
+                    )
+                )
+    return tuple(roles)
+
+
+def describe_roles(roles: tuple[Role, ...], labels: dict[str, str]) -> tuple[str, ...]:
+    """
+    Polish sentences about parties and offices. A role without an end date in Wikidata is shown as current, the rest
+    with their years; roles whose label is unknown are skipped rather than shown as a bare identifier.
+    """
+
+    def named(kind: str, current: bool) -> list[Role]:
+        chosen = [
+            role for role in roles if role.kind == kind and (role.end is None) == current and role.entity_id in labels
+        ]
+        return sorted(chosen, key=lambda role: role.end or role.start or 0, reverse=True)
+
+    def since(role: Role) -> str:
+        return f"{labels[role.entity_id]} (od {role.start} r.)" if role.start else labels[role.entity_id]
+
+    def span(role: Role) -> str:
+        years = f"{role.start}-{role.end}" if role.start else f"do {role.end}"
+        return f"{labels[role.entity_id]} ({years} r.)"
+
+    lines: list[str] = []
+    if parties := list(dict.fromkeys(since(role) for role in named(PARTY, current=True))):
+        lines.append(f"Przynależność partyjna (według Wikidaty, bez daty zakończenia): {', '.join(parties)}.")
+    if past_parties := list(dict.fromkeys(span(role) for role in named(PARTY, current=False))):
+        lines.append(f"Wcześniejsza przynależność partyjna: {', '.join(past_parties)}.")
+    if offices := list(dict.fromkeys(since(role) for role in named(POSITION, current=True))):
+        lines.append(f"Pełnione funkcje (bez daty zakończenia w Wikidacie): {', '.join(offices)}.")
+    if past_offices := list(dict.fromkeys(span(role) for role in named(POSITION, current=False)))[:MAX_PAST_POSITIONS]:
+        lines.append(f"Wcześniejsze funkcje: {', '.join(past_offices)}.")
+    return tuple(lines)
 
 
 def format_time(value: dict) -> str | None:
@@ -97,6 +194,15 @@ def format_time(value: dict) -> str | None:
     if int(value.get("precision") or 0) >= DAY_PRECISION and month and day:
         return f"{day} {MONTHS[month - 1]} {year} r."
     return f"{year} r."
+
+
+def polish_label(entity: dict) -> str | None:
+    """The Polish label, else the multilingual one ("mul"), which Wikidata now keeps for names shared by languages."""
+    labels = entity.get("labels", {})
+    for language in LABEL_LANGUAGES.split("|"):
+        if value := labels.get(language, {}).get("value"):
+            return value
+    return None
 
 
 def _claim_value(claims: dict, prop: str) -> dict | None:
@@ -128,7 +234,7 @@ def parse_people(entities: dict) -> list[PersonFact]:
     facts: list[PersonFact] = []
     for entity_id, entity in entities.items():
         claims = entity.get("claims", {})
-        label = entity.get("labels", {}).get("pl", {}).get("value")
+        label = polish_label(entity)
         if not label or not _is_human(claims):
             continue
         born, died = _claim_value(claims, BIRTH), _claim_value(claims, DEATH)
@@ -140,6 +246,7 @@ def parse_people(entities: dict) -> list[PersonFact]:
                 born=format_time(born) if born else None,
                 died=format_time(died) if died else None,
                 modified=_parse_modified(entity.get("modified")),
+                roles=_roles(claims),
             )
         )
     return facts
@@ -202,18 +309,40 @@ class WikidataClient:
                         "action": "wbgetentities",
                         "ids": "|".join(ids),
                         "props": "claims|labels|descriptions|info",
-                        "languages": "pl",
+                        "languages": LABEL_LANGUAGES,
                         "format": "json",
                     }
                 )
                 # The first human in search order is the person meant; later ones are namesakes.
                 by_id = entities.get("entities", {})
                 facts = parse_people({entity_id: by_id[entity_id] for entity_id in ids if entity_id in by_id})[:1]
+                facts = [await self._with_roles(fact) for fact in facts]
         except (httpx.HTTPError, ValueError, KeyError) as error:
             logger.warning("Wikidata lookup failed: %s", type(error).__name__)
             return None
         self._cache.put(mention, facts)
         return facts
+
+    async def _with_roles(self, fact: PersonFact) -> PersonFact:
+        """Adds the parties and offices in Polish; one request for the labels of all of them."""
+        role_ids = list(dict.fromkeys(role.entity_id for role in fact.roles))[:MAX_LABEL_IDS]
+        if not role_ids:
+            return fact
+        answer = await self._get(
+            {
+                "action": "wbgetentities",
+                "ids": "|".join(role_ids),
+                "props": "labels",
+                "languages": LABEL_LANGUAGES,
+                "format": "json",
+            }
+        )
+        labels = {
+            entity_id: label
+            for entity_id, entity in answer.get("entities", {}).items()
+            if (label := polish_label(entity))
+        }
+        return replace(fact, role_lines=describe_roles(fact.roles, labels))
 
     async def _get(self, params: dict) -> dict:
         response = await self._client.get(settings.wikidata_api_url, params=params)
