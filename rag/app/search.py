@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app import db
+from app.caching import TtlCache
 from app.config import settings
 from app.context import build_context_xml, contains_instructions
 from app.embeddings import EmbeddingModels
@@ -24,7 +25,9 @@ logger = logging.getLogger(__name__)
 MILLISECONDS_PER_SECOND = 1000
 INJECTION_FLAG = "suspected_injection"
 
-_cache: dict[str, tuple[float, str, SearchResponse]] = {}
+_cache: TtlCache[str, tuple[str, SearchResponse]] = TtlCache(
+    settings.search_cache_ttl_seconds, settings.search_cache_max_entries
+)
 
 
 def _cache_key(request: SearchRequest) -> str:
@@ -33,15 +36,13 @@ def _cache_key(request: SearchRequest) -> str:
 
 def _cached(key: str, corpus_version: str) -> SearchResponse | None:
     entry = _cache.get(key)
-    if entry is None or entry[0] < time.monotonic() or entry[1] != corpus_version:
+    if entry is None or entry[0] != corpus_version:
         return None
-    return entry[2]
+    return entry[1]
 
 
 def _remember(key: str, corpus_version: str, response: SearchResponse) -> None:
-    if len(_cache) >= settings.search_cache_max_entries:
-        _cache.pop(next(iter(_cache)))
-    _cache[key] = (time.monotonic() + settings.search_cache_ttl_seconds, corpus_version, response)
+    _cache.put(key, (corpus_version, response))
 
 
 FACTCHECK_SOURCE_TYPE = "factcheck"
