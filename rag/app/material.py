@@ -65,7 +65,8 @@ async def match_material(request: MaterialMatchRequest, incidents: VectorStore) 
     seen_urls: set[str] = set()
 
     for row in await db.sources_on_host(host, CANDIDATES_LIMIT):
-        if normalize_url(row["url"]) == wanted:
+        # The corpus may hold the same page twice (seed copy and a later fetch); one match per address is enough.
+        if normalize_url(row["url"]) == wanted and wanted not in seen_urls:
             matches.append(_corpus_item(row, ["url"]))
             seen_urls.add(wanted)
 
