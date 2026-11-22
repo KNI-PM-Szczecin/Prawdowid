@@ -330,7 +330,7 @@ Już działa: `200 {"status":"ok","database":"ok"}` albo `503 {"status":"degrade
 
 ### Drugi kanał: bot Discord (Gateway) [NOWE, decyzja: bot]
 
-**Stan: bot niezaimplementowany.** Warunek briefu (kanał + adapter demonstracyjny) spełnia `POST /api/channels/demo` (`src/backend/demo_channel.go`, `channel.go`): ciało `{"text": "..."}`, odpowiedź `text/plain` w formacie wiadomości z komunikatora (twierdzenie, werdykt, siła podstawy, uzasadnienie, źródła, ograniczenia), ta sama ścieżka `runCheck` co WWW (ten sam limit żądań, maskowanie, zapis przebiegu). Niepoprawna wiadomość → `400` z tekstem. Poniżej pierwotny plan bota.
+**Stan: bot wdrożony** (komenda `/factcheck`, `src/backend/discord.go`, opis w `src/backend/README.md`). Adapter demonstracyjny pozostaje drugim kanałem zapasowym. Warunek briefu (kanał + adapter demonstracyjny) spełnia `POST /api/channels/demo` (`src/backend/demo_channel.go`, `channel.go`): ciało `{"text": "..."}`, odpowiedź `text/plain` w formacie wiadomości z komunikatora (twierdzenie, werdykt, siła podstawy, uzasadnienie, źródła, ograniczenia), ta sama ścieżka `runCheck` co WWW (ten sam limit żądań, maskowanie, zapis przebiegu). Niepoprawna wiadomość → `400` z tekstem. Poniżej pierwotny plan bota.
 
 Drugi kanał to **bot na Discordzie** (połączenie wychodzące przez Gateway), nie webhook i nie Interactions Endpoint. Decyzja zespołu, odpowiedzialny Paweł. Konsekwencje:
 
@@ -475,7 +475,7 @@ Decyzja z 21.11: dostępność jest priorytetem. Cel: WCAG 2.1 AA. Co z tego wyn
 ## 7. Pytania otwarte
 
 - ~~`400` dla złego JSON-a: jaki `status` w ciele?~~ Rozstrzygnięte w kodzie: `400` + `technical_error` dla złego JSON-a; pusty lub za długi `input` → `200` + `needs_clarification`.
-- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Bot nie powstał. Drugi kanał to adapter demonstracyjny `POST /api/channels/demo` (§4).
+- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Bot powstał (komenda `/factcheck`). Adapter demonstracyjny `POST /api/channels/demo` (§4) zostaje kanałem zapasowym.
 - `document.text` w bazie: `check_runs.result` trzyma dokument przycięty do 5000 znaków i zamaskowany (także tytuł i dla URL), retencja 30 dni (`CHECK_RETENTION_DAYS`). Odpowiedź dla użytkownika nie jest przycinana ani zmieniana (`maskResultForStorage` w `src/backend/check.go`).
 - CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go. Na Railway front i backend mogą być pod jednym adresem (backend serwuje `dist/`), wtedy CORS znika.
 - ~~Limit żądań: proponujemy 10 żądań na minutę na IP.~~ Wdrożone: 20 żądań na minutę na IP (`CHECK_RATE_LIMIT_PER_MINUTE`), wspólne dla WWW i adaptera demonstracyjnego; IP z `X-Forwarded-For` według `TRUSTED_PROXY_HOPS`.
