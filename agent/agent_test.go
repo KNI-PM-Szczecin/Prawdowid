@@ -651,3 +651,64 @@ func TestNoResultsMissingIsTrimmedAndFallsBackWhenEmpty(t *testing.T) {
 		}
 	}
 }
+
+// Opinions found at extraction are not_verifiable by definition (CONTRACT.md §4): no search, no judge, no sources.
+func TestOpinionFromExtractionIsNotVerifiableWithoutSearch(t *testing.T) {
+	text := "Kadencja Sejmu trwa 4 lata. Moim zdaniem to zdecydowanie za długo. Senat ma 100 senatorów."
+	extract := `{"twierdzenia":[` +
+		`{"tekst":"Kadencja Sejmu trwa 4 lata.","fragment":"Kadencja Sejmu trwa 4 lata.","rodzaj":"fakt"},` +
+		`{"tekst":"Kadencja Sejmu jest za długa.","fragment":"Moim zdaniem to zdecydowanie za długo.","rodzaj":"opinia"}],"pominiete":0}`
+	provider := &fakeProvider{extract: extract, judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+	rag := &ragStub{search: searchWith(officialPassage())}
+	result := verify(t, newTestAgent(t, provider, rag), text, InputTypeText)
+
+	if len(result.Claims) != 2 || result.Claims[0].Verdict != VerdictConfirmed {
+		t.Fatalf("claims: %+v", result.Claims)
+	}
+	opinion := result.Claims[1]
+	if opinion.Verdict != VerdictNotVerifiable || opinion.Missing != nil || len(opinion.Sources) != 0 ||
+		opinion.EvidenceStrength != StrengthNone || opinion.Justification != justificationOpinion {
+		t.Fatalf("opinion claim: %+v", opinion)
+	}
+	if queries := rag.queryList(); len(queries) != 1 || queries[0] != claimSejm {
+		t.Fatalf("an opinion must not be searched, queries=%q", queries)
+	}
+	if !result.Meta.Abstained || result.Document == nil || result.Document.Text != text {
+		t.Fatalf("meta/document: %+v %+v", result.Meta, result.Document)
+	}
+	if fact := result.Claims[0].Span; fact == nil || fact.Start != 0 || fact.End != 27 {
+		t.Fatalf("fact span: %+v", fact)
+	}
+	if opinion.Span == nil || opinion.Span.Start != 28 || opinion.Span.End != 66 {
+		t.Fatalf("opinion span: %+v", opinion.Span)
+	}
+}
+
+func TestSpanIsCountedInCodePointsAndIgnoresCase(t *testing.T) {
+	text := "Łódź ma 650 tys. mieszkańców, a Kraków więcej."
+	if span := findSpan(text, "a Kraków więcej", ""); span == nil || span.Start != 30 || span.End != 45 {
+		t.Fatalf("fragment span: %+v", span)
+	}
+	if span := findSpan(text, "", "łódź ma 650"); span == nil || span.Start != 0 || span.End != 11 {
+		t.Fatalf("case-insensitive fallback to claim text: %+v", span)
+	}
+	if span := findSpan(text, "Kraków jest większy od Łodzi", "Kraków ma więcej mieszkańców"); span != nil {
+		t.Fatalf("a paraphrase must have no span, got %+v", span)
+	}
+}
+
+// For a URL the span points into the fetched page text, not into the title the extractor also saw.
+func TestURLSpanRefersToDocumentText(t *testing.T) {
+	page := "Wstęp.\nKadencja Sejmu trwa 4 lata."
+	extract := `{"twierdzenia":[{"tekst":"Kadencja Sejmu trwa 4 lata.","fragment":"Kadencja Sejmu trwa 4 lata.","rodzaj":"fakt"}],"pominiete":0}`
+	provider := &fakeProvider{extract: extract, judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+	rag := &ragStub{search: searchWith(officialPassage()), fetch: FetchResponse{URL: "https://example.gov.pl/a", Title: "Tytuł strony", Text: page}}
+	result := verify(t, newTestAgent(t, provider, rag), "https://example.gov.pl/a", InputTypeURL)
+
+	if len(result.Claims) != 1 || result.Claims[0].Span == nil {
+		t.Fatalf("claims: %+v", result.Claims)
+	}
+	if span := result.Claims[0].Span; span.Start != 7 || span.End != 34 || result.Document.Text != page {
+		t.Fatalf("span %+v document %q", span, result.Document.Text)
+	}
+}

@@ -19,6 +19,9 @@ const (
 		"czy inne, podobne. Sprawdź jego publikację w źródłach."
 	missingNumbersMismatch = "Cytowane źródła podają inne liczby niż twierdzenie, więc go nie potwierdzają ani nie obalają."
 
+	justificationOpinion = "To opinia, ocena albo przewidywanie, a nie fakt, który da się sprawdzić w źródłach. " +
+		"Nie oceniamy, czy jest słuszna."
+
 	limitationFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów (usługa niedostępna); " +
 		"wynik opiera się tylko na korpusie źródeł."
 	limitationCatalogEmpty      = "Katalog znanych kampanii dezinformacyjnych jest pusty; dopasowanie nie było możliwe."
@@ -43,6 +46,7 @@ const (
 	reasonOneSecondary       = "jedno źródło wtórne"
 	reasonContextOnly        = "źródła dają tylko kontekst, nie rozstrzygają twierdzenia"
 	reasonNoSources          = "brak źródeł"
+	reasonOpinion            = "opinia albo przewidywanie, nie szukano źródeł"
 	reasonFresh              = "aktualne (ostatnie 12 miesięcy)"
 	reasonDated              = "źródła starsze niż rok"
 	reasonConsistentWithRole = "cytaty zgodne z werdyktem"

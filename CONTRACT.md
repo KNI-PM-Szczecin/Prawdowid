@@ -75,7 +75,7 @@ Walidacja wejścia: nieznany `inputType`, pusty albo za długi `input` daje `200
 
 ### 1a. Rozszerzenia pod projekt UI (Figma) — PROPOZYCJA, do akceptacji
 
-Status: propozycja (przykłady, mapowanie na ekrany Figma v3 i plan backendu w `docs/api.md`). Do czasu akceptacji wszystkie pola poniżej są **opcjonalne**: front działa bez nich, backend może ich nie zwracać. Żadne z nich nie zmienia werdyktu ani `evidenceStrength`. Stan: `document` (dla URL) i `campaignAlert` zwraca już `agent/` (PR #46); `document` dla tekstu, `summary` i `badges` liczy backend; `span` i `conflict` czekają na decyzję właściciela `agent/` (do tego czasu `null`).
+Status: propozycja (przykłady, mapowanie na ekrany Figma v3 i plan backendu w `docs/api.md`). Do czasu akceptacji wszystkie pola poniżej są **opcjonalne**: front działa bez nich, backend może ich nie zwracać. Żadne z nich nie zmienia werdyktu ani `evidenceStrength`. Stan: `document` (dla URL i dla tekstu: `document.text` to sprawdzony, zamaskowany tekst), `campaignAlert` i `span` zwraca `agent/`; `summary` i `badges` liczy backend; `conflict` czeka na decyzję właściciela `agent/` (do tego czasu `null`). `span` to pozycja dosłownego fragmentu (pole `fragment` z ekstrakcji, a w zapasie samo zdanie twierdzenia) w `document.text`, bez rozróżniania wielkości liter; parafraza daje `null`. Opinie, oceny i przewidywania z tekstu wielozdaniowego ekstrakcja oznacza `rodzaj: opinia`: trafiają do `claims` jako `not_verifiable` bez wyszukiwania i bez źródeł, z stałym uzasadnieniem.
 
 ```json
 {

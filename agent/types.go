@@ -64,6 +64,12 @@ type Warning struct {
 	Message string `json:"message"`
 }
 
+// Span locates a claim in Document.Text as code-point offsets, end exclusive (CONTRACT.md §1a).
+type Span struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
 // Claim is one verified statement extracted from the submission.
 type Claim struct {
 	ID               string      `json:"id"`
@@ -75,6 +81,7 @@ type Claim struct {
 	Sources          []SourceRef `json:"sources"`
 	Warnings         []Warning   `json:"warnings"`
 	Missing          *string     `json:"missing"`
+	Span             *Span       `json:"span"`
 }
 
 // RunMeta goes to logs and the developer panel; the front may ignore it.
