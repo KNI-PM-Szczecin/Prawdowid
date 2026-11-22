@@ -39,7 +39,7 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `src/backend/config.go`
 | `GET /api/admin/checks` **[NOWE]** | log sprawdzeń + eksport CSV/JSON | po podstawie (funkcja premiowana) |
 | `GET /api/admin/cases` (wdrożone, `X-Admin-Token` = `MODERATOR_TOKEN`) | pętla moderatora: lista spraw. Sprawy tworzy automatycznie `POST /api/check` dla twierdzeń `insufficient_evidence`; **nie ma** `POST /api/admin/cases` | po podstawie (funkcja premiowana) |
 
-Celowo **nie** proponujemy: logowania obywatela, kolejki asynchronicznej (budżet 25 s z kontraktu mieści się w jednym żądaniu), osobnego endpointu na tłumaczenia (teksty są w `src/frontend/src/lib/texts.ts`).
+Celowo **nie** proponujemy: logowania obywatela, kolejki asynchronicznej (budżet 45 s z kontraktu mieści się w jednym żądaniu), osobnego endpointu na tłumaczenia (teksty są w `src/frontend/src/lib/texts.ts`).
 
 ## 3. `POST /api/check`
 
@@ -457,7 +457,7 @@ Stan po Figmie v3 (`Untitled (1).zip`, 21.11, 20:06). **Rozwiązane względem v2
 3. **Czarny box kampanii** — nadal stwierdza, że tekst „zawiera nieprawdziwe informacje powiązane z… kampaniami”. Dopasowanie do katalogu to kontekst, nie werdykt (brief, scenariusz I). Treść ma być dokładnie `campaignAlert.message` („Treść jest podobna do znanych przypadków dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.”), a „Więcej informacji” prowadzi do `matches[].url`.
 4. **Panel „Fakt”** (Sidebar, bez zmian od v1) — „Źródła:” to same domeny (`google.com`), a box ma jeszcze „81% Pewności prawdy”. Potrzebne: tytuł, wydawca, data, link i cytat (`quote`) każdego źródła, siła podstawy (`evidenceStrength` + `strengthReasons`) i ograniczenia (`limitations`), które `AGENTS.md` każe pokazywać zawsze. Procent zastąpić tą samą ikoną z etykietą co na pełnym ekranie.
 5. **Panel „Sprzeczne źródła”** — karty mają tytuł, wydawcę, datę i link; brakuje cytatu i roli (`supports` / `refutes`), żeby obywatel widział, która strona co mówi, oraz `missing` („czego nie ustalono”).
-6. **Brakujące ekrany** — stan ładowania (do 25 s, z informacją, co się dzieje), `technical_error` (503), `needs_clarification`, `out_of_scope`, wynik bez dowodów (scenariusz D) i odpowiedź częściowa (A13). Brief: awaria i niejasne pytanie muszą wyglądać **inaczej** niż werdykt (bez koloru werdyktu i bez boksu zbiorczego).
+6. **Brakujące ekrany** — stan ładowania (do 45 s, z informacją, co się dzieje), `technical_error` (503), `needs_clarification`, `out_of_scope`, wynik bez dowodów (scenariusz D) i odpowiedź częściowa (A13). Brief: awaria i niejasne pytanie muszą wyglądać **inaczej** niż werdykt (bez koloru werdyktu i bez boksu zbiorczego).
 7. **Landing** — „Wyniki wygenerowane przez Sztuczną Inteligencję” zamienić na „Odpowiedź opiera się na źródłach z naszego katalogu. Sprawdź je sam”; zdanie „Zawsze weryfikuj wszystkie informacje” zostaje. Sekcja „Nagłówek następnej części tekstu” to dobre miejsce na „Jak to działa” i link do listy źródeł (`GET /api/sources`).
 8. **Zielony opis** „można zweryfikować poprzez oficjalne źródła” — `high` daje też ocena weryfikatora faktów albo dwa niezależne źródła wtórne (`agent/rules.go`). Propozycja: „potwierdzają to wiarygodne źródła”; które dokładnie, mówią chipy i `summary.reasons`.
 
@@ -487,7 +487,7 @@ Decyzja z 21.11: dostępność jest priorytetem. Cel: WCAG 2.1 AA. Co z tego wyn
 
 Kolejność: pionowy przekrój najpierw. Każdy krok kończy się działającym `curl` i commitem.
 
-1. **`POST /api/check`** (`handlers.go`): dekodowanie JSON z `DisallowUnknownFields` i `http.MaxBytesReader` (np. 64 KB); `validateCheckRequest` (`input` 1–5000 znaków po `TrimSpace`, `inputType` ∈ {`text`, `url`}; pusty albo za długi → `200` + `needs_clarification`); maskowanie e-mail / telefon / PESEL (`privacy.go`, regexy → `[e-mail]`, `[telefon]`, `[PESEL]`); `requestId` z `crypto/rand` (16 bajtów sformatowane jak UUID v4, bez biblioteki); `context.WithTimeout(ctx, 25 s)`; `verifier.Verify(ctx, agent.VerifyRequest{RequestID, Channel: "web", Input: zamaskowany, InputType})`.
+1. **`POST /api/check`** (`handlers.go`): dekodowanie JSON z `DisallowUnknownFields` i `http.MaxBytesReader` (np. 64 KB); `validateCheckRequest` (`input` 1–5000 znaków po `TrimSpace`, `inputType` ∈ {`text`, `url`}; pusty albo za długi → `200` + `needs_clarification`); maskowanie e-mail / telefon / PESEL (`privacy.go`, regexy → `[e-mail]`, `[telefon]`, `[PESEL]`); `requestId` z `crypto/rand` (16 bajtów sformatowane jak UUID v4, bez biblioteki); `context.WithTimeout(ctx, 45 s)`; `verifier.Verify(ctx, agent.VerifyRequest{RequestID, Channel: "web", Input: zamaskowany, InputType})`.
 2. **Uzupełnienia po `Verify`** (`enrich.go`, czyste funkcje z testami tabelarycznymi): dla `inputType: text` i `status: ok` `document = { title: null, text: <zamaskowany input> }` (dla URL `document` daje `agent/`); `summary` i `badges` według reguł niżej; `span: null`, `conflict: null`, dopóki nie da ich `agent/`.
 3. **Kod HTTP ze statusu:** `ok`, `needs_clarification`, `out_of_scope` → `200`; `technical_error` → `503`. Ciało zawsze pełny `CheckResult`.
 4. **Zapis przebiegu** (`store.go`, pgx): tabela `checks` (DDL niżej), `CREATE TABLE IF NOT EXISTS` przy starcie. Błąd zapisu idzie do logu, odpowiedź do użytkownika i tak wychodzi (`AGENTS.md`: audyt nie wywala operacji).

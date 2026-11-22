@@ -4,8 +4,8 @@ import type { CheckResult, InputType } from "./types";
 const CHECK_ENDPOINT = "/api/check";
 const IMAGE_CHECK_ENDPOINT = "/api/check/image";
 const IMAGE_FORM_FIELD = "image";
-// Backend budget is 25 s (CONTRACT.md §2); the rest covers the network.
-const REQUEST_TIMEOUT_MS = 40_000;
+// Backend budget is 45 s (CONTRACT.md §2); the rest covers the network.
+const REQUEST_TIMEOUT_MS = 55_000;
 // 503 and 429 carry a CheckResult with status technical_error (CONTRACT.md §1).
 const HTTP_STATUSES_WITH_RESULT = new Set([200, 429, 503]);
 
