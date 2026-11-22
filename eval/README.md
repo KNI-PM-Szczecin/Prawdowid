@@ -25,6 +25,8 @@ uv run python -m prawdowid_eval run --url http://host:port
 uv run python -m prawdowid_eval run --ids A01,I01                # tylko wskazane przypadki (spot-check)
 ```
 
+`cases_new.json` to osobny zestaw 31 nowych przypadków, których nie ma w `cases.json`. Uruchamiasz go przez `--cases cases_new.json`. Wszystkie mają `reviewed: false`, więc wyniki są orientacyjne.
+
 Gdy system nie odpowie na żadne zapytanie, skrypt kończy się kodem 2 i nie zapisuje raportu.
 
 Backend limituje sprawdzenia na adres i minutę (`CHECK_RATE_LIMIT_PER_MINUTE`, domyślnie 60). Odpowiedź 429 to celowy limit, nie wynik weryfikacji: skrypt czeka tyle, ile podaje nagłówek `Retry-After` (najwyżej 60 s), i ponawia przypadek do 2 razy. Czas oczekiwania nie wlicza się do `elapsedMs`.
