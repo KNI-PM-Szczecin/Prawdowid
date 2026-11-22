@@ -70,12 +70,12 @@ def _temperature_pinned() -> bool:
     return not is_hosted_openai(settings.expansion_llm_url) or _reasoning_effort() == "none"
 
 
-def _payload(claim: str) -> dict:
+def _payload(system_prompt: str, user_text: str) -> dict:
     payload = {
         "model": settings.expansion_llm_model,
         "messages": [
-            {"role": "system", "content": EXPANSION_SYSTEM_PROMPT},
-            {"role": "user", "content": claim},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text},
         ],
     }
     if is_hosted_openai(settings.expansion_llm_url):
@@ -86,20 +86,29 @@ def _payload(claim: str) -> dict:
     return payload
 
 
-async def _expand_with_llm(claim: str) -> ExpandedQueries:
+def model_configured() -> bool:
+    return bool(settings.expansion_llm_url) and _temperature_pinned()
+
+
+async def ask_model_json(system_prompt: str, user_text: str) -> dict:
+    """One JSON answer from the auxiliary model; raises on transport errors or a non-JSON answer."""
     headers = {"Authorization": f"Bearer {settings.expansion_llm_api_key}"} if settings.expansion_llm_api_key else {}
     async with httpx.AsyncClient(timeout=settings.expansion_llm_timeout_seconds) as client:
         response = await client.post(
             f"{settings.expansion_llm_url.rstrip('/')}/chat/completions",
             headers=headers,
-            json=_payload(claim),
+            json=_payload(system_prompt, user_text),
         )
         response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"]
     match = JSON_OBJECT.search(content)
     if match is None:
         raise ValueError("Expansion model returned no JSON object")
-    parsed = json.loads(match.group(0))
+    return json.loads(match.group(0))
+
+
+async def _expand_with_llm(claim: str) -> ExpandedQueries:
+    parsed = await ask_model_json(EXPANSION_SYSTEM_PROMPT, claim)
     keywords = str(parsed.get("keywords") or "").strip() or _rules_keywords(claim)
     return ExpandedQueries(
         original=claim,
@@ -142,7 +151,7 @@ async def expand(claim: str) -> ExpandedQueries:
     cached = _cached(claim)
     if cached is not None:
         return cached
-    if not settings.expansion_llm_url or not _temperature_pinned():
+    if not model_configured():
         queries = expand_with_rules(claim)
     else:
         try:
