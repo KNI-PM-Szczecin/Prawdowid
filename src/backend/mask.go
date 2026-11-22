@@ -33,16 +33,23 @@ type maskRule struct {
 }
 
 // Order matters: e-mail and IBAN first, then PESEL, which would otherwise be swallowed by a phone pattern.
+// Mentor rule (Discord, 22.11.2026): mask identifiers (PESEL, ID card and passport numbers, phone, e-mail, account),
+// never names, in particular not names of public figures, nor anything that changes the meaning of the claim or
+// is needed to find the evidence (dates, amounts, places stay as they are).
 var maskRules = []maskRule{
 	{pattern: regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)},
 	{pattern: regexp.MustCompile(`\b(?:[Pp][Ll] ?)?\d{2}(?: ?\d{4}){6}\b`)},
 	{pattern: regexp.MustCompile(`\b\d{6}[ -]?\d{5}\b`), confirm: isValidPesel, guardNumbers: true},
+	{pattern: regexp.MustCompile(`\b[A-Z]{3} ?\d{6}\b`), confirm: isValidIDCardNumber},
+	{pattern: regexp.MustCompile(`\b[A-Z]{2} ?\d{7}\b`), confirm: isValidPassportNumber},
 	{pattern: regexp.MustCompile(`(?:\+|\b00)\d(?:[ ().-]{0,2}\d){7,14}`), confirm: isInternationalPhone, guardNumbers: true},
 	{pattern: regexp.MustCompile(`\(\d{2}\)[ .-]?\d{3}[ .-]?\d{2}[ .-]?\d{2}\b`), guardNumbers: true},
 	{pattern: regexp.MustCompile(`\b[4-8]\d{2}[ .-]?\d{3}[ .-]?\d{3}\b`), guardNumbers: true},
 }
 
-// maskPersonalData hides obvious personal data (e-mail, IBAN, PESEL, phone number) before text is stored or sent on.
+// maskPersonalData hides obvious personal identifiers (e-mail, IBAN, PESEL, ID card and passport numbers, phone
+// number) before text is stored or sent on. Names are never masked: a claim about a public figure must keep the name,
+// or neither the meaning nor the evidence can be found.
 func maskPersonalData(text string) string {
 	for _, rule := range maskRules {
 		text = rule.apply(text)
@@ -104,7 +111,44 @@ func isValidPeselMonth(code int) bool {
 const (
 	minInternationalDigits = 8
 	maxInternationalDigits = 15
+
+	documentLetterBase   = 10 // letters A-Z count as 10-35 in the Polish ID card and passport checksums
+	documentCheckModulus = 10
 )
+
+// Polish ID card (3 letters + 6 digits) and passport (2 letters + 7 digits) numbers carry a check digit: the weighted
+// sum of all nine characters, with the check digit at position 4 (ID card) or 3 (passport), must divide by 10.
+var (
+	idCardWeights   = [9]int{7, 3, 1, 9, 7, 3, 1, 7, 3}
+	passportWeights = [9]int{7, 3, 9, 1, 7, 3, 1, 7, 3}
+)
+
+func isValidIDCardNumber(text string, start, end int) bool {
+	return documentChecksumValid(text[start:end], idCardWeights)
+}
+
+func isValidPassportNumber(text string, start, end int) bool {
+	return documentChecksumValid(text[start:end], passportWeights)
+}
+
+func documentChecksumValid(candidate string, weights [9]int) bool {
+	characters := strings.ReplaceAll(candidate, " ", "")
+	if len(characters) != len(weights) {
+		return false
+	}
+	sum := 0
+	for index, character := range characters {
+		switch {
+		case character >= 'A' && character <= 'Z':
+			sum += (int(character-'A') + documentLetterBase) * weights[index]
+		case character >= '0' && character <= '9':
+			sum += int(character-'0') * weights[index]
+		default:
+			return false
+		}
+	}
+	return sum%documentCheckModulus == 0
+}
 
 // isInternationalPhone counts the digits after the + or 00 prefix. A 00 that follows another digit group
 // ("5 000 000 000 000") is a big number, not a dialling prefix.

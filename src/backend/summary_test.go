@@ -8,19 +8,10 @@ import (
 	"prawdowid/agent"
 )
 
-func intPtr(value int) *int { return &value }
-
 func strPtr(value string) *string { return &value }
 
 func claimWith(verdict, strength string, sources ...agent.SourceRef) agent.Claim {
 	return agent.Claim{Verdict: verdict, EvidenceStrength: strength, Sources: sources}
-}
-
-func describeScore(score *int) any {
-	if score == nil {
-		return nil
-	}
-	return *score
 }
 
 func TestBuildSummary(t *testing.T) {
@@ -29,7 +20,6 @@ func TestBuildSummary(t *testing.T) {
 		name      string
 		result    agent.CheckResult
 		wantLevel string
-		wantScore *int
 		wantFirst string
 	}{
 		{
@@ -38,38 +28,46 @@ func TestBuildSummary(t *testing.T) {
 				claimWith(agent.VerdictConfirmed, agent.StrengthStrong, official),
 				claimWith(agent.VerdictConfirmed, agent.StrengthModerate, official),
 			}},
-			wantLevel: summaryLevelHigh, wantScore: intPtr(100), wantFirst: "2 z 2 twierdzeń potwierdzone",
+			wantLevel: summaryLevelHigh, wantFirst: "2 z 2 twierdzeń potwierdzone",
 		},
 		{
-			name: "mixed confirmed and false",
+			name: "confirmed and false is mixed",
 			result: agent.CheckResult{Status: agent.StatusOK, Claims: []agent.Claim{
 				claimWith(agent.VerdictConfirmed, agent.StrengthStrong),
 				claimWith(agent.VerdictFalse, agent.StrengthStrong),
 			}},
-			wantLevel: summaryLevelMixed, wantScore: intPtr(50), wantFirst: "1 z 2 twierdzeń potwierdzone",
+			wantLevel: summaryLevelMixed, wantFirst: "1 z 2 twierdzeń potwierdzone",
 		},
 		{
-			name: "misleading only",
+			name: "misleading only is mixed, not low",
 			result: agent.CheckResult{Status: agent.StatusOK, Claims: []agent.Claim{
 				claimWith(agent.VerdictMisleading, agent.StrengthStrong),
 			}},
-			wantLevel: summaryLevelLow, wantScore: intPtr(25), wantFirst: "0 z 1 twierdzeń potwierdzone",
+			wantLevel: summaryLevelMixed, wantFirst: "0 z 1 twierdzeń potwierdzone",
 		},
 		{
-			name: "weak false barely moves a strong confirmation",
+			name: "all false is low",
+			result: agent.CheckResult{Status: agent.StatusOK, Claims: []agent.Claim{
+				claimWith(agent.VerdictFalse, agent.StrengthStrong),
+				claimWith(agent.VerdictFalse, agent.StrengthWeak),
+			}},
+			wantLevel: summaryLevelLow, wantFirst: "0 z 2 twierdzeń potwierdzone",
+		},
+		{
+			name: "evidence strength does not change the level",
 			result: agent.CheckResult{Status: agent.StatusOK, Claims: []agent.Claim{
 				claimWith(agent.VerdictConfirmed, agent.StrengthStrong),
 				claimWith(agent.VerdictFalse, agent.StrengthWeak),
 			}},
-			wantLevel: summaryLevelHigh, wantScore: intPtr(77), wantFirst: "1 z 2 twierdzeń potwierdzone",
+			wantLevel: summaryLevelMixed, wantFirst: "1 z 2 twierdzeń potwierdzone",
 		},
 		{
-			name: "abstained claim is excluded from the score",
+			name: "abstained claim is excluded from the level",
 			result: agent.CheckResult{Status: agent.StatusOK, Claims: []agent.Claim{
 				claimWith(agent.VerdictConfirmed, agent.StrengthStrong),
 				claimWith(agent.VerdictInsufficientEvidence, agent.StrengthNone),
 			}},
-			wantLevel: summaryLevelHigh, wantScore: intPtr(100), wantFirst: "1 z 2 twierdzeń potwierdzone",
+			wantLevel: summaryLevelHigh, wantFirst: "1 z 2 twierdzeń potwierdzone",
 		},
 		{
 			name: "only insufficient evidence",
@@ -84,32 +82,15 @@ func TestBuildSummary(t *testing.T) {
 			result:    agent.CheckResult{Status: agent.StatusOK},
 			wantLevel: summaryLevelUnknown,
 		},
-		{
-			name: "technical error ignores claims",
-			result: agent.CheckResult{Status: agent.StatusTechnicalError, Claims: []agent.Claim{
-				claimWith(agent.VerdictConfirmed, agent.StrengthStrong),
-			}},
-			wantLevel: summaryLevelUnknown,
-		},
-		{
-			name:      "needs clarification",
-			result:    agent.CheckResult{Status: agent.StatusNeedsClarification},
-			wantLevel: summaryLevelUnknown,
-		},
-		{
-			name:      "out of scope",
-			result:    agent.CheckResult{Status: agent.StatusOutOfScope},
-			wantLevel: summaryLevelUnknown,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := buildSummary(test.result)
+			if got == nil {
+				t.Fatal("ok status must have a summary")
+			}
 			if got.Level != test.wantLevel {
 				t.Errorf("level = %q, want %q", got.Level, test.wantLevel)
-			}
-			if !reflect.DeepEqual(got.Score, test.wantScore) {
-				t.Errorf("score = %v, want %v", describeScore(got.Score), describeScore(test.wantScore))
 			}
 			if got.Reasons == nil {
 				t.Error("reasons must be non-nil")
@@ -117,10 +98,19 @@ func TestBuildSummary(t *testing.T) {
 			if test.wantFirst != "" && (len(got.Reasons) == 0 || got.Reasons[0] != test.wantFirst) {
 				t.Errorf("reasons = %v, want first %q", got.Reasons, test.wantFirst)
 			}
-			if test.wantScore == nil && len(got.Reasons) != 0 {
+			if test.wantFirst == "" && len(got.Reasons) != 0 {
 				t.Errorf("unknown summary must have no reasons, got %v", got.Reasons)
 			}
 		})
+	}
+}
+
+func TestBuildSummaryIsNilForNonOkStatus(t *testing.T) {
+	for _, status := range []string{agent.StatusTechnicalError, agent.StatusNeedsClarification, agent.StatusOutOfScope} {
+		result := agent.CheckResult{Status: status, Claims: []agent.Claim{claimWith(agent.VerdictConfirmed, agent.StrengthStrong)}}
+		if got := buildSummary(result); got != nil {
+			t.Errorf("status %s: summary = %+v, want nil", status, got)
+		}
 	}
 }
 

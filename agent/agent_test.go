@@ -712,3 +712,34 @@ func TestURLSpanRefersToDocumentText(t *testing.T) {
 		t.Fatalf("span %+v document %q", span, result.Document.Text)
 	}
 }
+
+// CONTRACT.md §4 and mentor scenario J: when the fact-check service fails and the corpus has nothing on the claim,
+// the answer is a technical limitation, never "there is no such publication".
+func TestFactcheckOutageWithoutCorpusResultsIsTechnicalError(t *testing.T) {
+	search := searchWith()
+	search.ExternalSources = []ExternalSourceStatus{{Name: externalSourceFactcheck, Status: externalStatusError}}
+	provider := &fakeProvider{judge: `{"werdykt":"brak_dowodow","uzasadnienie":"x","cytaty":[],"brakuje":null,"podejrzane":false}`}
+	result := verify(t, newTestAgent(t, provider, &ragStub{search: search}), "Demagog sprawdzał depeszę PAP o tej wypowiedzi.", InputTypeText)
+
+	if result.Status != StatusTechnicalError || result.Message == nil || !strings.Contains(*result.Message, "weryfikatorów") {
+		t.Fatalf("expected technical_error about the fact-check service, got %+v", result)
+	}
+	if len(result.Claims) != 0 {
+		t.Fatalf("no verdict may be shown: %+v", result)
+	}
+}
+
+// With corpus results the fact-check outage is only a limitation; the verdict rests on the corpus.
+func TestFactcheckOutageWithCorpusResultsIsOnlyALimitation(t *testing.T) {
+	search := searchWith(officialPassage())
+	search.ExternalSources = []ExternalSourceStatus{{Name: externalSourceFactcheck, Status: externalStatusError}}
+	provider := &fakeProvider{judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+	result := verify(t, newTestAgent(t, provider, &ragStub{search: search}), claimSejm, InputTypeText)
+
+	if result.Status != StatusOK || result.Claims[0].Verdict != VerdictConfirmed {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if !slices.Contains(result.Limitations, limitationFactcheckUnavailable) {
+		t.Fatalf("expected the outage in limitations, got %v", result.Limitations)
+	}
+}

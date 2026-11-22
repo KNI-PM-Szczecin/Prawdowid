@@ -6,8 +6,11 @@ const (
 		"To nie jest ocena treści. Spróbuj ponownie za kilka minut."
 	msgNoClaims = "Nie znaleźliśmy w tekście twierdzenia, które da się sprawdzić. " +
 		"Wklej konkretną informację, np. „Rząd podniósł płacę minimalną do 5000 zł”."
-	msgPageUnreadable = "Nie udało się odczytać treści tej strony. Wklej jej tekst albo wybierz inny adres."
-	msgEmptyInput     = "Wpisz informację do sprawdzenia albo wklej adres strony."
+	msgPageUnreadable       = "Nie udało się odczytać treści tej strony. Wklej jej tekst albo wybierz inny adres."
+	msgEmptyInput           = "Wpisz informację do sprawdzenia albo wklej adres strony."
+	msgFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów z powodu błędu dostępu do zewnętrznej usługi, " +
+		"a w naszych źródłach nie ma publikacji na ten temat. To ograniczenie techniczne, nie ocena treści. " +
+		"Spróbuj ponownie za chwilę."
 
 	missingNoSources      = "Nie znaleziono publikacji na ten temat w dostępnych źródłach."
 	noteNoResultIsNoProof = "Brak wyniku w naszych źródłach nie oznacza, że to prawda ani że to nieprawda."

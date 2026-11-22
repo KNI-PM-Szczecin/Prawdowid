@@ -59,16 +59,18 @@ type run struct {
 // claimRun holds what one claim contributes to the answer; claims run in parallel, so each one writes here
 // and the results are merged in claim order afterwards.
 type claimRun struct {
-	request      VerifyRequest
-	limitations  []string
-	injections   int
-	searchErrs   int
-	passages     int
-	inputTokens  int
-	outputTokens int
-	corpus       *string
-	abstained    bool
-	campaign     *CampaignAlert
+	request     VerifyRequest
+	limitations []string
+	injections  int
+	searchErrs  int
+	// factcheckDown is set when the fact-check service failed for this claim's search (CONTRACT.md §4).
+	factcheckDown bool
+	passages      int
+	inputTokens   int
+	outputTokens  int
+	corpus        *string
+	abstained     bool
+	campaign      *CampaignAlert
 }
 
 // claimConcurrency caps parallel claims: each one is a rag search plus a model call, and three is both the
@@ -396,6 +398,11 @@ func (a *Agent) judge(ctx context.Context, r *claimRun, claimID, claimText, cont
 // prediction is not_verifiable whether or not sources exist; any other verdict is impossible without evidence, so it
 // becomes insufficient_evidence and the model's justification is not shown.
 func (a *Agent) checkClaimWithoutSources(ctx context.Context, r *claimRun, claim Claim, contextXML string) (Claim, error) {
+	if r.factcheckDown {
+		// The fact-check service was the only possible basis and it failed: a technical limitation, never the
+		// claim "there is no such publication" (CONTRACT.md §4, brief scenario J).
+		return Claim{}, errFactcheckUnavailable
+	}
 	if strings.TrimSpace(contextXML) == "" {
 		contextXML = emptyContextXML
 	}
@@ -450,6 +457,7 @@ func (a *Agent) noteSearch(r *claimRun, search SearchResponse) {
 		case external.Status == externalStatusError:
 			r.searchErrs++
 			if external.Name == externalSourceFactcheck {
+				r.factcheckDown = true
 				r.limitations = appendUnique(r.limitations, limitationFactcheckUnavailable)
 			}
 		case external.Name == externalSourceIncidentCatal && external.Status == externalStatusDisabled:
@@ -465,9 +473,16 @@ func (a *Agent) noteSearch(r *claimRun, search SearchResponse) {
 	}
 }
 
+// errFactcheckUnavailable means the fact-check service failed and the corpus had nothing for the claim.
+var errFactcheckUnavailable = errors.New("fact-check service unavailable and no corpus results")
+
 func (a *Agent) technicalError(r *run, err error) CheckResult {
 	a.logger.Error("verify failed", "requestId", r.request.RequestID, "error", err.Error())
-	result := a.finish(r, StatusTechnicalError, msgTechnicalError)
+	message := msgTechnicalError
+	if errors.Is(err, errFactcheckUnavailable) {
+		message = msgFactcheckUnavailable
+	}
+	result := a.finish(r, StatusTechnicalError, message)
 	result.Meta.TimedOut = errors.Is(err, context.DeadlineExceeded)
 	return result
 }

@@ -7,12 +7,12 @@ Osobny od harnessu scenariuszy A–J (`cases.json`, `prawdowid_eval/`). Tamten s
 **Źródło:** Google Fact Check Tools API (`claims:search`, `languageCode=pl`), to samo API, które `rag/` woła na żywo, ale użyte tu wyłącznie do zbudowania listy pytań z etykietami. Zwraca twierdzenia sprawdzone przez Demagoga, AFP Sprawdzam, Konkret24 i PAP, z oceną weryfikatora, datą i linkiem do weryfikacji. Sprawdzone: zapytanie `szczepionki` daje m.in. „Szczepionki powodują autyzm.” (Demagog, Fałsz, 29.10.2026).
 
 **Budowa (`build-dataset`):**
-1. Lista ok. 40 tematów (`topics.json`): szczepionki, migranci, Ukraina, Rosja, UE, NATO, wybory, podatki, 800+, emerytury, inflacja, klimat, 5G, COVID, Niemcy, Izrael, energia, ceny paliw, służba zdrowia, edukacja, sądy, Kościół, aborcja, LGBT, policja, wojsko, granica, Białoruś, USA, Chiny, media, cenzura, cyfryzacja, rolnictwo, mieszkania, transport, samorząd, Sejm, prezydent, rząd. Dla każdego tematu pobieramy do 50 twierdzeń (stronicowanie `nextPageToken`).
+1. Lista ok. 40 tematów (`topics.json`): szczepionki, migranci, Ukraina, Rosja, UE, NATO, wybory, podatki, 800+, emerytury, inflacja, klimat, 5G, COVID, Niemcy, Izrael, energia, ceny paliw, służba zdrowia, edukacja, sądy, Kościół, aborcja, LGBT, policja, wojsko, granica, Białoruś, USA, Chiny, media, cenzura, cyfryzacja, rolnictwo, mieszkania, transport, samorząd, Sejm, prezydent, rząd. Dla każdego tematu pobieramy do 200 twierdzeń (4 strony po 50, stronicowanie `nextPageToken`).
 2. Mapowanie oceny weryfikatora na etykietę złotą (`gold`), po normalizacji wielkości liter i diakrytyków:
    - `false`: „Fałsz”, „Nieprawda”, „Fake news”
-   - `misleading`: „Manipulacja”, „Częściowa prawda”, „Półprawda”, „Brak kontekstu”, „Wprowadzające w błąd”, „Nieaktualne”, „Zbitka prawdy i fałszu”
+   - `misleading`: „Manipulacja”, „Częściowa prawda”, „Półprawda”, „Brak kontekstu”, „Wprowadzające w błąd”, „Nieaktualne”, „Zbitka prawdy i fałszu”, „Przekręcone”
    - `confirmed`: „Prawda”
-   - `not_verifiable`: „Nieweryfikowalne”, „Niesprawdzalne”, „Opinia”
+   - `not_verifiable`: „Nieweryfikowalne”, „Niesprawdzalne”, „Opinia”, „Nie do sprawdzenia”
    - inne (np. „Niemożliwe do oceny”, oceny liczbowe) → odrzucone, z wpisem w `dataset_rejected.json`
 3. Filtry: tekst twierdzenia 20–500 znaków, bez duplikatów (po normalizacji białych znaków i wielkości liter), jedna weryfikacja na twierdzenie (najnowsza), weryfikacja po polsku.
 4. Stratyfikacja do zadanego rozmiaru (domyślnie 200): docelowo 40% `false`, 30% `misleading`, 20% `confirmed`, 10% `not_verifiable`; nie więcej niż 12 twierdzeń z jednego tematu i 60% z jednego weryfikatora. Gdy jakiejś klasy brakuje (np. „Prawda” jest rzadka), raport pokazuje faktyczny rozkład, a brakujące klasy uzupełniamy ręcznie z oficjalnych komunikatów (osobne pole `origin: manual`, `reviewed: true` po sprawdzeniu przez człowieka).
@@ -24,7 +24,7 @@ Osobny od harnessu scenariuszy A–J (`cases.json`, `prawdowid_eval/`). Tamten s
 
 `POST /api/check` dla każdego twierdzenia (`inputType: text`), sekwencyjnie, czas mierzony po stronie klienta od wysłania do odebrania całej odpowiedzi; dodatkowo `meta.latencyMs` z serwera. `--repeats N` powtarza każde zapytanie (stabilność werdyktu). Wynik: `runs/<data>/results.json` (pełne `CheckResult`, czasy, kod HTTP, błędy transportu). Awaria transportu albo `technical_error` nie przerywa przebiegu, jest liczona jako `error`.
 
-Ocena dotyczy **pierwszego twierdzenia** w odpowiedzi (dataset ma jednozdaniowe twierdzenia; gdy agent wyodrębni więcej, raport to odnotowuje).
+Ocena dotyczy **pierwszego twierdzenia** w odpowiedzi (dataset ma jednozdaniowe twierdzenia; liczbę twierdzeń w odpowiedzi widzi sędzia, raport jej dziś nie zlicza).
 
 ## 3. Tor automatyczny: LLM jako sędzia (`judge`)
 
@@ -79,7 +79,7 @@ Z sędziego:
 | Szkodliwość | odsetek `harmful` |
 | Zgodność sędzia–reguły | czy `correct` sędziego pokrywa się z `werdykt == złota etykieta`; kappa Cohena; rozbieżności wypisane |
 
-Rozbicia: po złotej klasie, po weryfikatorze, po temacie, po tym, czy system cytował oficjalne źródło.
+Rozbicia: po złotej klasie, po weryfikatorze, po temacie. W miernikach 4-klasowych i odsetku rozstrzygnięć `not_verifiable` liczy się jako rozstrzygnięcie; w macierzy binarnej jako wstrzymanie, a we „wstrzymaniach” tylko wtedy, gdy złota etykieta jest klasą faktograficzną.
 
 ## 5. Tor ludzki (`human-sample`, `human-report`)
 
@@ -99,7 +99,7 @@ Dwóch oceniających na wiersz, gdy jest czas; `human-report` liczy mierniki lud
 
 - `runs/<data>/`: `dataset_version`, `results.json`, `judge.json`, `metrics.json`, `report.md`, `human_review.csv`, po ocenie `human_report.md`. Commitujemy tylko pełne, prawdziwe przebiegi, bez ręcznych poprawek.
 - Dataset i prompt sędziego nigdy nie trafiają do `agent/`, `rag/` ani korpusu (brief: wynik nie może zależeć od wpisania odpowiedzi testowych).
-- Klucze (`FACTCHECK_API_KEY`, `JUDGE_API_KEY`) tylko w `../.env`.
+- Klucze (`FACTCHECK_API_KEY`, `ANTHROPIC_API_KEY`) tylko w `../.env`.
 - Dane osobowe: `claimant` z API to osoby publiczne albo „Użytkownik Facebooka”; raport nie pokazuje `claimant`, pole zostaje w danych jako pochodzenie.
 
 ## 7. Struktura kodu
@@ -110,11 +110,13 @@ eval/
   benchmark/
     topics.json                tematy zapytań do API
     dataset.json               zbiór (wersjonowany)
-    prompts/judge.system.md    rubryka sędziego
+    prompts/judge.system.md    rubryka sędziego (ocena pojedynczej odpowiedzi)
+    prompts/compare.system.md  rubryka porównania A/B
+    dataset_rejected.json      twierdzenia odrzucone przy budowie (z powodem)
     human_review_guide.md      instrukcja dla oceniających
     runs/<data>/               wyniki
   prawdowid_benchmark/
-    __main__.py                build-dataset | run | judge | report | human-sample | human-report
+    __main__.py                build-dataset | run | judge | report | compare | compare-report | human-sample | human-report
     dataset.py                 API Google, mapowanie ocen, stratyfikacja
     runner.py                  POST /api/check + czasy (współdzielony kod z prawdowid_eval/runner.py)
     judge.py                   klient sędziego, parsowanie JSON, powtórzenia

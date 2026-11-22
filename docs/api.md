@@ -1,6 +1,6 @@
-# API backendu — PROPOZYCJA
+# API backendu — PROPOZYCJA (częściowo wdrożona)
 
-> **Status: propozycja, wersja wstępna.** Ten dokument ma być aktualizowany w trakcie budowy API przez osobę, która implementuje dany endpoint. Gdy kod i ten plik się rozjadą, poprawiamy plik w tym samym PR.
+> **Status: częściowo wdrożone.** Wdrożone w `src/backend/`: `POST /api/check`, `DELETE /api/checks/{requestId}`, `POST /api/channels/demo`, `GET /api/admin/cases`, `GET /health`, `GET /livez`. Pozostałe elementy **[NOWE]** są nadal propozycją. Gdy kod i ten plik się rozjadą, poprawiamy plik w tym samym PR.
 >
 > Źródłem prawdy jest `CONTRACT.md`. Elementy oznaczone **[NOWE]** wynikają z projektu w Figmie i są wpisane do `CONTRACT.md` §1a jako propozycja do akceptacji (do tego czasu są opcjonalne). Reguły werdyktów (ocena weryfikatora faktów, rozbieżność wyjaśnialna, wydarzenia bieżące, awaria źródła zewnętrznego) są w `CONTRACT.md` §4 i w `spec/mentor-test-scenarios.md`.
 >
@@ -12,10 +12,10 @@
 
 | Ekran / element | Potrzebne dane z API | Jest w kontrakcie? |
 |---|---|---|
-| Nagłówek i pełny tekst artykułu | `document` (tytuł, treść, adres). Dla URL zwraca go `agent/`; dla tekstu **backend** wpisuje `{ "title": null, "text": <zamaskowany input> }` | `CONTRACT.md` §1a, `agent/` już zwraca |
-| Podświetlony fragment w tekście (stan normal / hover), klik otwiera panel boczny | pozycja twierdzenia w tekście: `claims[].span` | §1a, **`agent/` jeszcze nie zwraca** → `span: null`, front pokazuje listę twierdzeń pod tekstem |
-| Box zbiorczy (v3: ikona ✓ / ⚠ / ✕ w pełnym kole, etykieta, opis; pierścień z „81%” został tylko na starym ekranie Sidebar) | `summary.level` → ikona, etykieta i opis. Pole `score` **usunięte z propozycji**, UI nie pokazuje procentu | §1a, **liczy backend** (reguły w §8) |
-| Chipy (v3: „Świeży” / „Archiwalny”, „Oficjalna informacja” / „Brak oficjalnej informacji”) | `badges` z czterema wartościami. Chipy katalogu (`input_source_*`) odłożone, UI ich nie pokazuje | §1a, **liczy backend** (reguły w §8) |
+| Nagłówek i pełny tekst artykułu | `document` (tytuł, treść, adres). Zwraca go `agent/` dla URL i dla tekstu (dla tekstu: `title: null`, `text` = zamaskowane wejście) | `CONTRACT.md` §1a, `agent/` zwraca |
+| Podświetlony fragment w tekście (stan normal / hover), klik otwiera panel boczny | pozycja twierdzenia w tekście: `claims[].span` | §1a, **`agent/` zwraca** (`agent/span.go`); `span: null` dla parafrazy, wtedy front pokazuje twierdzenie tylko na liście pod tekstem |
+| Box zbiorczy (v3: ikona ✓ / ⚠ / ✕ w pełnym kole, etykieta, opis; pierścień z „81%” został tylko na starym ekranie Sidebar) | `summary.level` → ikona, etykieta i opis. Poziom z reguł kontraktu (§8), **bez pola `score`**, UI nie pokazuje procentu | §1a, **liczy backend** (reguły w §8) |
+| Chipy (v3: „Świeży” / „Archiwalny”, „Oficjalna informacja” / „Brak oficjalnej informacji”) | `badges` z czterema wartościami. Dla `inputType: url` backend dodaje chip katalogu `input_source_in_catalog` / `input_source_outside_catalog` z `rag/ GET /sources/catalog` (`src/backend/catalog.go`); gdy katalog niedostępny, chipa nie ma. UI v3 chipów katalogu nie pokazuje | §1a, **liczy backend** (reguły w §8) |
 | Czarny box „Ten tekst może być częścią kampanii dezinformacyjnej” + „Więcej informacji” | `campaignAlert` (komunikat + linki do spraw), na poziomie całego tekstu | §1a, `agent/` już zwraca |
 | Panel boczny: nagłówek = fragment, badge „Fakt”, wyjaśnienie, „Źródła:” | `claims[].text`, `verdict`, `justification`, `evidenceStrength`, `strengthReasons`, `sources` | tak |
 | Panel „Sprzeczne źródła” (ikona ostrzeżenia, karty z tytułem, wydawcą, datą i linkiem) | `claims[].conflict` + źródła z obu stron (`role`: `supports` / `refutes`, `quote`) | §1a, **`agent/` jeszcze nie zwraca** → front do czasu wnioskuje z ról źródeł |
@@ -29,15 +29,15 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `src/backend/config.go`
 | Metoda i ścieżka | Po co | Priorytet |
 |---|---|---|
 | `POST /api/check` | sprawdzenie tekstu lub URL (WWW) | **MVP, pionowy przekrój** |
-| `GET /api/checks/{requestId}` **[NOWE]** | odczyt zapisanego wyniku: odświeżenie strony wyniku, link z Discorda do pełnego widoku | MVP |
-| `DELETE /api/checks/{requestId}` | usunięcie sesji demo (wymóg prywatności) | MVP |
-| `GET /health` | stan backendu i bazy (już działa) | jest |
-| `GET /api/sources` **[NOWE]** | lista źródeł korpusu do audytu (proxy do `rag/ GET /sources`) | MVP (wymóg „lista źródeł dostępna do audytu”) |
-| bot Discord (Gateway), bez endpointu HTTP | drugi kanał: proces backendu łączy się z Discordem i woła `agent.Verify` bezpośrednio, decyzja zespołu | MVP |
+| `GET /api/checks/{requestId}` **[NOWE, niezaimplementowane]** | odczyt zapisanego wyniku: odświeżenie strony wyniku, link z drugiego kanału do pełnego widoku | MVP |
+| `DELETE /api/checks/{requestId}` (wdrożone) | usunięcie sesji demo (wymóg prywatności) | MVP |
+| `GET /health`, `GET /livez` | stan backendu i bazy (już działa) | jest |
+| `GET /api/sources` **[NOWE, niezaimplementowane w backendzie]** | lista źródeł korpusu do audytu; dziś audyt korzysta z `rag/ GET /sources` | MVP (wymóg „lista źródeł dostępna do audytu”) |
+| `POST /api/channels/demo` (wdrożone, `src/backend/demo_channel.go`) | drugi kanał: adapter demonstracyjny. Przyjmuje `{"text": "..."}`, odpowiada `text/plain` jak w komunikatorze, ta sama ścieżka `runCheck` co WWW. Bot Discord **niezaimplementowany** | MVP |
 | `GET /api/admin/checks` **[NOWE]** | log sprawdzeń + eksport CSV/JSON | po podstawie (funkcja premiowana) |
-| `POST /api/admin/cases`, `GET /api/admin/cases` **[NOWE]** | pętla moderatora | po podstawie (funkcja premiowana) |
+| `GET /api/admin/cases` (wdrożone, `X-Admin-Token` = `MODERATOR_TOKEN`) | pętla moderatora: lista spraw. Sprawy tworzy automatycznie `POST /api/check` dla twierdzeń `insufficient_evidence`; **nie ma** `POST /api/admin/cases` | po podstawie (funkcja premiowana) |
 
-Celowo **nie** proponujemy: logowania obywatela, kolejki asynchronicznej (budżet 25 s z kontraktu mieści się w jednym żądaniu), osobnego endpointu na tłumaczenia (teksty są w `src/app/lib/texts.ts`).
+Celowo **nie** proponujemy: logowania obywatela, kolejki asynchronicznej (budżet 25 s z kontraktu mieści się w jednym żądaniu), osobnego endpointu na tłumaczenia (teksty są w `src/frontend/src/lib/texts.ts`).
 
 ## 3. `POST /api/check`
 
@@ -56,7 +56,7 @@ Celowo **nie** proponujemy: logowania obywatela, kolejki asynchronicznej (budże
 | `input` | string | wymagane, 1–5000 znaków po przycięciu spacji |
 | `inputType` | `"text"` \| `"url"` | wymagane; front wykrywa URL sam (zaczyna się od `http://` lub `https://`) |
 
-Nieznane pola → odrzucenie (`DisallowUnknownFields`). Backend maskuje e-mail, telefon i PESEL **przed** zapisem przebiegu i przed wysłaniem do modelu.
+Nieznane pola → odrzucenie (`DisallowUnknownFields`). Backend maskuje e-mail, IBAN, PESEL, numer dowodu osobistego, numer paszportu i telefon (zamiennik `[ukryto]`, `src/backend/mask.go`; PESEL, dowód i paszport tylko z poprawną sumą kontrolną, kwoty i daty chronione) **przed** zapisem przebiegu, a wejście tekstowe także przed wysłaniem do `agent/`. Imion i nazwisk nie maskujemy nigdy, w szczególności osób publicznych (zasada mentorów: nie maskować niczego, bez czego zmienia się sens zapytania albo nie da się znaleźć dowodu). URL idzie do `agent/` bez maskowania (maskowana jest tylko kopia zapisana w bazie); treść pobranej strony nie jest maskowana.
 
 ### Kody HTTP (z kontraktu)
 
@@ -64,8 +64,9 @@ Nieznane pola → odrzucenie (`DisallowUnknownFields`). Backend maskuje e-mail, 
 |---|---|---|
 | `200` | wynik merytoryczny | `ok` |
 | `200` | pytanie niejasne / poza zakresem | `needs_clarification`, `out_of_scope` |
-| `400` | ciało nie jest poprawnym JSON-em | zob. pytanie otwarte w §7 |
-| `429` | przekroczony limit żądań; nagłówek `Retry-After` w sekundach | `technical_error` |
+| `200` | ciało większe niż 64 KB | `needs_clarification` |
+| `400` | ciało nie jest poprawnym JSON-em albo ma nieznane pola | `technical_error` |
+| `429` | przekroczony limit żądań (bez nagłówka `Retry-After`) | `technical_error` („Zbyt wiele zapytań…”) |
 | `503` | awaria modelu, `rag/`, brak klucza, timeout | `technical_error` |
 
 Każde ciało ma kształt `CheckResult`.
@@ -86,10 +87,11 @@ Każde ciało ma kształt `CheckResult`.
   },
   "summary": {
     "level": "high",
-    "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym 1 źródło urzędowe"]
+    "reasons": ["2 z 2 twierdzeń potwierdzone", "w tym źródeł urzędowych: 1"]
   },
-  "badges": ["official_source_present", "fresh_material"],
+  "badges": ["fresh_material", "official_source_present"],
   "campaignAlert": null,
+  "cases": [],
   "claims": [
     {
       "id": "c1",
@@ -134,8 +136,9 @@ Tylko pola, które się różnią od przykładu A:
 
 ```json
 {
-  "summary": { "level": "low", "reasons": ["1 z 1 twierdzeń obalone", "w tym 1 źródło urzędowe"] },
+  "summary": { "level": "low", "reasons": ["0 z 1 twierdzeń potwierdzone", "fałszywe: 1", "w tym źródeł urzędowych: 1"] },
   "badges": ["fresh_material", "official_source_present"],
+  "cases": [],
   "campaignAlert": {
     "category": "possible_disinformation_campaign",
     "message": "Treść jest podobna do znanych przypadków dezinformacji. To informacja dodatkowa, nie ocena tego tekstu.",
@@ -235,7 +238,7 @@ Dwa warianty (`CONTRACT.md` §4, scenariusz C mentora):
 }
 ```
 
-Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "reasons": ["1 z 1 twierdzeń bez wystarczających dowodów"] }`. Front pokazuje wtedy ikonę „?” i etykietę „Nie udało się ocenić”, nigdy „50% prawdy”.
+Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "reasons": ["0 z 1 twierdzeń potwierdzone", "bez oceny z powodu braku dowodów lub możliwości sprawdzenia: 1"] }`, a odpowiedź ma `"cases": [{ "claimId": "c1", "caseId": "…", "reports": 1, "status": "logged" }]` (pętla moderatora, §4). Front pokazuje wtedy ikonę „?” i etykietę „Nie udało się ocenić”, nigdy „50% prawdy”.
 
 **Odpowiedź częściowa** (wydarzenie bieżące, scenariusz A mentora „strajk we Włoszech”, przypadek A13): też `insufficient_evidence`, ale z **niepustym** `sources` (to, co ustalono: zapowiedź strajku) i `missing` mówiącym wprost, czego nie wiadomo („Nie mam informacji, czy strajk się odbył”). Nie piszemy, że zdarzenie się nie odbyło.
 
@@ -273,11 +276,13 @@ Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "reasons": ["1 z 1 
 }
 ```
 
-`429` ma to samo ciało z komunikatem o limicie i nagłówek `Retry-After: 30`.
+`429` ma to samo ciało z komunikatem o limicie („Zbyt wiele zapytań. Spróbuj ponownie za chwilę.”); backend **nie** wysyła nagłówka `Retry-After`.
 
 ## 4. Pozostałe endpointy
 
 ### `GET /api/checks/{requestId}` [NOWE]
+
+**Niezaimplementowane.**
 
 Zwraca zapisany `CheckResult` (ten sam kształt co `POST /api/check`, z zamaskowanym `document.text`). `404`, gdy przebieg nie istnieje albo został usunięty:
 
@@ -287,9 +292,9 @@ Zwraca zapisany `CheckResult` (ten sam kształt co `POST /api/check`, z zamaskow
 
 Pozwala na adres strony wyniku `/wynik/{requestId}` we froncie i na link z odpowiedzi na Discordzie.
 
-### `DELETE /api/checks/{requestId}`
+### `DELETE /api/checks/{requestId}` (wdrożone)
 
-`204 No Content` po usunięciu przebiegu i wpisu w pamięci podręcznej. `404` jak wyżej. Bez logowania: kto zna `requestId` (UUID), ten może usunąć (wystarczy na demo, opisać w ryzykach).
+`204 No Content` po usunięciu wiersza z `check_runs`. `404` (brak przebiegu) i `400` (niepoprawny UUID) zwracają `CheckResult` ze `status: technical_error` i `message`. Sprawy moderatora (`moderation_cases`) zostają do końca retencji. Bez logowania: kto zna `requestId` (UUID), ten może usunąć (wystarczy na demo, opisać w ryzykach).
 
 ### `GET /health`
 
@@ -297,7 +302,7 @@ Już działa: `200 {"status":"ok","database":"ok"}` albo `503 {"status":"degrade
 
 ### `GET /api/sources` [NOWE]
 
-Proxy do `rag/ GET /sources`, bez zmian kształtu (tylko odczyt, bez tokena):
+**Niezaimplementowane w backendzie.** Dziś lista źródeł do audytu to `rag/ GET /sources`. Propozycja: proxy do `rag/ GET /sources`, bez zmian kształtu (tylko odczyt, bez tokena):
 
 ```json
 {
@@ -320,6 +325,8 @@ Proxy do `rag/ GET /sources`, bez zmian kształtu (tylko odczyt, bez tokena):
 ```
 
 ### Drugi kanał: bot Discord (Gateway) [NOWE, decyzja: bot]
+
+**Stan: bot niezaimplementowany.** Warunek briefu (kanał + adapter demonstracyjny) spełnia `POST /api/channels/demo` (`src/backend/demo_channel.go`, `channel.go`): ciało `{"text": "..."}`, odpowiedź `text/plain` w formacie wiadomości z komunikatora (twierdzenie, werdykt, siła podstawy, uzasadnienie, źródła, ograniczenia), ta sama ścieżka `runCheck` co WWW (ten sam limit żądań, maskowanie, zapis przebiegu). Niepoprawna wiadomość → `400` z tekstem. Poniżej pierwotny plan bota.
 
 Drugi kanał to **bot na Discordzie** (połączenie wychodzące przez Gateway), nie webhook i nie Interactions Endpoint. Decyzja zespołu, odpowiedzialny Paweł. Konsekwencje:
 - **Nie ma endpointu HTTP** dla kanału i nie trzeba publicznego adresu ani tunelu. Bot działa w procesie `backend/` i woła `agent.Verify` bezpośrednio (`ChannelAdapter` z `CONTRACT.md`).
@@ -345,7 +352,7 @@ Pełny wynik: http://localhost:5173/wynik/6f1c2a9e-…
 ### Po podstawie (funkcje premiowane)
 
 - `GET /api/admin/checks?format=json|csv&from=…&to=…` — log sprawdzeń (zamaskowane pytanie, czas, źródła, wynik, `meta`). Wymaga `X-Admin-Token`.
-- `POST /api/admin/cases` / `GET /api/admin/cases` — sprawy moderatora dla `insufficient_evidence`, grupowanie podobnych zgłoszeń. Odpowiedź musi rozróżniać `"handoff": "recommended"` od `"handoff": "sent"` (wymóg briefu). Kształt do ustalenia, gdy podstawa działa.
+- `GET /api/admin/cases` (wdrożone, `src/backend/cases.go`, nagłówek `X-Admin-Token` = `MODERATOR_TOKEN`; bez skonfigurowanego tokena `403`) → `{ "cases": [{ "caseId", "claim", "reports", "campaign", "status", "createdAt", "updatedAt", "forwardedAt" }] }`. Sprawy tworzy automatycznie `POST /api/check` dla każdego twierdzenia `insufficient_evidence` (parafrazy grupuje `rag/ POST /reports/match`); nie ma `POST /api/admin/cases`. `status`: `logged` → `recommended` (co najmniej `MODERATOR_REPEAT_THRESHOLD` zgłoszeń, domyślnie 3, albo dopasowanie do katalogu kampanii) → `forwarded` (tylko gdy webhook `MODERATOR_WEBHOOK_URL` odpowiedział 2xx; bez webhooka sprawa zostaje `recommended`). To rozróżnia rekomendację przekazania od faktycznego przekazania (wymóg briefu). Odpowiedź `POST /api/check` ma pole `cases` z powiadomieniem dla obywatela (zob. typy w §5).
 
 ## 5. Proponowane typy (TypeScript, dla frontu)
 
@@ -363,9 +370,17 @@ interface CheckResult {
   summary: Summary | null;            // [NOWE]
   badges: Badge[];                    // [NOWE]
   campaignAlert: CampaignAlert | null; // [NOWE]
+  cases: CaseNotice[];                // wdrożone: pusta lista, gdy żadne twierdzenie nie trafiło do pętli moderatora
   claims: Claim[];
   limitations: string[];
   meta: Meta;
+}
+
+interface CaseNotice {                // wdrożone, src/backend/cases.go
+  claimId: string;
+  caseId: string;
+  reports: number;
+  status: "logged" | "recommended" | "forwarded";
 }
 
 interface CheckedDocument {           // [NOWE]
@@ -376,7 +391,7 @@ interface CheckedDocument {           // [NOWE]
   fetchedAt: string | null;
 }
 
-interface Summary {                   // [NOWE] liczy backend, reguły w §8
+interface Summary {                   // liczy backend (src/backend/summary.go), reguły w §8; bez pola score
   level: "high" | "mixed" | "low" | "unknown";
   reasons: string[];                  // jawne przesłanki po polsku, np. "2 z 3 twierdzeń potwierdzone"
 }
@@ -389,14 +404,14 @@ type Badge =                          // [NOWE] etykiety po polsku w texts.ts; w
 interface Claim {
   id: string;
   text: string;
-  span: { start: number; end: number } | null; // [NOWE] pozycje w document.text, w znakach Unicode (code points), end wyłączny
+  span: { start: number; end: number } | null; // wdrożone w agent/span.go: pozycje w document.text, w znakach Unicode (code points), end wyłączny
   verdict: Verdict;
   justification: string;
   evidenceStrength: "strong" | "moderate" | "weak" | "none";
   strengthReasons: string[];
   sources: Source[];
   warnings: { type: "source_status" | "incident_match" | "archival_material" | "other"; message: string }[];
-  conflict: { summary: string } | null; // [NOWE]
+  conflict: { summary: string } | null; // [NOWE] nie zwraca go ani agent/, ani backend (pola nie ma w JSON); front wnioskuje rozbieżność z ról źródeł
   missing: string | null;
 }
 
@@ -448,18 +463,20 @@ Decyzja z 21.11: dostępność jest priorytetem. Cel: WCAG 2.1 AA. Co z tego wyn
 - **Podświetlenia w tekście nie są jedyną drogą do werdyktu:** pod tekstem lista twierdzeń z werdyktami, dostępna klawiaturą, działa przy `span: null` i przy 200% rozmiaru tekstu. Panel boczny otwierany przyciskiem (`aria-expanded`), nie samym hoverem.
 - **Kontrast:** tekst na pastelowych boksach jest czarny, to dobrze. Do poprawy: niebieski link „Więcej informacji” na czarnym boksie (za niski kontrast, zrobić biały z podkreśleniem) i jasnoszara linia „Wydawca, 01.01.2020” na kartach źródeł (`AGENTS.md`: bez szarego tekstu dla ważnych treści).
 - **Panel ustawień dostępności** (zrzut wzorcowy w v3, styl serwisów gov.pl): kontrast (domyślny / wysoki jasny / wysoki ciemny), rozmiar tekstu (100 / 125 / 150 / 200%), „ogranicz animacje”, „przywróć domyślne”. Front: `localStorage`, wartości startowe z `prefers-contrast` i `prefers-reduced-motion`. W trybach wysokiego kontrastu werdykty muszą pozostać rozróżnialne bez koloru (ikona + etykieta). Bez żadnego pola w API.
-- **Discord:** te same etykiety słowne co w WWW (werdykt nigdy samym emoji), zob. `ToReply` w §4.
+- **Drugi kanał (adapter demonstracyjny):** te same etykiety słowne co w WWW (werdykt nigdy samym emoji), zob. `ToReply` w `src/backend/demo_channel.go`.
 
 ## 7. Pytania otwarte
 
-- `400` dla złego JSON-a: jaki `status` w ciele? Propozycja: `technical_error` z komunikatem „Nieprawidłowe zapytanie”. Za długi lub pusty `input` → `200` + `needs_clarification`.
-- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Rozstrzygnięte: bot przez Gateway. Zostaje wybór sposobu użycia (kanał z Message Content Intent czy `/sprawdz`) i adapter demonstracyjny jako plan B.
-- Czy `document.text` zapisujemy w bazie (potrzebne do `GET /api/checks/{id}`), skoro to pełna treść cudzego artykułu? Propozycja: dla URL przechowujemy tylko zamaskowany fragment do 5000 znaków z retencją 24 h, opisaną w README.
+- ~~`400` dla złego JSON-a: jaki `status` w ciele?~~ Rozstrzygnięte w kodzie: `400` + `technical_error` dla złego JSON-a; pusty lub za długi `input` → `200` + `needs_clarification`.
+- ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Bot nie powstał. Drugi kanał to adapter demonstracyjny `POST /api/channels/demo` (§4).
+- `document.text` w bazie: **stan** — `check_runs.result` trzyma pełny dokument (bez przycinania; dla URL `document.text` nie jest maskowany), retencja 30 dni (`CHECK_RETENTION_DAYS`). **Otwarte:** przyciąć lub zamaskować `document.text` przed zapisem (luka prywatności, do opisania w ryzykach).
 - CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go. Na Railway front i backend mogą być pod jednym adresem (backend serwuje `dist/`), wtedy CORS znika.
-- Limit żądań: proponujemy 10 żądań na minutę na IP dla `POST /api/check`, wartość w `.env`.
-- Czy `claims[].span` i `claims[].conflict` wejdą do `agent/`? Decyzja właściciela `agent/`. Do tego czasu backend zwraca `span: null` i `conflict: null`, a front radzi sobie bez nich (lista twierdzeń, rozbieżność z ról źródeł).
+- ~~Limit żądań: proponujemy 10 żądań na minutę na IP.~~ Wdrożone: 20 żądań na minutę na IP (`CHECK_RATE_LIMIT_PER_MINUTE`), wspólne dla WWW i adaptera demonstracyjnego; IP z `X-Forwarded-For` według `TRUSTED_PROXY_HOPS`.
+- `claims[].span` zwraca `agent/` (PR #67). `claims[].conflict` nadal otwarte: pola nie ma w JSON, front wnioskuje rozbieżność z ról źródeł.
 
 ## 8. Plan implementacji backendu (`src/backend/`)
+
+**Stan (po #51–#75):** kroki 1–4, 5 (tylko `DELETE`), 6 i 9 są wdrożone w `check.go`, `mask.go`, `summary.go`, `store.go`, `ratelimit.go`. Tabela nazywa się `check_runs` (nie `checks`). Zmienne środowiska: `CHECK_RATE_LIMIT_PER_MINUTE=20`, `CHECK_RETENTION_DAYS=30`, `BADGE_ARCHIVAL_DAYS=365`, `TRUSTED_PROXY_HOPS=1` (zamiast `RATE_LIMIT_PER_MINUTE`, `CHECK_RETENTION_HOURS`, `TRUST_PROXY` z planu). Niezaimplementowane: `GET /api/checks/{id}` (krok 5), `GET /api/sources` (krok 7), rozszerzony `/health` (krok 8). Krok 10 (Discord) zastąpił adapter demonstracyjny `POST /api/channels/demo`. Dodatkowo poza planem: pętla moderatora (`cases.go`) i chip katalogu (`catalog.go`). Poniżej pierwotny plan.
 
 Kolejność: pionowy przekrój najpierw. Każdy krok kończy się działającym `curl` i commitem.
 
@@ -471,10 +488,10 @@ Kolejność: pionowy przekrój najpierw. Każdy krok kończy się działającym 
 6. **Limit żądań** (`ratelimit.go`): mapa IP → licznik w oknie minutowym, w pamięci; `RATE_LIMIT_PER_MINUTE` (domyślnie 10); `429` + `Retry-After` i ciało `technical_error` z komunikatem o limicie. IP z `X-Forwarded-For` tylko przy `TRUST_PROXY=true` (Railway).
 7. **`GET /api/sources`**: proxy `GET {RAG_URL}/sources` (timeout 8 s); awaria → `503` z `{ "error": { "code": "rag_unavailable", "message": "…" } }`.
 8. **`GET /health`**: dodać `"rag"` (`GET {RAG_URL}/health`) i `"model"` (`LLM_BASE_URL` ustawiony).
-9. **Logi** (`log/slog`, jeden wpis na sprawdzenie): `requestId`, `channel`, `status`, `latencyMs`, `model`, `estimatedCostUsd`, `searchErrors`, `injectionAttempts`, `abstained`. To pokrywa obserwowalność z briefu.
+9. **Logi** (`log/slog`, jeden wpis na sprawdzenie). Wdrożone: wpis `check finished` ma `requestId`, `status`, `latencyMs`, `abstained`, `retrievedPassages`, `searchErrors`, `injectionAttempts`, `timedOut`; model i koszt są w `check_runs` (kolumna `model`, `result.meta.estimatedCostUsd`). To pokrywa obserwowalność z briefu.
 10. **Discord** na końcu (§4), po działającym WWW end-to-end.
 
-**Reguły `summary.level`** (deterministyczne, `enrich.go`). `substantive` = twierdzenia z werdyktem `confirmed`, `false` lub `misleading`:
+**Reguły `summary.level`** (deterministyczne, `summary.go`, bez pola `score` i bez ważenia). `substantive` = twierdzenia z werdyktem `confirmed`, `false` lub `misleading`:
 
 | Warunek | `level` |
 |---|---|
@@ -483,9 +500,9 @@ Kolejność: pionowy przekrój najpierw. Każdy krok kończy się działającym 
 | wszystkie `substantive` = `false` | `low` |
 | inaczej (mieszanka albo jakiekolwiek `misleading`) | `mixed` |
 
-`reasons` po polsku z liczb: „2 z 3 twierdzeń potwierdzone”, „1 twierdzenie bez wystarczających dowodów”, „w tym 1 źródło urzędowe”. Status inny niż `ok` → `summary: null`.
+`reasons` po polsku z liczb (tak, jak produkuje je kod): „2 z 2 twierdzeń potwierdzone”, „fałszywe: 1”, „wprowadzające w błąd: 1”, „bez oceny z powodu braku dowodów lub możliwości sprawdzenia: 1”, „w tym źródeł urzędowych: 1” (wydawcy liczeni bez powtórzeń). Status inny niż `ok` → `summary: null`.
 
-**Reguły `badges`** (tylko przy `status: ok`, z sumy `claims[].sources`): jest `sourceType: official` → `official_source_present`, inaczej `official_source_absent`. Najnowsze `publishedAt` starsze niż `BADGE_ARCHIVAL_DAYS` (domyślnie 365) → `archival_material`, nowsze → `fresh_material`, brak dat → bez chipa świeżości. Nic z opinii modelu.
+**Reguły `badges`** (tylko przy `status: ok`, z sumy `claims[].sources`): jest `sourceType: official` → `official_source_present`, inaczej `official_source_absent`. Świeżość liczona per twierdzenie: gdy najnowsze datowane źródło **któregokolwiek** twierdzenia jest starsze niż `BADGE_ARCHIVAL_DAYS` (domyślnie 365) → `archival_material`, inaczej `fresh_material`; brak dat → bez chipa świeżości. Dla `inputType: url` dochodzi `input_source_in_catalog` / `input_source_outside_catalog` z `rag/ GET /sources/catalog` (brak chipa, gdy katalog niedostępny). Nic z opinii modelu.
 
 **DDL tabeli `checks`:**
 

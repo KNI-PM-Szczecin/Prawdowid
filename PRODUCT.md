@@ -12,7 +12,7 @@ Obywatel w Polsce, także z niskimi kompetencjami cyfrowymi, który trafił na d
 
 ## Product Purpose
 
-Prawdowid pozwala sprawdzić doniesienie tak łatwo jak wysłać wiadomość: przez WWW i drugi kanał (Discord). Wskazuje twierdzenia do sprawdzenia, porównuje je z korpusem wiarygodnych źródeł i zwraca ocenę z dowodami, albo uczciwie wstrzymuje się od oceny. Sukces: obywatel rozumie, na czym opiera się ocena, i może sam sprawdzić źródła. Produkt nie jest „automatycznym sędzią prawdy”, wspiera świadomą ocenę.
+Prawdowid pozwala sprawdzić doniesienie tak łatwo jak wysłać wiadomość: przez WWW i drugi kanał (adapter demonstracyjny `POST /api/channels/demo` z odpowiedzią tekstową jak w komunikatorze; bot Discord planowany). Wskazuje twierdzenia do sprawdzenia, porównuje je z korpusem wiarygodnych źródeł i zwraca ocenę z dowodami, albo uczciwie wstrzymuje się od oceny. Sukces: obywatel rozumie, na czym opiera się ocena, i może sam sprawdzić źródła. Produkt nie jest „automatycznym sędzią prawdy”, wspiera świadomą ocenę.
 
 ## Positioning
 
@@ -27,7 +27,7 @@ Zadanie Ministerstwa Spraw Zagranicznych na HackNation 2026 (24 h). Jury urucham
 - Werdykty: `confirmed`, `false`, `misleading`, `insufficient_evidence`, `not_verifiable`. Statusy niemerytoryczne: `technical_error`, `needs_clarification`, `out_of_scope`, pokazywane inaczej niż werdykt.
 - Wynik zawsze zawiera: ocenę, uzasadnienie, siłę podstawy, źródła osobno od interpretacji modelu, ograniczenia.
 - Kontrakt danych w `CONTRACT.md`; front w `src/frontend/` (Preact, SCSS), backend Go, agent Go, rag Python.
-- Stan na 21.11.2026: backend nie ma jeszcze `POST /api/check`; front ma tryb demonstracyjny z fikcyjnymi danymi (`pnpm dev:mock`).
+- Backend obsługuje `POST /api/check`, `DELETE /api/checks/{requestId}` i drugi kanał `POST /api/channels/demo`; front ma dodatkowo tryb demonstracyjny z fikcyjnymi danymi (`pnpm dev:mock`) na wypadek braku sieci.
 - Żadnych sfabrykowanych źródeł, cytatów, liczb ani wyników testów w interfejsie. Dane demo są fikcyjne i oznaczone.
 - Nie podszywamy się pod serwis administracji publicznej: to prototyp hackathonowy, co interfejs mówi wprost.
 
