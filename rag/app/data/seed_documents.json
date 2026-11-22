@@ -1,5 +1,5 @@
 {
-  "note": "Kuratorowany zestaw dokumentów demo z dosłownymi fragmentami publicznych źródeł. Uzupełnia korpus o fakty z zestawu eval i scenariusza C. Każdy wpis ma link, wydawcę, datę publikacji i licencję; treść jest cytatem, nie streszczeniem. Dokumenty są wgrywane automatycznie przy starcie rag (RAG_SEED_CORPUS_ENABLED), więc demo nie zależy od dostępności stron.",
+  "note": "Kuratorowany zestaw dokumentów demo z dosłownymi fragmentami publicznych źródeł. Uzupełnia korpus o fakty z zestawu eval i scenariusza C. Zawiera też najważniejsze zmiany stanu prawnego i faktycznego według stron rządowych (co było wcześniej, co obowiązuje teraz); lista i opis: docs/fact-changes.md. Każdy wpis ma link, wydawcę, datę publikacji i licencję; treść jest cytatem, nie streszczeniem. Dokumenty są wgrywane automatycznie przy starcie rag (RAG_SEED_CORPUS_ENABLED), więc demo nie zależy od dostępności stron.",
   "fetchedAt": "2026-11-22T00:00:00Z",
   "documents": [
     {
@@ -257,6 +257,198 @@
         "topicTag": "www.trade.gov.pl"
       },
       "text": "Poland has been a member of the European Union since 1 May 2004 under the Accession Treaty signed in Athens on 16 April 2003. As a member state, Poland has the power to influence EU decisions.\nPlease be advised that Poland is not a member of Eurozone. Polish złoty remains Poland’s official currency and legal tender. You can find official exchanges rates at the National Bank of Poland’s website."
+    },
+    {
+      "source": {
+        "documentId": "seed:brexit-ue-27",
+        "title": "Wyjście Zjednoczonego Królestwa z UE",
+        "publisher": "Ministerstwo Infrastruktury",
+        "url": "https://www.gov.pl/web/infrastruktura/wyjscie-zjednoczonego-krolestwa-z-ue",
+        "publishedAt": "2020-01-30T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Procedury ratyfikacyjne Umowy o wystąpieniu toczą się bez przeszkód zarówno w UE, jak i w Wielkiej Brytanii. Wielka Brytania opuści UE z końcem 31 stycznia 2020 r.\n1 lutego 2020 roku będzie:\ndatą wejścia w życie Umowy o wystąpieniu Wielkiej Brytanii z UE,\npierwszym dniem, w którym UE będzie liczyć już 27 a nie 28 państw członkowskich,\npierwszym dniem rozpoczęcia okresu przejściowego określonego w Umowie o wystąpieniu Wielkiej Brytanii z UE, który będzie trwać do końca 2020 roku oraz"
+    },
+    {
+      "source": {
+        "documentId": "seed:wiek-emerytalny-ustawa-2016",
+        "title": "Sejm przywrócił wiek emerytalny",
+        "publisher": "Ministerstwo Rodziny, Pracy i Polityki Społecznej",
+        "url": "https://www.gov.pl/web/rodzina/sejm-przywrocil-wiek-emerytalny",
+        "publishedAt": "2016-11-16T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Sejm RP przyjął dziś ustawę, przywracającą wiek emerytalny, której projekt zgłosił Prezydent RP. Od 1 października 2017 r. na emeryturę będą mogły przechodzić kobiety w wieku 60 lat i mężczyźni, którzy osiągnęli 65 lat."
+    },
+    {
+      "source": {
+        "documentId": "seed:wiek-emerytalny-przywrocony-2017",
+        "title": "Twoja emerytura – zmiany od 1 października",
+        "publisher": "Ministerstwo Rodziny, Pracy i Polityki Społecznej",
+        "url": "https://www.gov.pl/web/rodzina/twoja-emerytura-zmiany-od-1-pazdziernika",
+        "publishedAt": "2017-10-02T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Od 1 października przywrócony został wiek emerytalny 60 lat dla kobiet i 65 lat dla mężczyzn. To minimalny wiek, w którym można otrzymać świadczenie, ale nie jest to przymus. Dłuższa praca oznacza wyższe świadczenie."
+    },
+    {
+      "source": {
+        "documentId": "seed:wiek-emerytalny-reforma-2012",
+        "title": "Obniżenie wieku emerytalnego",
+        "publisher": "Narodowy Instytut Samorządu Terytorialnego",
+        "url": "https://archiwum.nist.gov.pl/wydarzenia/obnizenie-wieku-emerytalnego,781.html",
+        "publishedAt": "2017-10-02T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "archiwum.nist.gov.pl"
+      },
+      "text": "1 października 2017 r. weszły w życie przepisy przywracające wiek emerytalny do poziomu 60 lat dla kobiet i 65 lat dla mężczyzn. Jest to powrót do stanu sprzed reformy z 2012 r., która wprowadziła stopniowe podwyższanie wieku emerytalnego do 67 lat bez względu na płeć."
+    },
+    {
+      "source": {
+        "documentId": "seed:schengen-polska-2007",
+        "title": "Europa bez granic. Tak strefa Schengen zmieniła życie Polaków",
+        "publisher": "Ministerstwo Funduszy i Polityki Regionalnej",
+        "url": "https://funduszeeuropejskie.gov.pl/funduszowy-maj/aktualnosci-akcji-funduszowy-maj/europa-bez-granic/",
+        "publishedAt": "2026-04-27T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "funduszeeuropejskie.gov.pl"
+      },
+      "text": "Wejście Polski do strefy Schengen 21 grudnia 2007 r. było wielką zmianą w życiu milionów osób i historii kraju. Na mocy podpisanej umowy zniknęły bariery oddzielające naszą ojczyznę od innych państw Unii Europejskiej, umożliwiając nam wszystkim swobodne przemieszczanie się po kontynencie oraz ułatwiając handel z pozostałą częścią zjednoczonej Europy"
+    },
+    {
+      "source": {
+        "documentId": "seed:schengen-bulgaria-rumunia-2025",
+        "title": "Bułgaria i Rumunia dołączają do strefy Schengen",
+        "publisher": "Europe Direct Zielona Góra (Lubuski Urząd Wojewódzki)",
+        "url": "https://europedirect-zielonagora.lubuskie.uw.gov.pl/wiadomosci/103547/bulgaria-i-rumunia-dolaczaja-do-strefy-schengen",
+        "publishedAt": "2025-01-03T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "europedirect-zielonagora.lubuskie.uw.gov.pl"
+      },
+      "text": "1 stycznia Rumunia i Bułgaria stały się pełnoprawnymi członkami strefy Schengen po zniesieniu kontroli osób na wewnętrznych granicach lądowych.\nKontrole na wewnętrznych granicach lotniczych i morskich między Bułgarią i Rumunią a państwami strefy Schengen zostały zniesione już 31 marca 2024 r. Przyjęcie obu państw członkowskich do strefy Schengen ożywi podróże, handel i turystykę oraz przyczyni się do wzmocnienia rynku wewnętrznego."
+    },
+    {
+      "source": {
+        "documentId": "seed:euro-bulgaria-2026",
+        "title": "Euro oficjalną walutą Bułgarii",
+        "publisher": "Europe Direct Zielona Góra (Lubuski Urząd Wojewódzki)",
+        "url": "https://europedirect-zielonagora.lubuskie.uw.gov.pl/wiadomosci/128913/euro-oficjalna-waluta-bulgarii",
+        "publishedAt": "2026-01-02T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "europedirect-zielonagora.lubuskie.uw.gov.pl"
+      },
+      "text": "Od 1 stycznia 2026 r. Bułgaria oficjalnie zastępuje lewa wspólną walutą strefy euro i staje się 21. członkiem strefy euro. To ważny krok w integracji kraju z rynkiem wewnętrznym Unii Europejskiej i kolejny etap jego europejskiej ścieżki gospodarczej i politycznej."
+    },
+    {
+      "source": {
+        "documentId": "seed:nato-szwecja-32-sojusznik",
+        "title": "Spotkanie Ministrów Spraw Zagranicznych NATO",
+        "publisher": "Stałe Przedstawicielstwo RP przy NATO",
+        "url": "https://www.gov.pl/web/nato/spotkanie-ministrow-spraw-zagranicznych-nato",
+        "publishedAt": "2024-04-03T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "W dniach 3-4 kwietnia 2024 r. Ministrowie wzięli udział w trzech sesjach: w gronie sojuszniczym, w formacie Rady NATO-Ukraina oraz w sesji z udziałem partnerów Indo-Pacyfiku i przedstawiciela Unii Europejskiej. Po raz pierwszy w rozmowach na szczeblu ministrów spraw zagranicznych NATO Szwecja zasiadła za stołem jako 32. sojusznik."
+    },
+    {
+      "source": {
+        "documentId": "seed:nato-szwecja-msz",
+        "title": "Statement of the Ministry of Foreign Affairs",
+        "publisher": "Ministerstwo Spraw Zagranicznych",
+        "url": "https://www.gov.pl/web/diplomacy/statement-of-the-ministry-of-foreign-affairs",
+        "publishedAt": "2024-03-07T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Poland welcomes Sweden as the member state of the North Atlantic Alliance. It is a major event that strengthens the unity of the Euro-Atlantic community."
+    },
+    {
+      "source": {
+        "documentId": "seed:rodzina-800-plus",
+        "title": "Rządowe wsparcie dla polskich rodzin – 800+",
+        "publisher": "Kancelaria Prezesa Rady Ministrów",
+        "url": "https://www.gov.pl/web/premier/ustawa-800plus-podpisana",
+        "publishedAt": "2023-08-07T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "www.gov.pl"
+      },
+      "text": "Od 8 lat troszczymy się o polskie rodziny. Chcemy, aby Polkom i Polakom żyło się lepiej. Wprowadziliśmy szereg programów, które to umożliwiają. Rodzice mogą skorzystać z takich programów jak: 500+, Dobry Start, Maluch+, Rodzinny Kapitał Opiekuńczy czy Mama +. To ogromna szansa dla wielu polskich domów, to także ogromne możliwości dla dzieci. Dzięki naszym staraniom, od nowego roku, wysokość świadczenia Rodzina 500+ zostanie zwiększona do 800 zł. Rodzice w ramach wsparcia finansowego mogą zapisać dziecko na dodatkowe zajęcia z języka obcego czy sportowe."
+    },
+    {
+      "source": {
+        "documentId": "seed:placa-minimalna-2026",
+        "title": "Wynagrodzenie minimalne w 2026 r.",
+        "publisher": "Zielona Linia (Centrum Informacyjno-Konsultacyjne Służb Zatrudnienia)",
+        "url": "https://zielonalinia.gov.pl/wynagrodzenie-minimalne-w-2026-1/",
+        "publishedAt": "2025-12-29T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "zielonalinia.gov.pl"
+      },
+      "text": "W 2025 r. rozporządzenie Rady Ministrów w sprawie wysokości minimalnego wynagrodzenia za pracę oraz wysokości minimalnej stawki godzinowej w 2026 r. pojawiło się 11 września. Zgodnie z nim:\nOd dnia 1 stycznia 2026 r. ustala się minimalne wynagrodzenie za pracę w wysokości\n4806 zł.\nOd dnia 1 stycznia 2026 r. ustala się minimalną stawkę godzinową w wysokości\n31,40 zł.\nPrzepisy wchodzą w życie 1 stycznia 2026 r."
+    },
+    {
+      "source": {
+        "documentId": "seed:kadencja-samorzadu-5-lat",
+        "title": "Wskaźnik 5.5.1 - Odsetek kobiet zasiadających w parlamentach krajowych i samorządach lokalnych",
+        "publisher": "Główny Urząd Statystyczny (sdg.gov.pl)",
+        "url": "https://sdg.gov.pl/statistics_glob/5-5-1/",
+        "publishedAt": "2026-11-19T00:00:00Z",
+        "fetchedAt": "2026-11-22T00:00:00Z",
+        "license": "Materiał urzędowy gov.pl",
+        "sourceType": "official",
+        "tier": 1,
+        "reliability": "high",
+        "topicTag": "sdg.gov.pl"
+      },
+      "text": "Do organów uchwałodawczych\n(tj. stanowiących) jednostek samorządu terytorialnego zalicza się radę gminy, radę powiatu i sejmik wojewódzki. Rada gminy jest organem stanowiącym i kontrolnym w gminie. Od 2018 r. członkowie tych organów (radni) wybierani są na pięcioletnią kadencję (w latach 1990-2018 kadencja trwała 4 lata). Na podstawie Ustawy z dnia 29 września 2022 r. o przedłużeniu kadencji organów jednostek samorządu terytorialnego (Dz.U. 2022 poz. 2418) kadencja organów upływająca w 2023 r. została jednorazowo wydłużona do 30 kwietnia 2024 r."
     }
   ]
 }
