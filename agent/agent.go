@@ -584,6 +584,12 @@ func (a *Agent) secondRound(ctx context.Context, r *claimRun, claim *Claim, clai
 	if query == "" {
 		return evaluation{}, false
 	}
+	needed := min(secondRoundMinRemaining, a.config.RagTimeout+a.config.LLMTimeout)
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < needed {
+		// Too little time for one more search and judgment: the abstention now beats a timeout later.
+		a.logger.Info("no time left for a second search", "requestId", r.request.RequestID, "claimId", claim.ID)
+		return evaluation{}, false
+	}
 	more, err := a.rag.Search(ctx, query, a.config.SearchTopK)
 	if err != nil {
 		a.logger.Warn("second search failed, keeping the first answer", "requestId", r.request.RequestID, "claimId", claim.ID, "error", err.Error())
@@ -606,6 +612,10 @@ func (a *Agent) secondRound(ctx context.Context, r *claimRun, claim *Claim, clai
 		"added", added, "settled", settled, "contradicting", contradicting)
 	return second, settled || contradicting
 }
+
+// secondRoundMinRemaining covers one rag search (rag answers within its 14 s search budget) and one judgment; with
+// shorter configured timeouts their sum is enough.
+const secondRoundMinRemaining = 20 * time.Second
 
 func secondRoundQuery(claimText string, queries *ExpandedQueries) string {
 	if queries == nil {
