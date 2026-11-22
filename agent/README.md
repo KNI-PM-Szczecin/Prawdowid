@@ -42,3 +42,10 @@ go vet ./... && go test ./...
 Testy używają atrapy modelu i serwera `rag/` z `httptest`: potwierdzenie ze źródłem urzędowym, zmyślony cytat odrzucony, jedno źródło wtórne za mało na `false`, niezgodna ocena weryfikatora daje wstrzymanie się, brak wyników bez werdyktu merytorycznego, `missing` z rodzajem rozstrzygającego źródła, awaria weryfikatorów bez wyników jako `technical_error`, opinia bez źródeł i opinia z ekstrakcji jako `not_verifiable`, `span` w code points (także dla URL), cytat z inną liczbą bez potwierdzenia, dwa fragmenty jednego dokumentu jako jedno źródło, liczebnik z kropką bez ekstrakcji, polecenia w zgłoszeniu (E01–E06), awarie jako `technical_error`, niepoprawny JSON z ponowieniem i wstrzymaniem, injection i alert kampanii jako kontekst, ekstrakcja z długiego tekstu, wejście URL, fragmenty kontekstowe przy wstrzymaniu bez cytatów (`fallback_test.go`), `misleading` bez cytatu rozstrzygającego, twierdzenie o samym sprawdzeniu przez weryfikatora.
 
 `go test -tags live -run TestLiveRag` sprawdza klienta i reguły na żywym `rag/` z atrapą modelu. Jakość na prawdziwym modelu mierzy `eval/` (scenariusze A–J i benchmark dezinformacji).
+
+## Dane encyklopedyczne (Wikidata), brak publikacji i język
+- Fragment `sourceType: "reference"` (dane o osobie z Wikidaty, dostarcza `rag/`) liczy się jako mocna podstawa, jak źródło urzędowe, z przesłanką „dane encyklopedyczne o osobie (Wikidata)” (`rules.go`). Data śmierci wcześniejsza niż przypisane zdarzenie obala twierdzenie (zasada 4 promptu `judge`).
+- Model zwraca pole `szeroko_opisane`: czy twierdzenie dotyczy zdarzenia o znaczeniu ogólnokrajowym, które powinno już być opisane. Gdy nic go nie potwierdza, werdykt zostaje `insufficient_evidence`, ale odpowiedź dostaje ostrzeżenie o braku publikacji (`CONTRACT.md` §4).
+- Zgłoszenie w innym języku niż polski (`looksPolish` w `rules.go`) przechodzi przez ekstrakcję, która zapisuje twierdzenie po polsku, bo korpus, gov.pl i Google Fact Check są polskie.
+- `insufficient_evidence` jest pokazywane jako „Niepewne” (front, adapter demonstracyjny i bot Discord).
+
