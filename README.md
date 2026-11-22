@@ -82,6 +82,9 @@ curl -X POST http://localhost:8080/api/check/image -F "image=@zrzut.png"
 ```
 Tekst odczytuje lokalnie Tesseract w kontenerze `rag` (PNG, JPEG, WEBP do 5 MB; obraz nie jest zapisywany), potem jest sprawdzany jak tekst wpisany ręcznie. Odpowiedź mówi wprost, że tekst pochodzi z OCR, a data widoczna na obrazie nie potwierdza daty publikacji. Nie ma wyszukiwania odwrotnego obrazu ani oceny autentyczności zdjęcia.
 
+## Ograniczenia
+Gdy w korpusie jest mało zweryfikowanych źródeł albo wydarzenie jest zbyt świeże, by miało rzetelne publikacje, system może nie rozstrzygnąć twierdzenia. Wtedy odpowiada „brak wystarczających dowodów”, wyjaśnia, czego nie udało się ustalić, i podaje to, co jest znane.
+
 ## Zespół
 KNIPM (Koło Naukowe Informatyków Politechniki Morskiej w Szczecinie).
 
