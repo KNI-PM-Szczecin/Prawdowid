@@ -1,0 +1,9 @@
+{
+  "note": "Tematy zapytań do Google Fact Check Tools API (claims:search, languageCode=pl) przy budowie zbioru benchmarku. Każdy temat daje do 200 twierdzeń sprawdzonych przez polskich weryfikatorów; dobór tematów ma pokryć obszary, w których dezinformacja w Polsce jest najczęstsza. Lista nie ma związku z korpusem rag/ ani z eval/cases.json.",
+  "topics": [
+    "szczepionki", "migranci", "Ukraina", "Rosja", "Unia Europejska", "NATO", "wybory", "podatki", "800 plus",
+    "emerytury", "inflacja", "klimat", "5G", "COVID", "Niemcy", "Izrael", "energia", "ceny paliw", "służba zdrowia",
+    "edukacja", "sądy", "Kościół", "aborcja", "LGBT", "policja", "wojsko", "granica", "Białoruś", "USA", "Chiny",
+    "media", "cenzura", "cyfryzacja", "rolnictwo", "mieszkania", "transport", "samorząd", "Sejm", "prezydent", "rząd"
+  ]
+}
