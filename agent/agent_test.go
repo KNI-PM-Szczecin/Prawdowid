@@ -824,6 +824,30 @@ func TestInstructionNeverReachesTheSearchQuery(t *testing.T) {
 	}
 }
 
+const referenceChunk = "55555555-5555-5555-5555-555555555555"
+
+// A Wikidata fact about a person (died before the claimed event) is decisive on its own, like an official record.
+func TestReferenceFactAboutAPersonRefutesOnStrongEvidence(t *testing.T) {
+	modified := "2026-11-01T10:00:00Z"
+	person := Passage{
+		DocumentID: "wikidata:Q100", Title: "Wikidata: Zofia I", Publisher: "Wikidata (Wikimedia Foundation)",
+		PublishedAt: &modified, FetchedAt: "2026-11-21T00:00:00Z", URL: "https://www.wikidata.org/wiki/Q100",
+		SourceType: SourceTypeReference, ChunkID: referenceChunk, Score: 0.3, Flags: []string{}, Tier: 1, Reliability: "high",
+		Passage: "Zofia I (królowa Borowii w latach 1950-2021). Data urodzenia: 21 kwietnia 1930 r. Data śmierci: 5 marca 2021 r.",
+	}
+	judge := judgeWith("falszywe", citation(referenceChunk, "Data śmierci: 5 marca 2021 r.", "obala"))
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith(person)}),
+		"Królowa Zofia odwiedziła ratusz w Borowie w ostatni piątek.", InputTypeText)
+
+	claim := result.Claims[0]
+	if claim.Verdict != VerdictFalse || claim.EvidenceStrength != StrengthStrong {
+		t.Fatalf("expected false on strong evidence, got %+v", claim)
+	}
+	if !slices.Contains(claim.StrengthReasons, reasonReference) {
+		t.Fatalf("the reason must name the encyclopedic data, got %v", claim.StrengthReasons)
+	}
+}
+
 // A claim in English is translated by extraction before it reaches rag, whose corpus and searches are Polish.
 func TestClaimInEnglishReachesTheSearchInPolish(t *testing.T) {
 	rag := &ragStub{search: searchWith(officialPassage())}

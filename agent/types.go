@@ -27,6 +27,8 @@ const (
 	SourceTypeOfficial  = "official"
 	SourceTypeSecondary = "secondary"
 	SourceTypeFactcheck = "factcheck"
+	// SourceTypeReference is structured encyclopedic data (Wikidata): life dates and the short description of people.
+	SourceTypeReference = "reference"
 
 	WarningSourceStatus     = "source_status"
 	WarningIncidentMatch    = "incident_match"

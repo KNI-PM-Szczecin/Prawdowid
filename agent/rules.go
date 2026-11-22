@@ -220,6 +220,7 @@ type evidence struct {
 	supports  int
 	refutes   int
 	official  bool
+	reference bool   // a decisive Wikidata fact about a person among the sources
 	factcheck string // publisher of a fact-check among the sources, if any
 }
 
@@ -244,6 +245,8 @@ func assessEvidence(sources []SourceRef, now time.Time) evidence {
 			switch source.SourceType {
 			case SourceTypeOfficial:
 				result.official = true
+			case SourceTypeReference:
+				result.reference = true
 			case SourceTypeFactcheck:
 				result.factcheck = source.Publisher
 			case SourceTypeSecondary:
@@ -259,6 +262,9 @@ func assessEvidence(sources []SourceRef, now time.Time) evidence {
 	switch {
 	case result.official:
 		result.strength, result.reasons = StrengthStrong, []string{reasonOfficial}
+	case result.reference:
+		// Life dates of public figures in Wikidata are curated structured data: decisive like an official record.
+		result.strength, result.reasons = StrengthStrong, []string{reasonReference}
 	case result.factcheck != "":
 		result.strength, result.reasons = StrengthStrong, []string{fmt.Sprintf(reasonFactcheck, result.factcheck)}
 	case len(secondaryPublishers) >= minIndependentSecnd:
