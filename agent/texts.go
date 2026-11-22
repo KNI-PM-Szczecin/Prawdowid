@@ -9,8 +9,9 @@ const (
 	msgPageUnreadable = "Nie udało się odczytać treści tej strony. Wklej jej tekst albo wybierz inny adres."
 	msgEmptyInput     = "Wpisz informację do sprawdzenia albo wklej adres strony."
 
-	missingNoSources    = "Nie znaleziono publikacji na ten temat w dostępnych źródłach."
-	missingWeakEvidence = "Źródła nie wystarczają, by potwierdzić lub obalić to twierdzenie: " +
+	missingNoSources      = "Nie znaleziono publikacji na ten temat w dostępnych źródłach."
+	noteNoResultIsNoProof = "Brak wyniku w naszych źródłach nie oznacza, że to prawda ani że to nieprawda."
+	missingWeakEvidence   = "Źródła nie wystarczają, by potwierdzić lub obalić to twierdzenie: " +
 		"potrzebne jest źródło urzędowe, ocena weryfikatora faktów albo dwa niezależne źródła wtórne."
 	missingNoValidQuote      = "Model nie wskazał dosłownego cytatu ze źródła, który odnosiłby się do tego twierdzenia."
 	missingDiscrepancy       = "Źródła podają rozbieżne dane i nie da się ustalić, które są właściwe."

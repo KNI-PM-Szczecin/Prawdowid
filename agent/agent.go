@@ -385,8 +385,28 @@ func (a *Agent) checkClaimWithoutSources(ctx context.Context, r *claimRun, claim
 	}
 	claim.Verdict = VerdictInsufficientEvidence
 	claim.Justification = missingNoSources
-	claim.Missing = stringPtr(missingNoSources)
+	claim.Missing = stringPtr(noSourcesMissing(answer.Missing))
 	return claim, nil
+}
+
+// maxMissingRunes caps the model's one-sentence note on what would settle a claim.
+const maxMissingRunes = 300
+
+func truncateRunes(text string, limit int) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return strings.TrimSpace(string(runes[:limit-1])) + "…"
+}
+
+// noSourcesMissing tells the citizen what would settle the claim. The model only names the kind of source (prompt
+// rule on "brakuje"), never a finding, and the fixed note says that an empty search proves nothing either way.
+func noSourcesMissing(modelMissing *string) string {
+	if modelMissing == nil || strings.TrimSpace(*modelMissing) == "" {
+		return missingNoSources + " " + noteNoResultIsNoProof
+	}
+	return truncateRunes(strings.TrimSpace(*modelMissing), maxMissingRunes) + " " + noteNoResultIsNoProof
 }
 
 func (a *Agent) noteSearch(r *claimRun, search SearchResponse) {

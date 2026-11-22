@@ -278,7 +278,7 @@ func TestNoResultsNeverGiveAFactualVerdict(t *testing.T) {
 	result := verify(t, newTestAgent(t, provider, &ragStub{search: searchWith()}), "Wczoraj w Pcimiu otwarto elektrownię termojądrową.", InputTypeText)
 
 	claim := result.Claims[0]
-	if claim.Verdict != VerdictInsufficientEvidence || claim.Missing == nil || *claim.Missing != missingNoSources {
+	if claim.Verdict != VerdictInsufficientEvidence || claim.Missing == nil || *claim.Missing != missingNoSources+" "+noteNoResultIsNoProof {
 		t.Fatalf("unexpected claim: %+v", claim)
 	}
 	if claim.Justification != missingNoSources || len(claim.Sources) != 0 || !result.Meta.Abstained {
@@ -623,5 +623,31 @@ func TestFragmentsOfDifferentDocumentsStaySeparate(t *testing.T) {
 		&ragStub{search: searchWith(first, second)}), claimSejm, InputTypeText)
 	if sources := result.Claims[0].Sources; len(sources) != 2 {
 		t.Fatalf("expected two sources, got %+v", sources)
+	}
+}
+
+// Without sources the citizen learns what would settle the claim, plus a note that an empty search proves nothing.
+func TestNoResultsShowWhatWouldSettleTheClaim(t *testing.T) {
+	provider := &fakeProvider{judge: `{"werdykt":"brak_dowodow","uzasadnienie":"Brak źródeł.","cytaty":[],` +
+		`"brakuje":"Potrzebny byłby komunikat urzędu miasta Limanowa.","podejrzane":false}`}
+	result := verify(t, newTestAgent(t, provider, &ragStub{search: searchWith()}),
+		"Od przyszłego miesiąca w Limanowej parkowanie tylko przez aplikację.", InputTypeText)
+	claim := result.Claims[0]
+	want := "Potrzebny byłby komunikat urzędu miasta Limanowa. " + noteNoResultIsNoProof
+	if claim.Verdict != VerdictInsufficientEvidence || claim.Missing == nil || *claim.Missing != want || claim.Justification != missingNoSources {
+		t.Fatalf("unexpected claim: %+v missing=%v", claim, claim.Missing)
+	}
+}
+
+func TestNoResultsMissingIsTrimmedAndFallsBackWhenEmpty(t *testing.T) {
+	long := strings.Repeat("ą", maxMissingRunes+50)
+	if got := noSourcesMissing(&long); len([]rune(got)) != maxMissingRunes+1+len([]rune(noteNoResultIsNoProof)) {
+		t.Fatalf("expected trimmed note, got %d runes", len([]rune(got)))
+	}
+	blank := "   "
+	for _, missing := range []*string{nil, &blank} {
+		if got := noSourcesMissing(missing); got != missingNoSources+" "+noteNoResultIsNoProof {
+			t.Fatalf("expected fallback, got %q", got)
+		}
 	}
 }
