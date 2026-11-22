@@ -222,7 +222,7 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
     response = await search_passages(
         request, app.state.models, app.state.store, app.state.factcheck, app.state.incidents
     )
-    if gov_search_wanted(request, len(response.results)):
+    if gov_search_wanted(request, response.results):
         gap_fill = await app.state.gov_search.fill(request.query, app.state.models, app.state.store)
         if gap_fill.indexed:
             response = await search_passages(

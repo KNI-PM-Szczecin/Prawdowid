@@ -15,7 +15,7 @@ from app.corpus_sync import Page, remove_boilerplate, to_document, web_document_
 from app.embeddings import EmbeddingModels
 from app.fetcher import FetchError, fetch_page
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
-from app.models import ExternalSourceStatus, SearchRequest
+from app.models import ExternalSourceStatus, Passage, SearchRequest
 from app.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -75,11 +75,14 @@ def select_hits(hits: list[GovSearchHit], max_pages: int) -> list[GovSearchHit]:
     return [best, *newest][:max_pages]
 
 
-def wanted(request: SearchRequest, found: int) -> bool:
+def wanted(request: SearchRequest, found: list[Passage]) -> bool:
+    """Fill the gap when the corpus has too few passages or none of them is a clearly relevant match."""
     filters = request.filters
     if filters is not None and filters.source_types and OFFICIAL_SOURCE_TYPE not in filters.source_types:
         return False
-    return found < settings.gov_search_min_results
+    if len(found) < settings.gov_search_min_results:
+        return True
+    return max(passage.score for passage in found) < settings.gov_search_sufficient_score
 
 
 class GovSearchClient:
