@@ -10,7 +10,7 @@ from pathlib import Path
 from prawdowid_eval.cases import load_cases, select_cases
 from prawdowid_eval.metrics import citation_rows, compute_metrics
 from prawdowid_eval.report import render_report
-from prawdowid_eval.runner import RunRecord, run_cases
+from prawdowid_eval.runner import RunRecord, run_cases, wait_until_ready
 
 EVAL_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CASES = EVAL_DIR / "cases.json"
@@ -87,6 +87,9 @@ def command_run(args: argparse.Namespace) -> int:
         print("Brak przypadków do uruchomienia w tym trybie.", file=sys.stderr)
         return 1
 
+    if not wait_until_ready(args.url):
+        print(f"System pod {args.url} nie jest gotowy (rag nie odpowiada). Raportu nie zapisano.", file=sys.stderr)
+        return EXIT_SYSTEM_UNREACHABLE
     started_at = datetime.now(UTC)
     records = run_cases(args.url, selected, args.repeats)
     if all(record.body is None for record in records):

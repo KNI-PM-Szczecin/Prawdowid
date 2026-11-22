@@ -3,7 +3,7 @@ import json
 import httpx
 
 from prawdowid_eval.cases import Case
-from prawdowid_eval.runner import RATE_LIMIT_RETRIES, run_case, run_cases
+from prawdowid_eval.runner import RATE_LIMIT_RETRIES, READINESS_PATH, run_case, run_cases, wait_until_ready
 
 BASE_URL = "http://backend.test"
 REPEATS = 2
@@ -64,6 +64,27 @@ def test_rate_limit_retries_are_bounded():
 
     assert len(waits) == RATE_LIMIT_RETRIES
     assert record.http_status == 429
+
+
+def test_run_waits_until_rag_answers():
+    answers = [httpx.Response(503), httpx.Response(200, json={"sources": []})]
+    paths: list[str] = []
+    waits: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        return answers.pop(0)
+
+    assert wait_until_ready(BASE_URL, transport=httpx.MockTransport(handler), sleep=waits.append)
+    assert paths == [READINESS_PATH, READINESS_PATH]
+    assert len(waits) == 1
+
+
+def test_run_gives_up_when_rag_never_answers():
+    waits: list[float] = []
+    transport = httpx.MockTransport(lambda request: httpx.Response(502))
+    assert not wait_until_ready(BASE_URL, transport=transport, sleep=waits.append, attempts=3)
+    assert len(waits) == 2
 
 
 def test_non_json_response_is_recorded_as_error():
