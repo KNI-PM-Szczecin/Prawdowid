@@ -99,7 +99,7 @@ Cały slajd to **zrzut ekranu wyniku** z opisanymi elementami (odnośnikami w fo
 
 ## 7. Bezpieczeństwo, prywatność i ryzyka
 Ten slajd pokrywa wymóg briefu dotyczący ryzyk, pokazując je razem z zabezpieczeniami.
-- **Tytuł:** Sześć ryzyk, sześć zabezpieczeń
+- **Tytuł:** Siedem ryzyk, siedem zabezpieczeń
 - **Tabela:**
   - Halucynacje → cytat musi stać w źródle, awaria nie jest werdyktem
   - Stronniczość źródeł → katalog zaufanych źródeł, lista do audytu, zakaz werdyktu z samej domeny
@@ -107,6 +107,7 @@ Ten slajd pokrywa wymóg briefu dotyczący ryzyk, pokazując je razem z zabezpie
   - Polecenia ukryte w treści → treść źródeł to dane, wykrywanie i zapis prób
   - Dostępność → panel ustawień, prosty język, status zamiast zgadywania przy awarii
   - Nadużycia → limit zapytań z jednego adresu, tokeny w zmiennych środowiska
+  - Mało danych lub świeże wydarzenie → system się wstrzymuje, mówi, czego nie ustalił, i podaje to, co jest znane
 - Pod tabelą jedna linia: log czasu, modelu, błędów, wstrzymań i kosztu. **Miejsce przetwarzania danych:** [DO UZUPEŁNIENIA: dostawca modelu, Google, baza].
 
 ## 8. Interfejs i dostępność
