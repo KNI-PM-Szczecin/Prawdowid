@@ -47,6 +47,10 @@ type Config struct {
 	ModeratorWebhookURL string
 	// ModeratorToken opens GET /api/admin/cases; empty keeps the list closed.
 	ModeratorToken string
+	// DiscordBotToken connects the second channel (slash command /factcheck); empty keeps the bot off.
+	DiscordBotToken string
+	// DiscordGuildID registers the command on one guild instantly; empty registers it globally (slower to propagate).
+	DiscordGuildID string
 }
 
 func loadConfig() (Config, error) {
@@ -95,18 +99,19 @@ func loadConfig() (Config, error) {
 	}
 
 	return Config{
-		Port:               stringFromEnv("PORT", defaultPort),
-		DatabaseURL:        databaseURL,
-		DatabaseMaxConns:   int32(maxConns),
-		RateLimitPerMinute: rateLimit,
-		RetentionDays:      retentionDays,
-		ArchivalDays:       archivalDays,
-		RagURL:             stringFromEnv("RAG_URL", defaultRagURL),
-		TrustedProxyHops:   trustedProxyHops,
-
+		Port:                     stringFromEnv("PORT", defaultPort),
+		DatabaseURL:              databaseURL,
+		DatabaseMaxConns:         int32(maxConns),
+		RateLimitPerMinute:       rateLimit,
+		RetentionDays:            retentionDays,
+		ArchivalDays:             archivalDays,
+		RagURL:                   stringFromEnv("RAG_URL", defaultRagURL),
+		TrustedProxyHops:         trustedProxyHops,
 		ModeratorRepeatThreshold: moderatorRepeats,
 		ModeratorWebhookURL:      webhookURL,
 		ModeratorToken:           os.Getenv("MODERATOR_TOKEN"),
+		DiscordBotToken:          os.Getenv("DISCORD_BOT_TOKEN"),
+		DiscordGuildID:           os.Getenv("DISCORD_GUILD_ID"),
 	}, nil
 }
 

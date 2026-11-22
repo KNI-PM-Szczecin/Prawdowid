@@ -77,14 +77,20 @@ func (demoAdapter) ToRequest(incoming []byte) (agent.VerifyRequest, error) {
 }
 
 func (demoAdapter) ToReply(result agent.CheckResult) ([]byte, error) {
+	return []byte(formatCheckReply(result)), nil
+}
+
+// formatCheckReply renders a CheckResult as plain text shared by every text channel
+// (the demo adapter and the Discord bot), so all channels use the same Polish labels.
+func formatCheckReply(result agent.CheckResult) string {
 	if result.Status != agent.StatusOK {
 		if result.Message != nil && strings.TrimSpace(*result.Message) != "" {
-			return []byte(*result.Message), nil
+			return *result.Message
 		}
-		return []byte(demoFallbackMessage), nil
+		return demoFallbackMessage
 	}
 	if len(result.Claims) == 0 {
-		return []byte("Nie znalazłem twierdzeń do sprawdzenia."), nil
+		return "Nie znalazłem twierdzeń do sprawdzenia."
 	}
 
 	var builder strings.Builder
@@ -148,7 +154,7 @@ func (demoAdapter) ToReply(result agent.CheckResult) ([]byte, error) {
 			builder.WriteString(singleLine(limitation))
 		}
 	}
-	return []byte(builder.String()), nil
+	return builder.String()
 }
 
 // singleLine turns line breaks into spaces so model or source text cannot start a fake line such as a source list.

@@ -92,6 +92,7 @@ services:
       MODERATOR_WEBHOOK_URL: ${MODERATOR_WEBHOOK_URL:-}
       MODERATOR_TOKEN: ${MODERATOR_TOKEN:-}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
     depends_on:
       postgres:
         condition: service_healthy

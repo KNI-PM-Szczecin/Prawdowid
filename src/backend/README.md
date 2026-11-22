@@ -25,4 +25,12 @@ Bez `DATABASE_URL` albo bez połączenia z bazą backend kończy działanie z ja
 - `GET /api/admin/cases`: lista spraw dla analityka (pętla informacji), wymaga `MODERATOR_TOKEN`.
 - Kody HTTP: `200` dla `ok`, `needs_clarification`, `out_of_scope`; `503` dla `technical_error`; `429` przy przekroczeniu limitu (ciało też ma kształt `CheckResult`).
 
+## Bot Discord (drugi kanał)
+Komenda slash `/factcheck` przyjmuje to samo co strona — tekst albo adres URL — i woła tę samą ścieżkę `runCheck`, więc wynik (werdykt i źródła) jest taki sam jak na WWW (scenariusz G). Odpowiedź jest krótka: werdykt ze stopniem pewności, uzasadnienie i do 4 linków; kliknięcie dodanej przez bota reakcji rozwija pełne uzasadnienie i wszystkie źródła (dalej w limicie 2000 znaków).
+
+- `DISCORD_BOT_TOKEN` (pusty = bot wyłączony): token z Discord Developer Portal, nigdy w repo.
+- `DISCORD_GUILD_ID` (opcjonalny): identyfikator serwera testowego. Podany = komenda rejestruje się od razu na tym serwerze; pusty = rejestracja globalna (może zająć do godziny).
+- Wymagane uprawnienia bota: `applications.commands` (do slash commands) i `Add Reactions` (reakcja rozwija/zwija pełną odpowiedź). Odczyt treści wiadomości (Message Content Intent) nie jest potrzebny przy slash commands.
+- Bot łączy się z Gateway Discorda (biblioteka `discordgo`) w procesie backendu i startuje razem z nim.
+
 Testy: `go vet ./... && go test ./...`.
