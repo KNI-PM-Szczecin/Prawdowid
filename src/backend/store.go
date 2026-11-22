@@ -65,6 +65,9 @@ func newRunStore(ctx context.Context, pool *pgxpool.Pool) (*runStore, error) {
 	if _, err := connection.Exec(migrateCtx, createCheckRunsSQL); err != nil {
 		return nil, fmt.Errorf("create check_runs: %w", err)
 	}
+	if _, err := connection.Exec(migrateCtx, createCasesSQL); err != nil {
+		return nil, fmt.Errorf("create moderation_cases: %w", err)
+	}
 	return &runStore{pool: pool}, nil
 }
 

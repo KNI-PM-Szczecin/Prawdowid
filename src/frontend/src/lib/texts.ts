@@ -1,4 +1,4 @@
-import type { Badge, EvidenceStrength, SourceRole, SourceType, SummaryLevel, Verdict, WarningType } from "./types";
+import type { Badge, CaseStatus, EvidenceStrength, SourceRole, SourceType, SummaryLevel, Verdict, WarningType } from "./types";
 
 export const texts = {
   appName: "Prawdowid",
@@ -148,6 +148,18 @@ export const texts = {
     input_source_outside_catalog: "Adres spoza katalogu źródeł",
   } satisfies Record<Badge, string>,
   badgesLabel: "Cechy źródeł",
+  cases: {
+    title: "Zapisaliśmy to pytanie",
+    reports: (count: number) =>
+      count === 1 ? "Na razie pytasz o to jako pierwsza osoba." : `O to samo pytano już ${count} razy.`,
+    status: {
+      logged: "Jeśli więcej osób zapyta o to samo bez odpowiedzi w źródłach, sprawa trafi do rekomendacji dla analityka.",
+      recommended:
+        "Sprawa kwalifikuje się do przekazania analitykowi. Nie została jeszcze przekazana: czeka na osobę, która obsługuje zgłoszenia.",
+      forwarded: "Sprawa została przekazana analitykowi do sprawdzenia.",
+    } satisfies Record<CaseStatus, string>,
+    caseNumber: "Numer sprawy",
+  },
   campaign: {
     title: "Ten tekst może być częścią kampanii dezinformacyjnej",
     moreInfo: "Więcej informacji",

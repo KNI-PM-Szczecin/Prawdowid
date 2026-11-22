@@ -40,11 +40,14 @@ from app.models import (
     IngestRequest,
     IngestResult,
     PruneReport,
+    ReportMatchRequest,
+    ReportMatchResponse,
     SearchRequest,
     SearchResponse,
     SourceAuditEntry,
     SourceCatalog,
 )
+from app.reports import REPORTS_COLLECTION_NAME, match_report
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
 from app.seed import ensure_seed_corpus
 from app.vector_store import VectorStore
@@ -82,6 +85,9 @@ async def lifespan(app: FastAPI):
     incidents = VectorStore(settings.incident_collection_name)
     await incidents.ensure_collection()
     app.state.incidents = incidents
+    reports = VectorStore(REPORTS_COLLECTION_NAME)
+    await reports.ensure_collection()
+    app.state.reports = reports
     logger.info("Disinformation incident catalog: %d entries", await incidents.count())
     euvsdisinfo = EuvsDisinfoClient()
     app.state.euvsdisinfo = euvsdisinfo
@@ -129,6 +135,7 @@ async def lifespan(app: FastAPI):
         await factcheck.close()
         await euvsdisinfo.close()
         await incidents.close()
+        await reports.close()
         await store.close()
         await db.close()
 
@@ -191,6 +198,13 @@ async def health(response: Response) -> HealthResponse:
     return HealthResponse(
         status=status, corpus_version=corpus_version, database=database, qdrant=qdrant, incident_catalog=catalog
     )
+
+
+@app.post("/reports/match", response_model=ReportMatchResponse)
+async def reports_match(request: ReportMatchRequest) -> ReportMatchResponse:
+    """Groups an unresolved question with earlier similar ones for the moderator; called by the backend only."""
+    case_id, matched, score = await match_report(request.claim, app.state.models, app.state.reports)
+    return ReportMatchResponse(case_id=case_id, matched=matched, score=score)
 
 
 @app.post("/search", response_model=SearchResponse)
