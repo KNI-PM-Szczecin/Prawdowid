@@ -17,20 +17,6 @@ const (
 	badgeArchivalMaterial = "archival_material"
 	badgeOfficialPresent  = "official_source_present"
 	badgeOfficialAbsent   = "official_source_absent"
-
-	pointsConfirmed  = 100.0
-	pointsMisleading = 25.0
-	pointsFalse      = 0.0
-
-	levelHighMinScore  = 70
-	levelMixedMinScore = 40
-
-	weightStrong   = 1.0
-	weightModerate = 0.6
-	weightWeak     = 0.3
-	weightNone     = 0.1
-
-	roundingOffset = 0.5
 )
 
 const (
@@ -39,31 +25,22 @@ const (
 	dateTimeNoZoneLayout = "2006-01-02T15:04:05"
 )
 
-// Summary is the deterministic overall rating of a submission (CONTRACT.md §1a). It is never produced by a model.
+// Summary is the deterministic overall rating of a submission (CONTRACT.md §1a). It is never produced by a model
+// and carries no percentage: a rule over the decided verdicts picks the level, the reasons say why.
 type Summary struct {
 	Level   string   `json:"level"`
-	Score   *int     `json:"score"`
 	Reasons []string `json:"reasons"`
 }
 
-// buildSummary scores only claims with a substantive verdict (confirmed, false, misleading).
-// Score = round(sum(weight*points) / sum(weight)), where points come from the verdict
-// (confirmed 100, misleading 25, false 0) and weight from evidenceStrength, so weakly
-// supported claims move the score less. Abstentions are excluded: they are not "50% true".
-func buildSummary(result agent.CheckResult) Summary {
-	unknown := Summary{Level: summaryLevelUnknown, Reasons: []string{}}
+// buildSummary reads only claims with a substantive verdict (confirmed, false, misleading): high when all of them
+// are confirmed, low when all are false, mixed otherwise (one misleading claim is enough), unknown when none is
+// decided, because an abstention is not "50% true". A status other than ok has no summary at all.
+func buildSummary(result agent.CheckResult) *Summary {
 	if result.Status != agent.StatusOK {
-		return unknown
+		return nil
 	}
-
-	var weightedPoints, totalWeight float64
 	var confirmed, falseCount, misleading, withoutVerdict int
 	for _, claim := range result.Claims {
-		points, counted := verdictPoints(claim.Verdict)
-		if !counted {
-			withoutVerdict++
-			continue
-		}
 		switch claim.Verdict {
 		case agent.VerdictConfirmed:
 			confirmed++
@@ -71,16 +48,14 @@ func buildSummary(result agent.CheckResult) Summary {
 			falseCount++
 		case agent.VerdictMisleading:
 			misleading++
+		default:
+			withoutVerdict++
 		}
-		weight := strengthWeight(claim.EvidenceStrength)
-		weightedPoints += weight * points
-		totalWeight += weight
 	}
-	if totalWeight == 0 {
-		return unknown
+	decided := confirmed + falseCount + misleading
+	if decided == 0 {
+		return &Summary{Level: summaryLevelUnknown, Reasons: []string{}}
 	}
-
-	score := int(weightedPoints/totalWeight + roundingOffset)
 
 	reasons := []string{fmt.Sprintf("%d z %d twierdzeń potwierdzone", confirmed, len(result.Claims))}
 	if falseCount > 0 {
@@ -95,44 +70,17 @@ func buildSummary(result agent.CheckResult) Summary {
 	if official := countOfficialSources(result.Claims); official > 0 {
 		reasons = append(reasons, fmt.Sprintf("w tym źródeł urzędowych: %d", official))
 	}
-
-	return Summary{Level: levelForScore(score), Score: &score, Reasons: reasons}
+	return &Summary{Level: summaryLevel(confirmed, falseCount, decided), Reasons: reasons}
 }
 
-func verdictPoints(verdict string) (float64, bool) {
-	switch verdict {
-	case agent.VerdictConfirmed:
-		return pointsConfirmed, true
-	case agent.VerdictMisleading:
-		return pointsMisleading, true
-	case agent.VerdictFalse:
-		return pointsFalse, true
-	default:
-		return 0, false
-	}
-}
-
-func strengthWeight(strength string) float64 {
-	switch strength {
-	case agent.StrengthStrong:
-		return weightStrong
-	case agent.StrengthModerate:
-		return weightModerate
-	case agent.StrengthWeak:
-		return weightWeak
-	default:
-		return weightNone
-	}
-}
-
-func levelForScore(score int) string {
+func summaryLevel(confirmed, falseCount, decided int) string {
 	switch {
-	case score >= levelHighMinScore:
+	case confirmed == decided:
 		return summaryLevelHigh
-	case score >= levelMixedMinScore:
-		return summaryLevelMixed
-	default:
+	case falseCount == decided:
 		return summaryLevelLow
+	default:
+		return summaryLevelMixed
 	}
 }
 

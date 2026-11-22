@@ -23,7 +23,9 @@ const (
 
 // godotenv never overrides variables that are already set, so the real environment
 // wins over backend/.env, which wins over the shared root .env.
-var envFiles = []string{".env", "../.env"}
+// Nearest file wins: a local override next to the binary, then the shared .env in the repo root
+// (src/backend/ sits two levels below it). Variables already set in the environment are never overridden.
+var envFiles = []string{".env", "../.env", "../../.env"}
 
 type Config struct {
 	Port             string

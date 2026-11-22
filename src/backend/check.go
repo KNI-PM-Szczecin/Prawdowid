@@ -132,7 +132,7 @@ func (h *checkHandlers) addCatalogBadge(ctx context.Context, badges []string, ra
 // checkResponse is the web answer: the agent result plus the deterministic fields from CONTRACT.md section 1a.
 type checkResponse struct {
 	agent.CheckResult
-	Summary Summary      `json:"summary"`
+	Summary *Summary     `json:"summary"`
 	Badges  []string     `json:"badges"`
 	Cases   []CaseNotice `json:"cases"`
 }
