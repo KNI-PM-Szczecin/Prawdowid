@@ -343,4 +343,5 @@ class ReconcileReport(ApiModel):
     stale_deleted: int
     unknown: int
     unknown_deleted: int
+    orphan_metadata_deleted: int
     active_chunks: int
