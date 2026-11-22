@@ -270,8 +270,8 @@ func discordReactionEmoji(claim agent.Claim) string {
 	}
 }
 
-// formatDiscordReply renders a CheckResult for Discord. The short form is a verdict headline
-// with the verdict label, a concise justification, up to discordMaxShortSources links and a
+// formatDiscordReply renders a CheckResult for Discord. The short form repeats the checked claim,
+// the verdict label, a concise justification, up to discordMaxShortSources links and a
 // hint to expand; the detailed form adds strength reasons, missing evidence, all sources with
 // publisher and quote, limitations and a hint to collapse.
 func formatDiscordReply(result agent.CheckResult, detailed bool) string {
@@ -291,6 +291,9 @@ func formatDiscordReply(result agent.CheckResult, detailed bool) string {
 		if claimIndex > 0 {
 			builder.WriteString("\n\n")
 		}
+		builder.WriteString("Twierdzenie: ")
+		builder.WriteString(singleLine(claim.Text))
+		builder.WriteString("\n")
 		builder.WriteString(discordHeadline(claim))
 		if detailed {
 			writeDiscordJustification(&builder, claim)
