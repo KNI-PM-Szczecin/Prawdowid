@@ -51,7 +51,10 @@ export function verdictLabel(claim: Claim): string {
   if (hasConflict(claim)) {
     return texts.verdict.conflicting;
   }
-  return claim.sources.length > 0 ? texts.verdict.partial : texts.verdict.insufficient_evidence;
+  // "Partly established" needs a source that settles part of the claim; context sources alone (shown with every
+  // abstention so the citizen sees what was found) establish nothing.
+  const establishesPart = claim.sources.some((source) => source.role === "supports" || source.role === "refutes");
+  return establishesPart ? texts.verdict.partial : texts.verdict.insufficient_evidence;
 }
 
 const dateFormatter = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long", year: "numeric" });

@@ -123,6 +123,13 @@ type SearchResponse struct {
 	ContextXML      string                 `json:"contextXml"`
 	ExternalSources []ExternalSourceStatus `json:"externalSources"`
 	CampaignAlert   *ragCampaignAlert      `json:"campaignAlert"`
+	ExpandedQueries *ExpandedQueries       `json:"expandedQueries"`
+}
+
+// ExpandedQueries are rag's rewordings of the claim (CONTRACT.md §2); the agent reuses them to search again.
+type ExpandedQueries struct {
+	Negative string `json:"negative"`
+	Keywords string `json:"keywords"`
 }
 
 // FetchResponse is rag's answer to POST /fetch.

@@ -4,12 +4,14 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Instructions hidden in the submission itself (scenario E). rag/ flags them only inside source passages, so the
 // agent checks the user's text and fetched pages too. The patterns mirror rag/app/context.py and run on normalized
-// text: lowercase, no diacritics, no invisible characters, single spaces. Detection only counts and logs the attempt;
-// the text is still checked as data.
+// text: lowercase, no diacritics, no invisible characters, single spaces. A detected attempt is counted, logged and
+// cut out of the text that is checked (stripInstructions), so it never reaches the search query or the model as part
+// of a claim; the document shown to the citizen keeps it.
 const (
 	injectionEarlier   = `(?:previous|prior|above|earlier|preceding|original|system|all|any|your|these|those)`
 	injectionRules     = `(?:instructions?|rules|prompts?|directions|guidelines|messages|context)`
@@ -83,6 +85,10 @@ var injectionPatterns = regexp.MustCompile(strings.Join([]string{
 	`\bwyobraz\s+sobie,?\s+ze\s+jestes\b`,
 	`\bpowtarzaj\s+za\s+mna\b`,
 	`\b(?:napisz|powiedz|wypisz)\s+tylko\s*:?\s*"`,
+	// Off-task requests: a fact-check submission never asks for a recipe, a poem or code.
+	`\b(?:podaj|napisz|wygeneruj|stworz|wymysl|uloz)\s+(?:mi\s+|nam\s+)?(?:jakis\s+|jakas\s+|jakies\s+)?` +
+		`(?:przepis\s+na|wiersz|wierszyk|piosenke|opowiadanie|bajke|zart|dowcip|esej|program|list\s+milosny)\b`,
+	`\b(?:write|give|tell|generate|compose)\s+(?:me\s+|us\s+)?(?:a|an|some)\s+(?:recipe|poem|song|story|joke|essay|code)\b`,
 }, "|"))
 
 var polishLetters = strings.NewReplacer("ą", "a", "ć", "c", "ę", "e", "ł", "l", "ń", "n", "ó", "o", "ś", "s", "ź", "z", "ż", "z")
@@ -102,4 +108,61 @@ func normalizeForDetection(text string) string {
 // containsInstructions reports whether the text looks like an attempt to steer the model.
 func containsInstructions(text string) bool {
 	return injectionPatterns.MatchString(normalizeForDetection(text))
+}
+
+// clauseEnd ends the cut of an instruction: the end of its sentence, or the end of the text when the sentence never
+// ends (run-on input without punctuation).
+var clauseEnd = regexp.MustCompile(`[.!?…\n]`)
+
+// maxStripRounds bounds the cutting loop; every round removes at least one match, so it only guards against a regex
+// that would match an empty string.
+const maxStripRounds = 20
+
+// stripInstructions cuts every detected instruction, from where it starts to the end of its sentence, out of the text
+// the agent checks. The patterns run on normalized text, so each normalized rune is mapped back to its position in
+// the original text and the cut keeps the user's own spelling of the rest.
+func stripInstructions(text string) string {
+	for range maxStripRounds {
+		normalized, origins := normalizeWithOrigins(text)
+		location := injectionPatterns.FindStringIndex(normalized)
+		if location == nil || location[1] == location[0] {
+			break
+		}
+		original := []rune(text)
+		start := origins[utf8.RuneCountInString(normalized[:location[0]])]
+		end := len(original)
+		if next := clauseEnd.FindStringIndex(string(original[start:])); next != nil {
+			end = start + utf8.RuneCountInString(string(original[start:])[:next[1]])
+		}
+		text = string(original[:start]) + " " + string(original[end:])
+	}
+	return strings.Join(strings.Fields(text), " ")
+}
+
+// normalizeWithOrigins is normalizeForDetection that also returns, for every rune of the result, the index of the
+// rune of text it came from.
+func normalizeWithOrigins(text string) (string, []int) {
+	var builder strings.Builder
+	origins := []int{}
+	pendingSpace := false
+	for index, character := range []rune(text) {
+		switch {
+		case unicode.Is(unicode.Cf, character):
+			continue
+		case unicode.IsSpace(character):
+			pendingSpace = builder.Len() > 0
+			continue
+		}
+		if pendingSpace {
+			builder.WriteRune(' ')
+			origins = append(origins, index)
+			pendingSpace = false
+		}
+		// Lowercasing can turn one rune into several (e.g. "İ"); each of them points back to the same original rune.
+		for _, produced := range polishLetters.Replace(strings.ToLower(string(character))) {
+			builder.WriteRune(produced)
+			origins = append(origins, index)
+		}
+	}
+	return builder.String(), origins
 }

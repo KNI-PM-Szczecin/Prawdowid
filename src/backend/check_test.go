@@ -168,6 +168,9 @@ func TestCheckRateLimit(t *testing.T) {
 	if recorder.Code != http.StatusTooManyRequests || decodeResult(t, recorder).Status != agent.StatusTechnicalError {
 		t.Fatalf("status %d, body %s", recorder.Code, recorder.Body.String())
 	}
+	if retryAfter := recorder.Header().Get("Retry-After"); retryAfter != "60" {
+		t.Fatalf("expected Retry-After of one rate-limit window, got %q", retryAfter)
+	}
 }
 
 func TestDeleteCheck(t *testing.T) {
