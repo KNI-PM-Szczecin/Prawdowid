@@ -78,19 +78,10 @@ def _trim(text: str) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def rerank_texts(hit: RetrievedChunk) -> tuple[str, str]:
-    """
-    Two variants of one catalog entry for the cross-encoder; the caller keeps the better score.
-    EUvsDisinfo claims are long paragraphs; the cross-encoder cost grows with length (10 long texts ≈ 2 s on CPU),
-    and the campaign thesis is in the opening sentences, so only the head is scored. The thesis alone suits imported
-    titles that read like labels ("campaign about X"); title + thesis suits titles that state the claim, where the
-    thesis alone is worded differently (the Ust-Ługa case: 0.65 without the title, 0.93 with it).
-    """
-    limit = settings.incident_summary_max_chars
-    head = hit.text[:limit]
-    title = (hit.payload.get("title") or "").strip()
-    with_title = f"{title}. {hit.text}"[:limit] if title else head
-    return head, with_title
+def rerank_text(hit: RetrievedChunk) -> str:
+    """EUvsDisinfo claims are long paragraphs; the cross-encoder cost grows with length (10 long texts ≈ 2 s on CPU),
+    and the campaign thesis is in the opening sentences, so only the head is scored."""
+    return hit.text[: settings.incident_summary_max_chars]
 
 
 def build_campaign_alert(scored: list[tuple[RetrievedChunk, float]]) -> CampaignAlert | None:
