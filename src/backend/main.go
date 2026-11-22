@@ -88,6 +88,23 @@ func run(logger *slog.Logger) error {
 
 	demo := newChannelHandler(checks, demoAdapter{})
 
+	if config.DiscordBotToken != "" {
+		bot, err := newDiscordBot(logger, checks, config.DiscordBotToken, config.DiscordGuildID)
+		if err != nil {
+			return fmt.Errorf("create discord bot: %w", err)
+		}
+		if err := bot.start(); err != nil {
+			return fmt.Errorf("start discord bot: %w", err)
+		}
+		defer func() {
+			if err := bot.close(); err != nil {
+				logger.Error("close discord bot failed", "error", err)
+			}
+		}()
+	} else {
+		logger.Info("discord bot disabled (DISCORD_BOT_TOKEN not set)")
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /livez", livenessHandler(logger))
 	mux.HandleFunc("GET /health", healthHandler(logger, pool))

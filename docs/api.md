@@ -332,6 +332,9 @@ Już działa: `200 {"status":"ok","database":"ok"}` albo `503 {"status":"degrade
 **Stan: bot niezaimplementowany.** Warunek briefu (kanał + adapter demonstracyjny) spełnia `POST /api/channels/demo` (`src/backend/demo_channel.go`, `channel.go`): ciało `{"text": "..."}`, odpowiedź `text/plain` w formacie wiadomości z komunikatora (twierdzenie, werdykt, siła podstawy, uzasadnienie, źródła, ograniczenia), ta sama ścieżka `runCheck` co WWW (ten sam limit żądań, maskowanie, zapis przebiegu). Niepoprawna wiadomość → `400` z tekstem. Poniżej pierwotny plan bota.
 
 Drugi kanał to **bot na Discordzie** (połączenie wychodzące przez Gateway), nie webhook i nie Interactions Endpoint. Decyzja zespołu, odpowiedzialny Paweł. Konsekwencje:
+
+> **Stan implementacji (22.11, PR `feat/discord-bot`):** kanał zrealizowany jako **slash command `/factcheck`** przez bibliotekę `discordgo` (Gateway). To zmiana wcześniejszej decyzji „tylko stdlib + czytanie wiadomości w kanale/DM” — stdlib Go nie ma klienta WebSocket, a slash command jest wygodniejszy dla jury i nie wymaga Message Content Intent. Kod: `src/backend/discord.go`; bot woła wspólną ścieżkę `runCheck` (maska → `agent.Verify` → zapis → log), więc wynik jest identyczny jak na WWW.
+
 - **Nie ma endpointu HTTP** dla kanału i nie trzeba publicznego adresu ani tunelu. Bot działa w procesie `backend/` i woła `agent.Verify` bezpośrednio (`ChannelAdapter` z `CONTRACT.md`).
 - Token bota w `.env` (`DISCORD_BOT_TOKEN`), nigdy w repo. Bot musi być zaproszony na serwer demo.
 - Proponowany sposób użycia: wiadomość w wydzielonym kanale (np. `#prawdowid`) albo wzmianka bota. Odczyt treści wiadomości wymaga włączenia w Discord Developer Portal opcji **Message Content Intent**. Alternatywa bez tej opcji: komenda `/sprawdz`, ale wtedy trzeba w ciągu 3 s potwierdzić odebranie (odpowiedź „deferred”) i dopiero potem wysłać wynik.
