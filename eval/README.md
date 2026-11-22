@@ -2,6 +2,8 @@
 
 Własny zestaw testów Prawdowid według scenariuszy A–J z `../spec/brief.md` i mierników z `../spec/requirements.md`. Służy do sprawdzenia, czy spełniamy progi, zanim zrobi to jury, do strojenia progu wstrzymania się (`../CONTRACT.md` §4) i jako „wyniki testów z danymi do odtworzenia” do oddania.
 
+Osobno: **benchmark dezinformacji** (`BENCHMARK.md`, pakiet `prawdowid_benchmark/`, dane w `benchmark/`) mierzy system na twierdzeniach zewnętrznych weryfikatorów faktów spoza korpusu, z sędzią LLM (Claude), porównaniem A/B i torem ludzkim.
+
 Trzy elementy:
 
 | Plik | Rola |
