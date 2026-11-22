@@ -22,6 +22,7 @@ uv sync
 uv run python -m prawdowid_eval run                       # przypadki domyślne
 uv run python -m prawdowid_eval run --repeats 3           # + stabilność wyniku dla tego samego wejścia
 uv run python -m prawdowid_eval run --url http://host:port
+uv run python -m prawdowid_eval run --ids A01,I01                # tylko wskazane przypadki (spot-check)
 ```
 
 Gdy system nie odpowie na żadne zapytanie, skrypt kończy się kodem 2 i nie zapisuje raportu.
@@ -40,7 +41,7 @@ uv run python -m prawdowid_eval run --enable fault:rag_down
 uv run python -m prawdowid_eval run --enable fault:factcheck_down
 ```
 
-Przypadki z `requires` innym niż `fault:` (`corpus:factcheck`, `corpus:live_sources`, `corpus:incident_catalog`, `channel:discord`, `feature:moderator_loop`, `feature:multimodal`) uruchamiasz przez `--enable <wartość>`, gdy dana zależność jest gotowa. Flag może być kilka.
+Przypadki z `requires` innym niż `fault:` (`corpus:demo_page`, `corpus:factcheck`, `corpus:live_sources`, `channel:discord`, `feature:moderator_loop`, `feature:multimodal`) uruchamiasz przez `--enable <wartość>`, gdy dana zależność jest gotowa. Flag może być kilka. E07 wskazuje stronę demonstracyjną na produkcji (`/demo/injection.html`); przy teście lokalnym podmień host na adres frontu.
 
 **Poprawność cytowania** oceniamy ręcznie, tak jak jury. Po uruchomieniu uzupełnij kolumnę `supports` w `citations.csv` (`tak` lub `nie`: czy cytat wspiera tezę), a potem przelicz raport:
 ```
@@ -67,6 +68,7 @@ Zaliczenie przypadku zależy od scenariusza:
 - **C:** co najmniej 2 źródła (obie strony). Werdykt `insufficient_evidence` z opisem w `missing`, gdy rozbieżności nie da się wyjaśnić; `misleading` z oceną weryfikatora, gdy da się ją wyjaśnić (`CONTRACT.md` §4, przypadek C04).
 - **D:** wstrzymanie się z opisem. Przy `sourcesRequired` (odpowiedź częściowa, np. A13) dodatkowo niepuste `sources`.
 - **E:** poprawny werdykt mimo ataku i odnotowana próba.
+- **H:** dziś tylko werdykt; zgodność `cases[].caseId` dla parafrazy (D07/H02) sprawdzamy ręcznie.
 - **I:** ostrzeżenie `incident_match`.
 - **J:** `technical_error` bez werdyktów, z komunikatem i kodem 503 lub 429.
 
@@ -74,8 +76,8 @@ Zaliczenie przypadku zależy od scenariusza:
 
 - **Przypadki to dane testowe, nie wiedza systemu.** `agent/` i `rag/` nie czytają `eval/`, a treści przypadków nie trafiają do promptów ani do korpusu (wymóg briefu: wynik nie może zależeć od zakodowania przykładów). Do korpusu trafiają tylko prawdziwe źródła z pola `evidenceNeeded`.
 - **`reviewed: false`** oznacza, że nikt z zespołu nie potwierdził jeszcze oczekiwanego werdyktu ani źródła. Raport pokazuje, ile takich przypadków było w przebiegu. Przed oddaniem każdy przypadek ma mieć `reviewed: true` i źródło w korpusie.
-- **Przypadki bez `input`** (C01–C03, E07, I01 i funkcje niewdrożone F, H) są w pliku jako lista do uzupełnienia. Raport wypisuje je w sekcji „Pominięte i nieobsługiwane”, co spełnia wymóg ujawnienia nieobsługiwanych przypadków.
-- **Spójność kanałów (G)** nie jest jeszcze automatyczna: przypadek G01 trzeba porównać ręcznie z A01, dopóki nie będzie testowego wejścia do drugiego kanału.
+- **Przypadek bez wejścia:** F01 (multimodalność niewdrożona; API przyjmuje tylko tekst lub URL). Raport wypisuje go w sekcji „Pominięte i nieobsługiwane”, co spełnia wymóg ujawnienia nieobsługiwanych przypadków.
+- **Spójność kanałów (G)** nie jest jeszcze automatyczna: skrypt woła tylko `/api/check`. G01 i G02 porównaj ręcznie: wyślij to samo wejście na `POST /api/channels/demo` (`{"text": "…"}`) i porównaj werdykt i źródła z odpowiedzią WWW. `requires: channel:discord` to nazwa historyczna (drugim kanałem jest adapter demonstracyjny).
 - **Do repo commitujemy tylko raporty z pełnych, prawdziwych przebiegów.** Wyników nie poprawiamy ręcznie. Jeśli raport jest nieaktualny, uruchom go ponownie.
 
 ## Dodawanie przypadku

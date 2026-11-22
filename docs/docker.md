@@ -7,7 +7,7 @@ Cały system uruchamia się jednym `docker compose`. Jury i zespół nie muszą 
 | Usługa | Obraz / budowa | Co robi | Port na hoście |
 |---|---|---|---|
 | `front` | `deploy/front.Dockerfile` (build Vite, serwuje Caddy) | Strona WWW. Przekazuje `/api/*` do `backend` | **8080** (publiczny punkt wejścia) |
-| `backend` | `deploy/backend.Dockerfile` (Go) | API i kanały. **Agent jest pakietem Go w tym samym obrazie**, osobnego kontenera nie ma. Bot Discord (gdy powstanie) działa w tym samym procesie | `127.0.0.1:3001` (tylko do debugowania) |
+| `backend` | `deploy/backend.Dockerfile` (Go) | API i kanały (WWW oraz adapter demonstracyjny `POST /api/channels/demo`). **Agent jest pakietem Go w tym samym obrazie**, osobnego kontenera nie ma | `127.0.0.1:3001` (tylko do debugowania) |
 | `rag` | `rag/Dockerfile` (Python, FastAPI) | Wyszukiwanie, korpus, Google Fact Check, katalog kampanii | `127.0.0.1:8001` |
 | `qdrant` | `qdrant/qdrant` | Baza wektorowa | brak (tylko sieć wewnętrzna) |
 | `postgres` | `postgres:17-alpine`, profil `local-db` | Lokalna baza (zamiast Supabase) | brak (tylko sieć wewnętrzna) |
@@ -29,7 +29,8 @@ W `.env` ustaw:
 - `RAG_POSTGRES_PASSWORD`: hasło lokalnej bazy, wygeneruj np. `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. **Bez niego Postgres nie wystartuje.**
 - `RAG_ADMIN_TOKEN`: token do endpointów administracyjnych `rag` (pusty = są wyłączone, nie będzie można zasilić korpusu).
 - `DATABASE_URL`: **zostaw puste** w trybie lokalnym.
-- opcjonalnie `FACTCHECK_API_KEY`, `EUVSDISINFO_TOKEN`, `LLM_*`, `DISCORD_BOT_TOKEN` (patrz `.env.example`).
+- `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`: dostawca modelu; bez klucza każde sprawdzenie zwraca `technical_error`.
+- opcjonalnie `FACTCHECK_API_KEY`, `EUVSDISINFO_TOKEN`, `MODERATOR_*`, `CHECK_*` (patrz `.env.example`). `docker-compose.yml` przekazuje do kontenerów tylko zmienne wymienione w jego sekcjach `environment`; `.env` nie jest kopiowany do obrazów. Nową zmienną trzeba dopisać do compose, inaczej w kontenerze obowiązuje wartość domyślna.
 
 ```
 docker compose --profile local-db up -d --build
@@ -56,7 +57,7 @@ docker compose up -d --build
 
 ## Zasilanie korpusu
 
-`rag` przy starcie sam uzupełnia korpus z `rag/app/data/seed_documents.json` (17 dosłownych fragmentów źródeł z datami i linkami) i katalog kampanii z `rag/app/data/seed_incidents.json`, więc podstawowe fakty i scenariusz I działają bez ręcznego zasilania. Endpointy administracyjne wymagają nagłówka `X-Admin-Token` z wartością `RAG_ADMIN_TOKEN`.
+`rag` przy starcie sam uzupełnia korpus z `rag/app/data/seed_documents.json` (dosłowne fragmenty źródeł z datami i linkami, liczba w pliku) i katalog kampanii z `rag/app/data/seed_incidents.json`, więc podstawowe fakty i scenariusz I działają bez ręcznego zasilania. Strony-listy i strony główne są wykluczane regułami z `rag/app/data/corpus_rules.json`, a ustawy wchodzą z tabeli `Law` przez `POST /admin/corpus/law` (opis w `rag/README.md`). Endpointy administracyjne wymagają nagłówka `X-Admin-Token` z wartością `RAG_ADMIN_TOKEN`.
 ```
 # test dymny na fikcyjnych danych
 curl -X POST http://127.0.0.1:8001/ingest -H "X-Admin-Token: $RAG_ADMIN_TOKEN" -H "Content-Type: application/json" --data-binary @rag/tests/smoke_documents.json
@@ -86,7 +87,7 @@ Uruchamia 44 przypadki z `eval/cases.json` przeciw `backend:3001` i zapisuje rap
 | **Pełny reset (kasuje bazę, korpus i modele!)** | `docker compose --profile local-db down -v` |
 | Wejście do kontenera | `docker compose exec rag sh` |
 
-Do pracy nad kodem możesz uruchomić samą infrastrukturę (`docker compose --profile local-db up -d postgres qdrant rag`), a `backend` (`go run`) i front (`pnpm dev`) uruchamiać lokalnie.
+Do pracy nad kodem uruchom infrastrukturę z `rag/` (`cd rag && docker compose --env-file ../.env --profile local-db up -d`; Postgres na `127.0.0.1:5432`, rag na `127.0.0.1:8001`), a `backend` (`go run .` w `src/backend/`) i front (`pnpm dev` w `src/frontend/`) lokalnie. Compose w korzeniu nie wystawia Postgresa na hosta, więc lokalny backend nie połączy się z jego bazą.
 
 ## Bezpieczeństwo
 
@@ -114,7 +115,6 @@ Do pracy nad kodem możesz uruchomić samą infrastrukturę (`docker compose --p
 
 ## Czego ten zestaw nie obejmuje
 
-- **Brak końcowych testów budowy obrazów.** Pliki zostały sprawdzone składniowo (`docker compose config`), a front zbudowany poza Dockerem (`pnpm build`), ale **obrazy nie były budowane w Dockerze**: autorka plików nie miała dostępu do demona. Pierwsze `docker compose build` może wykazać błędy, np. nieistniejący tag `golang:1.27-alpine`. Zgłoś je w PR.
-- **`backend` ma na razie tylko `GET /health`.** `POST /api/check`, agent i front są w trakcie, więc żadne zapytanie `/api/*` przez `front` jeszcze niczego nie zwróci (404 z backendu).
-- **Wdrożenie na Railway:** gałąź `chore/railway-deploy` ma własne Dockerfile'e dla Railway. Te z `deploy/` mają te same nazwy, ale nowe ścieżki (`src/backend`, `src/frontend`); przy scalaniu zostaw wersje z `deploy/`.
-- **Bot Discord** (ostatnia rzecz do zrobienia) nie ma własnego kontenera: działa w procesie `backend`, a token podajemy jako `DISCORD_BOT_TOKEN`.
+- **Obrazy z `deploy/` budują się na Railway** (wdrożenie działa pod jednym publicznym adresem, zob. `README.md`, sekcja Wdrożenie). Błąd lokalnego `docker compose build` zgłoś w PR.
+- **Drugi kanał** to adapter demonstracyjny `POST /api/channels/demo` w procesie `backend` (dopuszczony przez brief zamiast komunikatora). Bot Discord nie jest zaimplementowany, a `DISCORD_BOT_TOKEN` nie jest przez kod czytany.
+- **Rag i Qdrant nie mają publicznych adresów**, więc endpointów administracyjnych na Railway nie wywołasz z zewnątrz: użyj `railway ssh` do usługi `rag` albo `backend` (`http://rag.railway.internal:8000`).
