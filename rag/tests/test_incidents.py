@@ -1,7 +1,8 @@
+import asyncio
 from uuid import uuid4
 
 from app.config import settings
-from app.incidents import build_campaign_alert, incident_point_id
+from app.incidents import build_campaign_alert, ensure_seed_incidents, incident_point_id, load_seed_incidents
 from app.vector_store import RetrievedChunk
 
 LONG_SUMMARY_FACTOR = 3
@@ -42,3 +43,28 @@ def test_no_alert_below_threshold_and_summary_is_trimmed():
     long_summary = "x" * settings.incident_summary_max_chars * LONG_SUMMARY_FACTOR
     alert = build_campaign_alert([(_hit("1", long_summary), 0.9)])
     assert len(alert.matches[0].summary) == settings.incident_summary_max_chars
+
+
+class FakeCatalog:
+    def __init__(self):
+        self.upserts: list[int] = []
+
+    async def upsert_raw(self, points):
+        self.upserts.append(len(points))
+
+
+class FakeModels:
+    def embed_documents(self, texts):
+        return [[0.0]] * len(texts), [None] * len(texts)
+
+
+def test_seed_incidents_are_upserted_even_into_a_filled_catalog():
+    catalog = FakeCatalog()
+
+    first = asyncio.run(ensure_seed_incidents(FakeModels(), catalog))
+    second = asyncio.run(ensure_seed_incidents(FakeModels(), catalog))
+
+    # A daily EUvsDisinfo import may fill the catalog before the seeds ever load; upserts are idempotent
+    # (same point ids), so re-running them at startup costs three embeddings and keeps demo anchors present.
+    assert catalog.upserts == [first, second]
+    assert first == second == len(load_seed_incidents())
