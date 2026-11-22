@@ -8,7 +8,7 @@ Cały system uruchamia się jednym `docker compose`. Jury i zespół nie muszą 
 |---|---|---|---|
 | `front` | `deploy/front.Dockerfile` (build Vite, serwuje Caddy) | Strona WWW. Przekazuje `/api/*` do `backend` | **8080** (publiczny punkt wejścia) |
 | `backend` | `deploy/backend.Dockerfile` (Go) | API i kanały (WWW oraz adapter demonstracyjny `POST /api/channels/demo`). **Agent jest pakietem Go w tym samym obrazie**, osobnego kontenera nie ma | `127.0.0.1:3001` (tylko do debugowania) |
-| `rag` | `rag/Dockerfile` (Python, FastAPI) | Wyszukiwanie, korpus, Google Fact Check, katalog kampanii | `127.0.0.1:8001` |
+| `rag` | `rag/Dockerfile` (Python, FastAPI) | Wyszukiwanie, korpus, Google Fact Check, Wikidata, katalog kampanii | `127.0.0.1:8001` |
 | `postgres` | `pgvector/pgvector:pg17`, profil `local-db` | Lokalna baza z wektorami korpusu (zamiast Supabase) | brak (tylko sieć wewnętrzna) |
 | `eval` | `deploy/eval.Dockerfile`, profil `tools` | Zestaw testów i miary, uruchamiany na żądanie | brak |
 
@@ -108,7 +108,7 @@ Do pracy nad kodem uruchom infrastrukturę z `rag/` (`cd rag && docker compose -
 | `401` / `403` z `rag` | Zły albo pusty `RAG_ADMIN_TOKEN`. |
 | Port 8080 zajęty | Zmień wpis `"8080:8080"` w `docker-compose.yml` na wolny port. |
 | Windows: znaki polskie w `curl -d` | Wysyłaj ciało z pliku UTF-8 (`--data-binary @plik.json`). |
-| Brak internetu na pokazie | Po pierwszym starcie obrazy i modele są lokalne, a kolekcje w wolumenach. Wyłączone zostaną tylko źródła zewnętrzne (Google Fact Check), co `rag` zgłasza w `externalSources`. |
+| Brak internetu na pokazie | Po pierwszym starcie obrazy i modele są lokalne, a kolekcje w wolumenach. Wyłączone zostaną tylko źródła zewnętrzne (Google Fact Check, wyszukiwarka gov.pl, Odyseusz, Wikidata), co `rag` zgłasza w `externalSources`. |
 
 ## Railway: port usługi rag
 
