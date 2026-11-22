@@ -17,14 +17,12 @@ class Settings(BaseSettings):
     )
     # Supabase free tier caps pooler connections and backend/ uses the same database.
     postgres_pool_max_size: int = 5
-    qdrant_url: str = "http://localhost:6333"
-    qdrant_timeout_seconds: int = 5
     postgres_command_timeout_seconds: float = 5.0
     collection_name: str = "evidence_chunks"
-    # One database belongs to one Qdrant: a re-ingest marks the old chunks deleted in PostgreSQL but writes vectors
-    # only to its own Qdrant, so a second Qdrant on the same database silently empties the first one's search.
-    # True for one start hands the database to this Qdrant (e.g. after its volume was wiped); see app/instance.py.
-    claim_database: bool = False
+    # Candidates the HNSW index inspects per query; higher is more accurate and slower (pgvector default is 40).
+    hnsw_ef_search: int = 100
+    # Writing a long document means hundreds of HNSW insertions, more than the ordinary command timeout allows.
+    vector_write_timeout_seconds: float = 60.0
     model_cache_dir: str = "/models"
 
     # Required for POST /ingest, DELETE /sources/{id} and POST /admin/eviction; empty = those endpoints are disabled.
@@ -32,7 +30,6 @@ class Settings(BaseSettings):
 
     dense_model: str = "BAAI/bge-m3"
     dense_dim: int = 1024
-    sparse_model: str = "Qdrant/bm25"
     reranker_model: str = "BAAI/bge-reranker-v2-m3-int8"
     # Profile from app/languages/<code>.json (stemmer + stopwords) for BM25; FastEmbed has no Polish stemmer.
     corpus_language: str = "pl"
@@ -191,7 +188,7 @@ class Settings(BaseSettings):
     eviction_topic_quota_share: float = 0.30
     eviction_topic_overquota_bonus: float = 30.0
     eviction_cron_hour: int = 3
-    # Vector reconcile runs on the hour, the Qdrant optimizer half an hour later on a collection without stale points.
+    # Vector reconcile runs on the hour, the table vacuum half an hour later on a table without stale rows.
     optimize_cron_hour: int = 4
     optimize_cron_minute: int = 30
 

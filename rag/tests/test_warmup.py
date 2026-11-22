@@ -1,7 +1,6 @@
 import asyncio
 
 from app import warmup
-from app.embeddings import SparseVector
 
 
 class WarmFakeModels:
@@ -14,7 +13,7 @@ class WarmFakeModels:
         self.embed_calls = len(queries)
         if self._failure is not None:
             raise self._failure
-        return [[0.0]] * len(queries), [SparseVector(indices=[], values=[])] * len(queries)
+        return [[0.0]] * len(queries), [[]] * len(queries)
 
     def rerank(self, query, documents):
         self.rerank_calls = len(documents)
@@ -33,7 +32,7 @@ class WarmFakeStore:
         return []
 
 
-def test_warm_up_touches_every_model_and_qdrant():
+def test_warm_up_touches_every_model_and_store():
     models = WarmFakeModels()
     store = WarmFakeStore()
 
@@ -52,9 +51,9 @@ def test_warm_up_failure_does_not_stop_startup():
     assert models.rerank_calls == 0
 
 
-def test_warm_up_survives_qdrant_failure():
+def test_warm_up_survives_store_failure():
     models = WarmFakeModels()
 
-    asyncio.run(warmup.warm_up(models, WarmFakeStore(failure=RuntimeError("qdrant down"))))
+    asyncio.run(warmup.warm_up(models, WarmFakeStore(failure=RuntimeError("vector index down"))))
 
     assert models.rerank_calls == 0

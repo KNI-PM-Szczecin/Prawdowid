@@ -9,7 +9,6 @@ import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
-from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 from app import db
 from app.catalog import SourceOutsideCatalogError, load_catalog, resolve_entry
@@ -25,7 +24,6 @@ from app.gov_search import GovSearchClient
 from app.gov_search import wanted as gov_search_wanted
 from app.incidents import ensure_seed_incidents, incident_point_id, index_incidents
 from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
-from app.instance import ensure_database_owner
 from app.law_import import import_law, law_state
 from app.maintenance import register_maintenance_jobs
 from app.material import match_material
@@ -93,7 +91,6 @@ async def lifespan(app: FastAPI):
     await db.connect()
     store = VectorStore()
     await store.ensure_collection()
-    await ensure_database_owner(store)
     app.state.store = store
     app.state.models = EmbeddingModels()
     incidents = VectorStore(settings.incident_collection_name)
@@ -155,8 +152,6 @@ app = FastAPI(title="Prawdowid RAG", lifespan=lifespan)
 
 
 @app.exception_handler(asyncpg.PostgresError)
-@app.exception_handler(UnexpectedResponse)
-@app.exception_handler(ResponseHandlingException)
 @app.exception_handler(OSError)
 @app.exception_handler(Exception)
 async def index_error_handler(request: Request, error: Exception) -> JSONResponse:
@@ -201,13 +196,17 @@ async def _dependency_status(probe) -> tuple[str, object]:
 async def health(response: Response) -> HealthResponse:
     """Checks every dependency a search needs; 503 + degraded lets backend and compose see a half-dead rag."""
     database, corpus_version = await _dependency_status(db.corpus_version())
-    qdrant, _ = await _dependency_status(app.state.store.count())
+    vector_index, _ = await _dependency_status(app.state.store.count())
     catalog, _ = await _dependency_status(app.state.incidents.count())
-    status = "ok" if database == qdrant == catalog == "ok" else "degraded"
+    status = "ok" if database == vector_index == catalog == "ok" else "degraded"
     if status == "degraded":
         response.status_code = HTTP_SERVICE_UNAVAILABLE
     return HealthResponse(
-        status=status, corpus_version=corpus_version, database=database, qdrant=qdrant, incident_catalog=catalog
+        status=status,
+        corpus_version=corpus_version,
+        database=database,
+        vector_index=vector_index,
+        incident_catalog=catalog,
     )
 
 
@@ -481,7 +480,7 @@ async def eviction() -> EvictionReport:
 @app.post("/admin/corpus/reconcile", response_model=ReconcileReport, dependencies=AdminOnly)
 async def reconcile(include_unknown: Annotated[bool, Query(alias="includeUnknown")] = False) -> ReconcileReport:
     """
-    Deletes Qdrant points PostgreSQL marks as deleted. includeUnknown=true also drops points PostgreSQL has never
-    seen; use it only when no import is running, because an import writes Qdrant before PostgreSQL.
+    Deletes vectors whose chunks PostgreSQL marks as deleted. includeUnknown=true also drops points PostgreSQL has never
+    seen; use it only when no import is running, because an import writes the vectors before the metadata.
     """
     return await reconcile_vectors(app.state.store, include_unknown=include_unknown)

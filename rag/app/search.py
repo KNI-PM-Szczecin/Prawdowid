@@ -187,24 +187,24 @@ async def search_passages(
 
     queries = await expand(request.query)
     query_texts = [queries.original, queries.negative, queries.neutral]
-    dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_queries, query_texts)
+    dense_vectors, lexical_vectors = await asyncio.to_thread(models.embed_queries, query_texts)
     *result_sets, incident_hits, catalog_size = await asyncio.gather(
         *(
-            store.hybrid_search(dense, sparse, settings.retrieval_limit_per_query, payload_filter)
-            for dense, sparse in zip(dense_vectors, sparse_vectors, strict=True)
+            store.hybrid_search(dense, lexical, settings.retrieval_limit_per_query, payload_filter)
+            for dense, lexical in zip(dense_vectors, lexical_vectors, strict=True)
         ),
-        incidents.hybrid_search(dense_vectors[0], sparse_vectors[0], settings.incident_retrieval_limit, None),
+        incidents.hybrid_search(dense_vectors[0], lexical_vectors[0], settings.incident_retrieval_limit, None),
         incidents.count(),
     )
     merged = _merge_candidates(list(result_sets))
-    # The metadata join runs before the rerank pool is cut: a Qdrant point whose chunk PostgreSQL marks deleted (a
+    # The metadata join runs before the rerank pool is cut: a vector row whose chunk PostgreSQL marks deleted (a
     # re-ingest elsewhere, eviction, prune) is not evidence, and letting it take one of the few pool slots used to
     # leave the pool full of stale points, so every search came back empty although live evidence was retrieved.
     metadata = await db.fetch_passage_metadata([chunk.chunk_id for chunk in merged])
     live = [chunk for chunk in merged if chunk.chunk_id in metadata]
     if len(live) < len(merged):
         logger.warning(
-            "Skipped %d of %d retrieved chunks without active metadata (Qdrant and PostgreSQL out of sync)",
+            "Skipped %d of %d retrieved chunks without active metadata (vectors and metadata out of sync)",
             len(merged) - len(live),
             len(merged),
         )

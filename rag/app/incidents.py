@@ -49,13 +49,13 @@ def incident_text(incident: IncidentIn) -> str:
 async def index_incidents(incidents: list[IncidentIn], models: EmbeddingModels, store: VectorStore) -> int:
     """Embeds and upserts catalog entries; their text is the claim spread by the campaign, used only for matching."""
     texts = [incident_text(incident) for incident in incidents]
-    dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_documents, texts)
+    dense_vectors, lexical_vectors = await asyncio.to_thread(models.embed_documents, texts)
     await store.upsert_raw(
         [
             RawPoint(
                 point_id=incident_point_id(incident.source, incident.incident_id),
                 dense=dense,
-                sparse=sparse,
+                lexical=lexical,
                 payload={
                     "text": incident.summary,
                     "incident_id": incident.incident_id,
@@ -70,7 +70,7 @@ async def index_incidents(incidents: list[IncidentIn], models: EmbeddingModels, 
                     LINKS_FIELD: sorted({normalize_url(str(link)) for link in incident.links}),
                 },
             )
-            for incident, dense, sparse in zip(incidents, dense_vectors, sparse_vectors, strict=True)
+            for incident, dense, lexical in zip(incidents, dense_vectors, lexical_vectors, strict=True)
         ]
     )
     return len(incidents)

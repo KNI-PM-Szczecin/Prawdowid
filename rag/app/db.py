@@ -29,6 +29,19 @@ def _table(name: str) -> str:
 _pool: asyncpg.Pool | None = None
 
 
+async def _prepare_connection(connection: asyncpg.Connection) -> None:
+    """
+    Filtered searches over an HNSW index would otherwise return fewer rows than asked for, because the filter is
+    applied after the index scan; iterative scan keeps scanning until enough rows pass it (pgvector 0.8+).
+    """
+    try:
+        await connection.execute(
+            f"SET hnsw.iterative_scan = relaxed_order; SET hnsw.ef_search = {settings.hnsw_ef_search}"
+        )
+    except asyncpg.PostgresError:
+        logger.warning("pgvector iterative scan is unavailable; filtered searches may return fewer results")
+
+
 async def connect() -> None:
     global _pool
     _pool = await asyncpg.create_pool(
@@ -36,6 +49,7 @@ async def connect() -> None:
         min_size=1,
         max_size=settings.postgres_pool_max_size,
         command_timeout=settings.postgres_command_timeout_seconds,
+        init=_prepare_connection,
     )
     async with _pool.acquire() as connection:
         await connection.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -229,29 +243,9 @@ async def corpus_version() -> str:
 
 
 async def chunk_states() -> dict[UUID, bool]:
-    """Every chunk PostgreSQL knows, mapped to its is_deleted flag; the reference for reconciling Qdrant."""
+    """Every chunk PostgreSQL knows, mapped to its is_deleted flag; the reference for reconciling the vector tables."""
     rows = await pool().fetch("SELECT chunk_id, is_deleted FROM document_metadata")
     return {row["chunk_id"]: row["is_deleted"] for row in rows}
-
-
-async def claim_database(instance_id: UUID, take_over: bool) -> UUID:
-    """Records instance_id as the owner of this database when nobody owns it (or on take_over); returns the owner."""
-    async with pool().acquire() as connection, connection.transaction():
-        if take_over:
-            await connection.execute(
-                """
-                INSERT INTO rag_instance (singleton, qdrant_instance_id) VALUES (TRUE, $1)
-                ON CONFLICT (singleton)
-                DO UPDATE SET qdrant_instance_id = EXCLUDED.qdrant_instance_id, claimed_at = NOW()
-                """,
-                instance_id,
-            )
-        else:
-            await connection.execute(
-                "INSERT INTO rag_instance (singleton, qdrant_instance_id) VALUES (TRUE, $1) ON CONFLICT DO NOTHING",
-                instance_id,
-            )
-        return await connection.fetchval("SELECT qdrant_instance_id FROM rag_instance")
 
 
 async def mark_chunks_deleted(chunk_ids: list[UUID]) -> None:

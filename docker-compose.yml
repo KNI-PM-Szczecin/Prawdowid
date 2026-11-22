@@ -1,4 +1,4 @@
-# Full MVP stack: front (Caddy) -> backend (Go, with agent) -> rag (Python) -> Qdrant + PostgreSQL.
+# Full MVP stack: front (Caddy) -> backend (Go, with agent) -> rag (Python) -> PostgreSQL with pgvector.
 # Start: docker compose --profile local-db up -d --build   (details: docs/docker.md)
 name: prawdowid
 
@@ -6,7 +6,8 @@ services:
   postgres:
     # Local database. Skip this profile when DATABASE_URL points to Supabase.
     profiles: ["local-db"]
-    image: postgres:17-alpine
+    # pgvector holds the corpus vectors next to the metadata, so the plain postgres image is not enough.
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: rag
@@ -20,12 +21,6 @@ services:
       interval: 2s
       retries: 30
 
-  qdrant:
-    image: qdrant/qdrant:v1.20.0
-    restart: unless-stopped
-    volumes:
-      - qdrant_data:/qdrant/storage
-
   rag:
     build: ./rag
     restart: unless-stopped
@@ -34,7 +29,6 @@ services:
     environment:
       RAG_POSTGRES_DSN: ${DATABASE_URL:-postgresql://rag:${RAG_POSTGRES_PASSWORD:-}@postgres:5432/rag}
       RAG_POSTGRES_POOL_MAX_SIZE: ${RAG_POSTGRES_POOL_MAX_SIZE:-5}
-      RAG_QDRANT_URL: http://qdrant:6333
       RAG_MODEL_CACHE_DIR: /models
       RAG_ADMIN_TOKEN: ${RAG_ADMIN_TOKEN:-}
       RAG_EXPANSION_LLM_URL: ${RAG_EXPANSION_LLM_URL:-}
@@ -59,8 +53,6 @@ services:
       postgres:
         condition: service_healthy
         required: false
-      qdrant:
-        condition: service_started
 
   backend:
     build:
@@ -126,6 +118,5 @@ services:
         condition: service_healthy
 
 volumes:
-  qdrant_data:
   postgres_data:
   model_cache:

@@ -21,15 +21,15 @@ WARMUP_DOCUMENT = "Fragment rozgrzewkowy. Nie pochodzi z korpusu i nie jest zapi
 
 async def warm_up(models: EmbeddingModels, store: VectorStore) -> None:
     """
-    Runs the retrieval pipeline once during startup: ONNX sessions, the reranker and the Qdrant connection are the
+    Runs the retrieval pipeline once during startup: ONNX sessions, the reranker and the database connection are the
     expensive part of the first search, and Railway routes traffic as soon as the process reports readiness.
     A failure is logged and does not block startup; the service still answers, only the first request is slower.
     """
     started_at = time.perf_counter()
     try:
-        dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_queries, list(WARMUP_QUERIES))
-        for dense, sparse in zip(dense_vectors, sparse_vectors, strict=True):
-            await store.hybrid_search(dense, sparse, 1, None)
+        dense_vectors, lexical_vectors = await asyncio.to_thread(models.embed_queries, list(WARMUP_QUERIES))
+        for dense, lexical in zip(dense_vectors, lexical_vectors, strict=True):
+            await store.hybrid_search(dense, lexical, 1, None)
         await asyncio.to_thread(models.rerank, WARMUP_QUERIES[0], [WARMUP_DOCUMENT] * settings.candidate_pool_size)
     except Exception:
         logger.exception("Warm-up failed; the first search will pay the model loading cost")

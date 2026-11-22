@@ -325,7 +325,7 @@ class HealthResponse(ApiModel):
     status: Literal["ok", "degraded"]
     corpus_version: str | None
     database: DependencyStatus
-    qdrant: DependencyStatus
+    vector_index: DependencyStatus
     incident_catalog: DependencyStatus
 
 

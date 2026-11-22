@@ -1,7 +1,6 @@
 import asyncio
 from uuid import UUID
 
-from app.embeddings import SparseVector
 from app.reports import match_report
 from app.vector_store import RawPoint, RetrievedChunk
 
@@ -19,7 +18,7 @@ class FakeModels:
         self._similar = similar
 
     def embed_queries(self, texts):
-        return [[0.0]] * len(texts), [SparseVector(indices=[], values=[])] * len(texts)
+        return [[0.0]] * len(texts), [[]] * len(texts)
 
     embed_documents = embed_queries
 
