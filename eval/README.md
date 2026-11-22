@@ -27,6 +27,8 @@ uv run python -m prawdowid_eval run --ids A01,I01                # tylko wskazan
 
 Gdy system nie odpowie na żadne zapytanie, skrypt kończy się kodem 2 i nie zapisuje raportu.
 
+Backend limituje sprawdzenia na adres i minutę (`CHECK_RATE_LIMIT_PER_MINUTE`, domyślnie 60). Odpowiedź 429 to celowy limit, nie wynik weryfikacji: skrypt czeka tyle, ile podaje nagłówek `Retry-After` (najwyżej 60 s), i ponawia przypadek do 2 razy. Czas oczekiwania nie wlicza się do `elapsedMs`.
+
 Na Windows w folderze w OneDrive ustaw `UV_LINK_MODE=copy`, bo OneDrive blokuje hardlinki z cache `uv`.
 
 **Scenariusz J (awarie)** wymaga przygotowania systemu, więc ma osobne przebiegi:
