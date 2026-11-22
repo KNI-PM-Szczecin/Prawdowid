@@ -63,6 +63,7 @@
     margin-top: 0.25rem;
     color: var(--ink-soft);
     font-size: $text-sm;
-    word-break: break-all;
+    // Breaks only where it must, instead of splitting every word of the address.
+    overflow-wrap: anywhere;
   }
 }
