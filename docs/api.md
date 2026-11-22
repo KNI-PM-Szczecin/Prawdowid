@@ -34,7 +34,7 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `src/backend/config.go`
 | `GET /api/checks/{requestId}` **[NOWE, niezaimplementowane]** | odczyt zapisanego wyniku: odświeżenie strony wyniku, link z drugiego kanału do pełnego widoku | MVP |
 | `DELETE /api/checks/{requestId}` (wdrożone) | usunięcie sesji demo (wymóg prywatności) | MVP |
 | `GET /health`, `GET /livez` | stan backendu i bazy (już działa) | jest |
-| `GET /api/sources` **[NOWE, niezaimplementowane w backendzie]** | lista źródeł korpusu do audytu; dziś audyt korzysta z `rag/ GET /sources` | MVP (wymóg „lista źródeł dostępna do audytu”) |
+| `GET /api/sources`, `GET /api/sources/catalog`, `GET /api/sources/external` (wdrożone, `src/backend/sources.go`) | lista źródeł korpusu do audytu, katalog z zasadami kwalifikacji i źródła zewnętrzne: odpowiedzi `rag/` przekazane bez zmian (rag nie ma publicznego adresu). Linki w stopce strony | MVP (wymóg „lista źródeł dostępna do audytu”) |
 | `POST /api/channels/demo` (wdrożone, `src/backend/demo_channel.go`) | drugi kanał: adapter demonstracyjny. Przyjmuje `{"text": "..."}`, odpowiada `text/plain` jak w komunikatorze, ta sama ścieżka `runCheck` co WWW. Bot Discord **niezaimplementowany** | MVP |
 | `GET /api/admin/checks` **[NOWE]** | log sprawdzeń + eksport CSV/JSON | po podstawie (funkcja premiowana) |
 | `GET /api/admin/cases` (wdrożone, `X-Admin-Token` = `MODERATOR_TOKEN`) | pętla moderatora: lista spraw. Sprawy tworzy automatycznie `POST /api/check` dla twierdzeń `insufficient_evidence`; **nie ma** `POST /api/admin/cases` | po podstawie (funkcja premiowana) |

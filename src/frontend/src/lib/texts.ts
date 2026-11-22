@@ -118,6 +118,10 @@ export const texts = {
     about: "Prawdowid to prototyp stworzony podczas hackathonu HackNation 2026 w ramach zadania Ministerstwa Spraw Zagranicznych. Nie jest serwisem administracji publicznej.",
     repository: "Kod źródłowy",
     repositoryUrl: "https://github.com/KNI-PM-Szczecin/prawdowid",
+    sources: "Lista źródeł do audytu (JSON)",
+    sourcesUrl: "/api/sources",
+    sourcesCatalog: "Katalog i zasady kwalifikacji źródeł (JSON)",
+    sourcesCatalogUrl: "/api/sources/catalog",
   },
   loading: {
     title: "Sprawdzam informację",
