@@ -46,6 +46,15 @@ def test_seed_chunks_contain_the_facts_the_eval_expects():
         "16 województw",
         "złoty nie został włączony do mechanizmu ERM II",
         "Polish złoty remains Poland",
+        "27 a nie 28 państw członkowskich",
+        "do 67 lat bez względu na płeć",
+        "Wejście Polski do strefy Schengen 21 grudnia 2007 r.",
+        "zostały zniesione już 31 marca 2024 r.",
+        "staje się 21. członkiem strefy euro",
+        "Szwecja zasiadła za stołem jako 32. sojusznik",
+        "zostanie zwiększona do 800 zł",
+        "4806 zł",
+        "w latach 1990-2018 kadencja trwała 4 lata",
     ):
         assert any(phrase in chunk for chunk in chunks), phrase
 
