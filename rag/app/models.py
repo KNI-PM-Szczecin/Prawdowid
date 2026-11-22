@@ -197,10 +197,19 @@ class CorpusSyncStatus(ApiModel):
     last_finished_at: Timestamp | None
     available: int | None
     indexed: int
+    already_present: int = 0
     skipped_duplicates: int
+    skipped_excluded: int = 0
     skipped_outside_catalog: int
     failed: int
     last_error: str | None
+
+
+class PruneReport(ApiModel):
+    dry_run: bool
+    documents_deleted: int
+    chunks_deleted: int
+    document_ids: list[str]
 
 
 class IncidentCatalogSummary(ApiModel):

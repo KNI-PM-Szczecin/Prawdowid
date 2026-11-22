@@ -14,16 +14,19 @@ import httpx
 from app import db
 from app.catalog import SourceOutsideCatalogError, resolve_entry
 from app.config import settings
+from app.corpus_rules import exclusion_reason
 from app.embeddings import EmbeddingModels
 from app.fetcher import FetchError, fetch_page
-from app.ingest import DuplicateDocumentError, ingest_document
-from app.models import DocumentIn, SourceIn
+from app.ingest import DuplicateDocumentError, delete_document_chunks, ingest_document
+from app.models import DocumentIn, PruneReport, SourceIn
 from app.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 
 SCRAPED_PREFIX = "scrapped:"
 WEB_PREFIX = "web:"
+LAW_PREFIX = "law:"
+BULK_IMPORT_PREFIXES = (SCRAPED_PREFIX, WEB_PREFIX, LAW_PREFIX)
 WEB_ID_LENGTH = 16
 YYYYMMDD = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
 TITLE_MAX_CHARS = 300
@@ -39,6 +42,7 @@ class Page:
     content: str
     fetched_at: datetime
     published_at: datetime | None = None
+    license: str | None = None
 
 
 @dataclass
@@ -47,10 +51,16 @@ class CorpusSyncState:
     last_finished_at: datetime | None = None
     available: int | None = None
     indexed: int = 0
+    already_present: int = 0
     skipped_duplicates: int = 0
+    skipped_excluded: int = 0
     skipped_outside_catalog: int = 0
     failed: int = 0
     last_error: str | None = None
+
+    def processed(self) -> int:
+        skipped = self.skipped_duplicates + self.skipped_excluded + self.skipped_outside_catalog
+        return self.indexed + skipped + self.failed
 
 
 sync_state = CorpusSyncState()
@@ -125,7 +135,7 @@ def to_document(page: Page, cleaned_content: str) -> DocumentIn:
             url=page.url,
             published_at=page.published_at,
             fetched_at=page.fetched_at,
-            license=None,
+            license=page.license,
             topic_tag=host,
         ),
         text=cleaned_content,
@@ -133,13 +143,29 @@ def to_document(page: Page, cleaned_content: str) -> DocumentIn:
 
 
 async def _index_pages(
-    pages: list[Page], models: EmbeddingModels, store: VectorStore, state: CorpusSyncState, label: str
+    pages: list[Page],
+    models: EmbeddingModels,
+    store: VectorStore,
+    state: CorpusSyncState,
+    label: str,
+    strip_boilerplate: bool,
 ) -> None:
     """Normal ingest path for every page (catalog, duplicates, chunking); one bad page never stops the run."""
-    cleaned = remove_boilerplate(
-        [page.content for page in pages], settings.corpus_boilerplate_share, settings.corpus_boilerplate_min_documents
+    cleaned = (
+        remove_boilerplate(
+            [page.content for page in pages],
+            settings.corpus_boilerplate_share,
+            settings.corpus_boilerplate_min_documents,
+        )
+        if strip_boilerplate
+        else [page.content for page in pages]
     )
     for page, content in zip(pages, cleaned, strict=True):
+        reason = exclusion_reason(page.url, page.title)
+        if reason is not None:
+            state.skipped_excluded += 1
+            logger.info("%s: %s excluded by corpus rules (%s)", label, page.document_id, reason)
+            continue
         if not content.strip():
             state.failed += 1
             continue
@@ -155,14 +181,24 @@ async def _index_pages(
         except Exception:
             state.failed += 1
             logger.exception("%s: %s failed", label, page.document_id)
-        done = state.indexed + state.skipped_duplicates + state.skipped_outside_catalog + state.failed
-        if done % PROGRESS_EVERY == 0:
-            logger.info("%s: %d of %d pages processed, %d indexed", label, done, len(pages), state.indexed)
+        if state.processed() % PROGRESS_EVERY == 0:
+            logger.info("%s: %d of %d pages processed, %d indexed", label, state.processed(), len(pages), state.indexed)
 
 
-async def _run(
-    state: CorpusSyncState, lock: asyncio.Lock, label: str, load_pages, models: EmbeddingModels, store: VectorStore
+async def run_corpus_job(
+    state: CorpusSyncState,
+    lock: asyncio.Lock,
+    label: str,
+    load_pages,
+    models: EmbeddingModels,
+    store: VectorStore,
+    strip_boilerplate: bool = True,
 ) -> CorpusSyncState:
+    """
+    One background import at a time per job: loads pages, indexes them, keeps the state for the status endpoint.
+    `strip_boilerplate` drops lines shared by many pages (menus, footers); legal texts must stay verbatim, so law
+    import turns it off.
+    """
     if lock.locked():
         logger.warning("%s already running, request ignored", label)
         return state
@@ -171,7 +207,7 @@ async def _run(
         try:
             pages = await load_pages(state)
             state.available = len(pages)
-            await _index_pages(pages, models, store, state, label)
+            await _index_pages(pages, models, store, state, label, strip_boilerplate)
         except Exception as error:
             state.last_error = f"{type(error).__name__}: {error}"
             logger.exception("%s stopped", label)
@@ -179,14 +215,41 @@ async def _run(
             state.running = False
             state.last_finished_at = datetime.now(UTC)
             logger.info(
-                "%s done: %d indexed, %d duplicates, %d outside catalog, %d failed",
+                "%s done: %d indexed, %d already present, %d duplicates, %d excluded, %d outside catalog, %d failed",
                 label,
                 state.indexed,
+                state.already_present,
                 state.skipped_duplicates,
+                state.skipped_excluded,
                 state.skipped_outside_catalog,
                 state.failed,
             )
     return state
+
+
+async def prune_corpus(store: VectorStore, dry_run: bool = False) -> PruneReport:
+    """
+    Removes bulk-imported documents (scraper, fetched pages, law) that the corpus rules exclude; the same rules keep
+    them out of every later import. Documents added by hand through POST /ingest are never touched.
+    """
+    document_ids: list[str] = []
+    chunks_deleted = 0
+    for row in await db.list_sources():
+        if not row["document_id"].startswith(BULK_IMPORT_PREFIXES):
+            continue
+        reason = exclusion_reason(row["url"], row["title"])
+        if reason is None:
+            continue
+        document_ids.append(row["document_id"])
+        if dry_run:
+            logger.info("Corpus prune (dry run): %s would be removed (%s)", row["document_id"], reason)
+            continue
+        chunks = await delete_document_chunks(row["document_id"], store)
+        chunks_deleted += chunks
+        logger.info("Corpus prune: %s removed, %d chunks (%s)", row["document_id"], chunks, reason)
+    return PruneReport(
+        dry_run=dry_run, documents_deleted=len(document_ids), chunks_deleted=chunks_deleted, document_ids=document_ids
+    )
 
 
 async def sync_corpus(models: EmbeddingModels, store: VectorStore, max_documents: int) -> CorpusSyncState:
@@ -205,7 +268,7 @@ async def sync_corpus(models: EmbeddingModels, store: VectorStore, max_documents
             for row in rows
         ]
 
-    return await _run(sync_state, _sync_lock, "Corpus sync", load_pages, models, store)
+    return await run_corpus_job(sync_state, _sync_lock, "Corpus sync", load_pages, models, store)
 
 
 async def fetch_corpus(
@@ -241,4 +304,4 @@ async def fetch_corpus(
                 await asyncio.sleep(settings.corpus_fetch_delay_seconds)
         return pages
 
-    return await _run(fetch_state, _fetch_lock, "Corpus fetch", load_pages, models, store)
+    return await run_corpus_job(fetch_state, _fetch_lock, "Corpus fetch", load_pages, models, store)
