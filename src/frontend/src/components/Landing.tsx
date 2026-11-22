@@ -21,7 +21,7 @@ const VERDICT_ORDER: { verdict: Verdict; tone: Tone }[] = [
   { verdict: "not_verifiable", tone: "neutral" },
 ];
 
-const SOURCE_ORDER: SourceType[] = ["official", "factcheck", "secondary", "incident"];
+const SOURCE_ORDER: SourceType[] = ["official", "factcheck", "secondary", "reference", "incident"];
 
 const SAMPLE_TONE: Record<"confirmed" | "conflicting", Tone> = { confirmed: "positive", conflicting: "warning" };
 
