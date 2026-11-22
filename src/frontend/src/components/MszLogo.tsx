@@ -2,9 +2,10 @@ import { useState } from "preact/hooks";
 import { texts } from "../lib/texts";
 import "./MszLogo.scss";
 
-// The official file comes from the organizer (it is not drawn here: the logo contains the state emblem).
-// Without public/msz-logo.svg the slot stays empty instead of showing a broken image.
-const LOGO_SRC = "/msz-logo.svg";
+// Current MFA logotype (2022), public domain, from Wikimedia Commons:
+// https://commons.wikimedia.org/wiki/File:Ministerstwo_Spraw_Zagranicznych_logo_2022.png
+// Commons has no SVG of this version (the SVG there is the logotype used before 2022).
+const LOGO_SRC = "/msz-logo.png";
 
 export function MszLogo({ variant }: { variant: "header" | "footer" }) {
   const [missing, setMissing] = useState(false);

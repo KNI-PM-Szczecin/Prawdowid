@@ -4,12 +4,15 @@
   display: block;
   width: auto;
   max-width: 100%;
+  // White in every contrast mode: on the black high-contrast page the black lettering would vanish.
+  border-radius: $radius-sm;
+  background: var(--logo-backdrop);
 
   &--header {
-    height: 2.5rem;
+    height: 3rem;
   }
 
   &--footer {
-    height: 3rem;
+    height: 3.5rem;
   }
 }
