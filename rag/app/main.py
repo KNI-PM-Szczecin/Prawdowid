@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import asyncpg
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
@@ -44,6 +44,7 @@ from app.models import (
     IngestResult,
     MaterialMatchRequest,
     MaterialMatchResponse,
+    OcrResponse,
     PruneReport,
     ReconcileReport,
     ReportMatchRequest,
@@ -53,6 +54,7 @@ from app.models import (
     SourceAuditEntry,
     SourceCatalog,
 )
+from app.ocr import OcrError, OcrUnavailableError, read_image
 from app.reconcile import reconcile_vectors
 from app.reports import REPORTS_COLLECTION_NAME, match_report
 from app.search import FACTCHECK_SOURCE_TYPE, search_passages
@@ -78,6 +80,8 @@ HTTP_CONFLICT = 409
 HTTP_UNPROCESSABLE = 422
 DUPLICATE_MESSAGE = "Dokument {document_id} ma tę samą treść co {duplicate_of}. Nie wgrano."
 FETCH_FAILED_MESSAGE = "Nie udało się pobrać strony: {reason}."
+OCR_FAILED_MESSAGE = "Nie udało się odczytać obrazu: {reason}."
+OCR_UNAVAILABLE_MESSAGE = "Odczyt tekstu z obrazu jest chwilowo niedostępny."
 NEAR_DUPLICATE_MESSAGE = "Dokument {document_id} ma niemal tę samą treść co {duplicate_of} (parafraza). Nie wgrano."
 EUVSDISINFO_DISABLED_MESSAGE = "Import EUvsDisinfo jest wyłączony: brak EUVSDISINFO_TOKEN."
 
@@ -276,6 +280,19 @@ async def fetch_url(request: FetchRequest) -> FetchResponse:
         truncated=truncated,
         published_at=page.published_at,
     )
+
+
+@app.post("/ocr", response_model=OcrResponse)
+async def ocr(image: UploadFile) -> OcrResponse:
+    """Text of a screenshot or photo for agent/ (brief scenario F); read locally, nothing is stored."""
+    data = await image.read(settings.ocr_max_bytes + 1)
+    try:
+        result = await read_image(data)
+    except OcrError as error:
+        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=OCR_FAILED_MESSAGE.format(reason=error)) from error
+    except OcrUnavailableError as error:
+        raise HTTPException(status_code=HTTP_SERVICE_UNAVAILABLE, detail=OCR_UNAVAILABLE_MESSAGE) from error
+    return OcrResponse(text=result.text, confidence=result.confidence, dates=result.dates, engine=result.engine)
 
 
 @app.post("/match", response_model=MaterialMatchResponse)

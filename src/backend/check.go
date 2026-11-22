@@ -62,6 +62,8 @@ type checkHandlers struct {
 	trustedProxyHops int
 	// cases is optional: without it the answer carries an empty case list.
 	cases *caseTracker
+	// ocr reads text from uploaded pictures through rag; nil disables POST /api/check/image with a technical error.
+	ocr *ocrClient
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
@@ -165,8 +167,9 @@ func (h *checkHandlers) beginCheck(request *http.Request, channel string) (reque
 // runCheck is the shared pipeline for every channel: mask personal data, call the agent,
 // normalize the result, store the run without failing the answer and log the outcome.
 // A URL goes to the agent unchanged, because masking would rewrite the address the agent has to fetch;
-// only the stored copy is masked.
-func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input, inputType string) (agent.CheckResult, int) {
+// only the stored copy is masked. extraLimitations come from the channel (e.g. that the text was read by OCR)
+// and are stored with the run.
+func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input, inputType string, extraLimitations ...string) (agent.CheckResult, int) {
 	trimmed := strings.TrimSpace(input)
 	storedRequest := agent.VerifyRequest{
 		RequestID: requestID,
@@ -185,6 +188,9 @@ func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input,
 	}
 	result = normalizeResult(result)
 	result.RequestID = requestID
+	if result.Status == agent.StatusOK && len(extraLimitations) > 0 {
+		result.Limitations = append(append([]string{}, extraLimitations...), result.Limitations...)
+	}
 
 	// A failed audit write must not break the answer (AGENTS.md section 6).
 	if err := h.saveRun(context.WithoutCancel(ctx), storedRequest, maskResultForStorage(result)); err != nil {

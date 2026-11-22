@@ -1,6 +1,6 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { IS_MOCK_MODE } from "../lib/api";
-import { MAX_INPUT_LENGTH } from "../lib/input";
+import { MAX_IMAGE_BYTES, MAX_INPUT_LENGTH, SUPPORTED_IMAGE_TYPES } from "../lib/input";
 import { MOCK_EXAMPLES } from "../lib/mockResults";
 import { texts } from "../lib/texts";
 import "./CheckForm.scss";
@@ -9,10 +9,12 @@ interface CheckFormProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
+  onSubmitImage: (image: File) => void;
 }
 
-export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
+export function CheckForm({ value, onChange, onSubmit, onSubmitImage }: CheckFormProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const length = value.trim().length;
 
   const submit = () => {
@@ -26,6 +28,21 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
     }
     setValidationError(null);
     onSubmit(value);
+  };
+
+  // The picture is checked right after it is chosen: one step for a citizen on a phone (brief scenario F).
+  const submitImage = (image: File | undefined) => {
+    if (!image) return;
+    if (!SUPPORTED_IMAGE_TYPES.has(image.type)) {
+      setValidationError(texts.form.imageBadType);
+      return;
+    }
+    if (image.size > MAX_IMAGE_BYTES) {
+      setValidationError(texts.form.imageTooLarge);
+      return;
+    }
+    setValidationError(null);
+    onSubmitImage(image);
   };
 
   return (
@@ -68,9 +85,33 @@ export function CheckForm({ value, onChange, onSubmit }: CheckFormProps) {
             {validationError}
           </p>
         )}
-        <button type="submit" class="button button--primary button--large check-form__submit">
-          {texts.form.submit}
-        </button>
+        <div class="check-form__actions">
+          <button type="submit" class="button button--primary button--large check-form__submit">
+            {texts.form.submit}
+          </button>
+          <input
+            ref={fileInputRef}
+            id="check-image"
+            type="file"
+            accept={[...SUPPORTED_IMAGE_TYPES].join(",")}
+            class="sr-only"
+            aria-describedby="check-image-hint"
+            onChange={(event) => {
+              submitImage(event.currentTarget.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+          <button
+            type="button"
+            class="button button--secondary button--large check-form__image"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {texts.form.imageButton}
+          </button>
+        </div>
+        <p id="check-image-hint" class="check-form__note">
+          {texts.form.imageHint}
+        </p>
         <p id="check-note" class="check-form__note">
           {texts.form.note}
         </p>

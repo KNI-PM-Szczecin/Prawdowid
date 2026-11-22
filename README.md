@@ -58,6 +58,12 @@ curl -X POST http://localhost:8080/api/channels/demo -H "Content-Type: applicati
 ```
 gdzie `wiadomosc.json` to `{"text": "treść do sprawdzenia"}` w UTF-8. Odpowiedź jest zwykłym tekstem z werdyktem, siłą podstawy, uzasadnieniem i źródłami, jak w komunikatorze. To samo zgłoszenie przez WWW i ten adapter daje ten sam wynik merytoryczny (scenariusz G). Bot Discord nie jest zaimplementowany.
 
+Zrzut ekranu albo zdjęcie z tekstem (scenariusz F; przycisk na stronie albo):
+```
+curl -X POST http://localhost:8080/api/check/image -F "image=@zrzut.png"
+```
+Tekst odczytuje lokalnie Tesseract w kontenerze `rag` (PNG, JPEG, WEBP do 5 MB; obraz nie jest zapisywany), potem jest sprawdzany jak tekst wpisany ręcznie. Odpowiedź mówi wprost, że tekst pochodzi z OCR, a data widoczna na obrazie nie potwierdza daty publikacji. Nie ma wyszukiwania odwrotnego obrazu ani oceny autentyczności zdjęcia.
+
 ## Zespół
 KNIPM (Koło Naukowe Informatyków Politechniki Morskiej w Szczecinie).
 

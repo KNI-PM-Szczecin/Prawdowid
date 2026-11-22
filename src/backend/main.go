@@ -84,6 +84,7 @@ func run(logger *slog.Logger) error {
 		catalog:          newSourceCatalog(config.RagURL, catalogFetchTimeout),
 		trustedProxyHops: config.TrustedProxyHops,
 		cases:            newCaseTracker(logger, config, cases),
+		ocr:              newOCRClient(config.RagURL, ocrTimeout),
 	}
 
 	demo := newChannelHandler(checks, demoAdapter{})
@@ -109,6 +110,7 @@ func run(logger *slog.Logger) error {
 	mux.HandleFunc("GET /livez", livenessHandler(logger))
 	mux.HandleFunc("GET /health", healthHandler(logger, pool))
 	mux.HandleFunc("POST /api/check", checks.check)
+	mux.HandleFunc("POST /api/check/image", checks.checkImage)
 	mux.HandleFunc("DELETE /api/checks/{requestId}", checks.deleteCheck)
 	mux.HandleFunc("POST /api/channels/demo", demo.handle)
 	mux.HandleFunc("GET /api/admin/cases", adminCasesHandler(logger, cases, config.ModeratorToken))

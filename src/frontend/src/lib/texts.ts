@@ -32,6 +32,12 @@ export const texts = {
     empty: "Wklej tekst albo link, który chcesz sprawdzić.",
     charCount: (count: number, max: number) => `${count} z ${max} znaków`,
     examplesTitle: "Wypróbuj przykład",
+    imageButton: "Sprawdź zrzut ekranu lub zdjęcie",
+    imageHint: "PNG, JPEG albo WEBP do 5 MB. Odczytamy tekst z obrazu i sprawdzimy go jak wklejony tekst.",
+    imageTooLarge: "Obraz jest za duży. Wybierz plik do 5 MB.",
+    imageBadType: "Nieobsługiwany rodzaj pliku. Dodaj obraz PNG, JPEG albo WEBP.",
+    imageMockMessage:
+      "W trybie demonstracyjnym nie odczytujemy obrazów. Wklej tekst albo wybierz jeden z przykładów.",
   },
   landing: {
     sampleTitle: "Tak wygląda wynik",
