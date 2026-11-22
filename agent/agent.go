@@ -138,8 +138,11 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		return a.finish(r, StatusNeedsClarification, msgEmptyInput), nil
 	}
 
-	if request.InputType != InputTypeURL && !hasEnoughWords(input) {
+	if request.InputType != InputTypeURL && (!hasEnoughWords(input) || statesNothing(input)) {
 		return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
+	}
+	if request.InputType != InputTypeURL && isOutOfScopeRequest(input) {
+		return a.finish(r, StatusOutOfScope, msgOutOfScopeRequest), nil
 	}
 
 	text, document, err := a.resolveInput(ctx, r, request)
@@ -435,7 +438,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]extractedClai
 	}
 	claims := make([]extractedClaim, 0, len(answer.Claims))
 	for _, claim := range answer.Claims {
-		if trimmed := strings.TrimSpace(claim.Text); hasEnoughWords(trimmed) {
+		if trimmed := strings.TrimSpace(claim.Text); hasEnoughWords(trimmed) && !statesNothing(trimmed) {
 			claims = append(claims, extractedClaim{Text: trimmed, Fragment: claim.Fragment, Kind: claim.Kind})
 		}
 		if len(claims) == a.config.MaxClaims {
@@ -443,7 +446,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]extractedClai
 		}
 	}
 	if len(claims) == 0 {
-		if statement, ok := questionAsStatement(text); ok && hasEnoughWords(statement) {
+		if statement, ok := questionAsStatement(text); ok && hasEnoughWords(statement) && !statesNothing(statement) {
 			a.logger.Info("extraction found no claim in a yes/no question, checking the question as a statement")
 			return []extractedClaim{{Text: statement, Fragment: text}}, 0, usageOf(completion), nil
 		}

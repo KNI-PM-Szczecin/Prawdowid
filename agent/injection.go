@@ -97,11 +97,35 @@ var injectionPatterns = regexp.MustCompile(strings.Join([]string{
 	`\bignore\s+(?:the\s+|all\s+the\s+)?(?:rules|instructions|guidelines)\b`,
 	`\[\s*(?:system|assistant|admin|developer|instrukcja|system\s+prompt)\s*\]`,
 	`<!--[^>]{0,300}(?:assistant|system|ignore|instruction|zignoruj|polecenie|werdykt|verdict)`,
-	// Off-task requests: a fact-check submission never asks for a recipe, a poem or code.
-	`\b(?:podaj|napisz|wygeneruj|stworz|wymysl|uloz)\s+(?:mi\s+|nam\s+)?(?:jakis\s+|jakas\s+|jakies\s+)?` +
-		`(?:przepis\s+na|wiersz|wierszyk|piosenke|opowiadanie|bajke|zart|dowcip|esej|program|list\s+milosny)\b`,
-	`\b(?:write|give|tell|generate|compose)\s+(?:me\s+|us\s+)?(?:a|an|some)\s+(?:recipe|poem|song|story|joke|essay|code)\b`,
+	offTaskRequestSource,
 }, "|"))
+
+// Off-task requests: a fact-check submission never asks for a recipe, a poem or code. Beside a claim such a request is
+// an injection attempt; alone it is a request outside the service (isOutOfScopeRequest).
+const offTaskRequestSource = `\b(?:podaj|napisz|wygeneruj|stworz|wymysl|uloz)\s+(?:mi\s+|nam\s+)?(?:jakis\s+|jakas\s+|jakies\s+)?` +
+	`(?:przepis\s+na|wiersz|wierszyk|piosenke|opowiadanie|bajke|zart|dowcip|esej|program|list\s+milosny)\b|` +
+	`\b(?:write|give|tell|generate|compose)\s+(?:me\s+|us\s+)?(?:a|an|some)\s+(?:recipe|poem|song|story|joke|essay|code)\b`
+
+var (
+	offTaskRequest = regexp.MustCompile(offTaskRequestSource)
+	// A question about the service's own opinion ("Co sądzisz o…?") asks for no fact.
+	// "Czy uważasz, że X?" or "Jak oceniasz twierdzenie, że X?" carry a claim and are not listed here.
+	opinionRequest = regexp.MustCompile(`^(?:a\s+)?(?:co\s+(?:sadzisz|myslisz|uwazasz)|jakie\s+(?:jest\s+)?(?:twoje|pana|pani)\s+zdanie|` +
+		`what\s+do\s+you\s+think|what\s+is\s+your\s+opinion)\b`)
+	// A that-clause ("…o tym, że Sejm ma 600 posłów") states a claim, so the question goes the normal way.
+	thatClause = regexp.MustCompile(`\b(?:ze|that)\b`)
+)
+
+// isOutOfScopeRequest reports a submission that is only a request the service does not serve: writing a text for the
+// user or giving its own opinion. It has no claim to check, so it is out_of_scope, not an injection attempt.
+func isOutOfScopeRequest(text string) bool {
+	normalized := normalizeForDetection(text)
+	if opinionRequest.MatchString(normalized) && !thatClause.MatchString(normalized) &&
+		!sentenceBoundary.MatchString(strings.TrimSpace(text)) {
+		return true
+	}
+	return offTaskRequest.MatchString(normalized) && !hasEnoughWords(stripInstructions(text))
+}
 
 var polishLetters = strings.NewReplacer("ą", "a", "ć", "c", "ę", "e", "ł", "l", "ń", "n", "ó", "o", "ś", "s", "ź", "z", "ż", "z")
 
