@@ -1,6 +1,7 @@
 import { texts } from "../lib/texts";
 import "./Footer.scss";
 import { ExternalIcon } from "./Icons";
+import { MszLogo } from "./MszLogo";
 
 const LINKS = [
   { label: texts.footer.repository, href: texts.footer.repositoryUrl },
@@ -12,7 +13,10 @@ export function Footer() {
   return (
     <footer class="footer">
       <div class="footer__inner">
-        <p class="footer__about">{texts.footer.about}</p>
+        <div class="footer__about">
+          <p>{texts.footer.about}</p>
+          <MszLogo variant="footer" />
+        </div>
         <ul class="footer__links">
           {LINKS.map((link) => (
             <li key={link.href}>

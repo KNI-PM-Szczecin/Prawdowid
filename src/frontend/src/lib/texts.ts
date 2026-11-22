@@ -13,6 +13,7 @@ import type {
 
 export const texts = {
   appName: "Prawdowid",
+  mszLogoAlt: "Ministerstwo Spraw Zagranicznych",
   skipToContent: "Przejdź do treści",
   nav: {
     label: "Nawigacja główna",

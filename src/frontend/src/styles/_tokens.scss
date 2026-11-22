@@ -5,6 +5,8 @@
   --ink-soft: #3a3a3a;
   --line: #8c8c8c;
   --link: #0b4fc2;
+  // The MFA logo is black on transparent; it keeps a white backdrop in every contrast mode.
+  --logo-backdrop: #ffffff;
   --positive-soft: #defccc;
   --positive-line: #8ccc6a;
   --positive-strong: #1c7a30;
