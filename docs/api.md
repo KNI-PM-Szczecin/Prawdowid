@@ -478,7 +478,7 @@ Decyzja z 21.11: dostępność jest priorytetem. Cel: WCAG 2.1 AA. Co z tego wyn
 - ~~Discord: Interactions Endpoint czy bot przez Gateway?~~ Bot powstał (komenda `/factcheck`). Adapter demonstracyjny `POST /api/channels/demo` (§4) zostaje kanałem zapasowym.
 - `document.text` w bazie: `check_runs.result` trzyma dokument przycięty do 5000 znaków i zamaskowany (także tytuł i dla URL), retencja 30 dni (`CHECK_RETENTION_DAYS`). Odpowiedź dla użytkownika nie jest przycinana ani zmieniana (`maskResultForStorage` w `src/backend/check.go`).
 - CORS: front na `localhost:5173`, backend na `3001`. Proponujemy proxy w `vite.config.ts` (`/api` → `3001`) zamiast nagłówków CORS w Go. Na Railway front i backend mogą być pod jednym adresem (backend serwuje `dist/`), wtedy CORS znika.
-- ~~Limit żądań: proponujemy 10 żądań na minutę na IP.~~ Wdrożone: 20 żądań na minutę na IP (`CHECK_RATE_LIMIT_PER_MINUTE`), wspólne dla WWW i adaptera demonstracyjnego; IP z `X-Forwarded-For` według `TRUSTED_PROXY_HOPS`.
+- ~~Limit żądań: proponujemy 10 żądań na minutę na IP.~~ Wdrożone: 60 żądań na minutę na IP (`CHECK_RATE_LIMIT_PER_MINUTE`), wspólne dla WWW i adaptera demonstracyjnego; IP z `X-Forwarded-For` według `TRUSTED_PROXY_HOPS`.
 - `claims[].span` zwraca `agent/` (PR #67). `claims[].conflict` nadal otwarte: pola nie ma w JSON, front wnioskuje rozbieżność z ról źródeł.
 
 ## 8. Plan implementacji backendu (`src/backend/`)
