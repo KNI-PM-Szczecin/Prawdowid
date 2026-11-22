@@ -9,6 +9,7 @@ from app.law_import import (
     act_pages,
     act_text,
     act_url,
+    act_versions,
     import_law,
     join_wrapped_lines,
     load_act_specs,
@@ -78,9 +79,24 @@ def test_act_pages_split_long_acts_into_numbered_parts_with_stable_ids():
     assert single[0].title == "Kodeks pracy (Dz.U. 2026 poz. 1245)"
 
 
-def test_import_respects_budget_and_skips_acts_already_indexed(monkeypatch):
+def test_act_versions_skip_rows_without_a_valid_date():
+    rows = [
+        {"position": 1, "year": 2025, "date": 20250102, "title": "USTAWA"},
+        {"position": 2, "year": 2025, "date": 20251399, "title": "USTAWA"},
+        {"position": 3, "year": 2025, "date": None, "title": "USTAWA"},
+    ]
+    assert [version.position for version in act_versions(rows)] == [1]
+
+
+def test_import_respects_budget_skips_indexed_acts_and_removes_stale_parts(monkeypatch):
     specs = [KODEKS_PRACY, KODEKS_KARNY, ActSpec("brak", "Brak", re.compile("Konstytucja"))]
     ingested: list[str] = []
+    deleted: list[str] = []
+    # Kodeks pracy is current; Kodeks karny has a leftover second part from an older, longer version.
+    active = {
+        "law:kodeks-pracy": "https://dziennikustaw.gov.pl/DU/2026/1245",
+        "law:kodeks-karny:2": "https://dziennikustaw.gov.pl/DU/2025/383",
+    }
 
     async def fetch_law_acts():
         return [
@@ -92,12 +108,18 @@ def test_import_respects_budget_and_skips_acts_already_indexed(monkeypatch):
         return [f"Art. 1. Akt {position}/{year}.", "Art. 2. " + "x" * 50]
 
     async def active_document_url(document_id):
-        return "https://dziennikustaw.gov.pl/DU/2026/1245" if document_id == "law:kodeks-pracy" else None
+        return active.get(document_id)
 
     async def ingest_document(document, models, store):
         ingested.append(document.source.document_id)
 
+    async def delete_document_chunks(document_id, store):
+        deleted.append(document_id)
+        del active[document_id]
+        return 4
+
     monkeypatch.setattr(law_import, "load_act_specs", lambda: specs)
+    monkeypatch.setattr(law_import, "delete_document_chunks", delete_document_chunks)
     monkeypatch.setattr(db, "fetch_law_acts", fetch_law_acts)
     monkeypatch.setattr(db, "fetch_law_rules", fetch_law_rules)
     monkeypatch.setattr(db, "active_document_url", active_document_url)
@@ -106,6 +128,7 @@ def test_import_respects_budget_and_skips_acts_already_indexed(monkeypatch):
     state = asyncio.run(import_law(models=None, store=None, max_chars=10_000, max_part_chars=10_000))
 
     assert ingested == ["law:kodeks-karny"]
+    assert deleted == ["law:kodeks-karny:2"]
     assert (state.indexed, state.already_present, state.failed) == (1, 1, 1)
 
     ingested.clear()

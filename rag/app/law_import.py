@@ -7,8 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app import db
-from app.corpus_sync import CorpusSyncState, Page, run_corpus_job
+from app.corpus_sync import CorpusSyncState, Page, parse_date_code, run_corpus_job
 from app.embeddings import EmbeddingModels
+from app.ingest import delete_document_chunks
 from app.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -115,8 +116,34 @@ def act_pages(spec: ActSpec, version: ActVersion, rules: list[str], now: datetim
     ]
 
 
-def _parse_date(value: int) -> datetime:
-    return datetime(value // 10000, value // 100 % 100, value % 100, tzinfo=UTC)
+def act_versions(rows: list) -> list[ActVersion]:
+    """Rows of the Law table as versions; a row without a valid YYYYMMDD date is logged and left out, never guessed."""
+    versions: list[ActVersion] = []
+    for row in rows:
+        date = parse_date_code(row["date"])
+        if date is None:
+            logger.warning("Law import: Dz.U. %s poz. %s has no valid date, skipped", row["year"], row["position"])
+            continue
+        versions.append(ActVersion(position=row["position"], year=row["year"], date=date, title=row["title"]))
+    return versions
+
+
+async def _already_indexed(pages: list[Page]) -> bool:
+    """True only when every part of the act is active and comes from the same Dz.U. position."""
+    for page in pages:
+        if await db.active_document_url(page.document_id) != page.url:
+            return False
+    return True
+
+
+async def _remove_stale_parts(spec: ActSpec, part_count: int, store: VectorStore) -> int:
+    """A newer text split into fewer parts must not leave old parts behind as current law."""
+    removed = 0
+    part = part_count + 1
+    while await db.active_document_url(act_document_id(spec, part)) is not None:
+        removed += await delete_document_chunks(act_document_id(spec, part), store)
+        part += 1
+    return removed
 
 
 async def import_law(
@@ -124,14 +151,13 @@ async def import_law(
 ) -> CorpusSyncState:
     """
     Imports the newest version of every act in app/data/law_acts.json from the scraper's Law table, in list order,
-    until `max_chars` of text have been queued. Acts already indexed from the same Dz.U. position are skipped.
+    until `max_chars` of text have been queued. An act whose every part is already indexed from the same Dz.U.
+    position is skipped, so a rerun continues where the budget stopped it.
     """
+    planned: list[tuple[ActSpec, int]] = []
 
     async def load_pages(state: CorpusSyncState) -> list[Page]:
-        candidates = [
-            ActVersion(position=row["position"], year=row["year"], date=_parse_date(row["date"]), title=row["title"])
-            for row in await db.fetch_law_acts()
-        ]
+        candidates = act_versions(await db.fetch_law_acts())
         now = datetime.now(UTC)
         budget = max_chars
         pages: list[Page] = []
@@ -141,16 +167,27 @@ async def import_law(
                 state.failed += 1
                 logger.warning("Law import: no act matches %s, skipped", spec.id)
                 continue
-            if await db.active_document_url(act_document_id(spec, 1)) == act_url(version):
+            rules = await db.fetch_law_rules(version.position, version.year)
+            act = act_pages(spec, version, rules, now, max_part_chars)
+            if await _already_indexed(act):
                 state.already_present += 1
                 continue
-            rules = await db.fetch_law_rules(version.position, version.year)
-            text_length = sum(len(rule) for rule in rules)
+            text_length = sum(len(page.content) for page in act)
             if text_length > budget:
                 logger.info("Law import: budget used up before %s, rerun with higher maxChars", spec.id)
                 break
             budget -= text_length
-            pages.extend(act_pages(spec, version, rules, now, max_part_chars))
+            pages.extend(act)
+            planned.append((spec, len(act)))
         return pages
 
-    return await run_corpus_job(law_state, _law_lock, "Law import", load_pages, models, store)
+    state = await run_corpus_job(law_state, _law_lock, "Law import", load_pages, models, store, strip_boilerplate=False)
+    for spec, part_count in planned:
+        try:
+            removed = await _remove_stale_parts(spec, part_count, store)
+        except Exception:
+            logger.exception("Law import: stale parts of %s could not be removed", spec.id)
+            continue
+        if removed:
+            logger.info("Law import: %d stale chunks of %s removed", removed, spec.id)
+    return state

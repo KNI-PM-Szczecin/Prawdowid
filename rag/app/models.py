@@ -206,6 +206,7 @@ class CorpusSyncStatus(ApiModel):
 
 
 class PruneReport(ApiModel):
+    dry_run: bool
     documents_deleted: int
     chunks_deleted: int
     document_ids: list[str]

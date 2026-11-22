@@ -383,9 +383,12 @@ async def start_corpus_sync(
 
 
 @app.post("/admin/corpus/prune", response_model=PruneReport, dependencies=AdminOnly)
-async def prune() -> PruneReport:
-    """Removes indexed documents that app/data/corpus_rules.json excludes (listing pages, home pages, police news)."""
-    return await prune_corpus(app.state.store)
+async def prune(dry_run: Annotated[bool, Query(alias="dryRun")] = False) -> PruneReport:
+    """
+    Removes bulk-imported documents that app/data/corpus_rules.json excludes (listing pages, home pages, police
+    news). With dryRun=true only lists what would go, so a rule change can be checked before it deletes anything.
+    """
+    return await prune_corpus(app.state.store, dry_run=dry_run)
 
 
 @app.get("/corpus/law", response_model=CorpusSyncStatus)

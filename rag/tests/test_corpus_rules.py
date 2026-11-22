@@ -15,8 +15,15 @@ EXCLUDED = [
     ("https://www.gov.pl/web/gis/x", "Ostrzeżenia - Główny Inspektorat Sanitarny - Portal Gov.pl"),
     ("https://demagog.org.pl/archiwum", "Weryfikacja wypowiedzi polityków - archiwum"),
     ("https://www.gov.pl/web/wody-polskie/komunikaty-nawigacyjne", "Komunikaty nawigacyjne - Wody Polskie"),
+    ("https://www.gov.pl/web/premier/komunikaty-cir", "Komunikaty CIR - Kancelaria Prezesa Rady Ministrów"),
+    ("https://policja.pl/x", "Pamiętamy! - Policja.pl - Portal polskiej Policji"),
+    ("https://www.gov.pl/web/premier/p", "Premier - Kancelaria Prezesa Rady Ministrów - Portal Gov.pl"),
 ]
 KEPT = [
+    ("https://www.gov.pl/web/mswia/statystyki-2025", "Statystyki przestępczości 2025 - MSWiA"),
+    ("https://www.gov.pl/web/obrona-narodowa/wot", "Nabór do Wojsk Obrony Terytorialnej - zasady"),
+    ("https://www.gov.pl/web/kultura/aan", "Archiwum Akt Nowych odtajnia dokumenty"),
+    ("https://www.gov.pl/web/premier/x", "Premier spotkał się z prezydentem"),
     ("https://www.gov.pl/web/mswia/strefa", "Przedłużenie strefy buforowej na granicy polsko-białoruskiej"),
     ("https://www.gov.pl/web/gis/ostrzezenie-1", "Ostrzeżenie publiczne dotyczące żywności: pleśń"),
     ("https://moje.cert.pl/komunikaty/falszywe-sms", "Uwaga na fałszywe SMS-y o mandatach!"),
@@ -45,11 +52,13 @@ def test_seed_urls_are_not_excluded_by_the_rules():
     assert [url for url in seed_urls() if exclusion_reason(url, "") is not None] == []
 
 
-def test_prune_removes_only_documents_matching_the_rules(monkeypatch):
+def test_prune_removes_only_bulk_imported_documents_matching_the_rules(monkeypatch):
     rows = [
         {"document_id": "web:home", "url": "https://www.zus.pl/", "title": "Strona główna - ZUS"},
         {"document_id": "scrapped:9", "url": "https://policja.pl/pol/x", "title": "Pracownica banku wyłudziła"},
         {"document_id": "seed:zus", "url": "https://www.zus.pl/powszechny-wiek-emerytalny", "title": "Wiek emerytalny"},
+        # Added by hand through POST /ingest: the rules never touch it, even on an excluded host.
+        {"document_id": "manual:policja", "url": "https://policja.pl/pol/ostrzezenie", "title": "Ostrzeżenie"},
     ]
     deleted: list[str] = []
 
@@ -63,8 +72,12 @@ def test_prune_removes_only_documents_matching_the_rules(monkeypatch):
     monkeypatch.setattr(db, "list_sources", list_sources)
     monkeypatch.setattr(corpus_sync, "delete_document_chunks", delete_document_chunks)
 
+    preview = asyncio.run(prune_corpus(store=None, dry_run=True))
+    assert deleted == [] and preview.dry_run
+    assert preview.document_ids == ["web:home", "scrapped:9"] and preview.chunks_deleted == 0
+
     report = asyncio.run(prune_corpus(store=None))
 
     assert deleted == ["web:home", "scrapped:9"]
-    assert (report.documents_deleted, report.chunks_deleted) == (2, 6)
+    assert (report.documents_deleted, report.chunks_deleted, report.dry_run) == (2, 6, False)
     assert report.document_ids == deleted
