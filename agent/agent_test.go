@@ -824,6 +824,75 @@ func TestInstructionNeverReachesTheSearchQuery(t *testing.T) {
 	}
 }
 
+// A long text: every extracted claim is checked, in order of importance, not only the first three.
+func TestAllExtractedClaimsAreCheckedInOrder(t *testing.T) {
+	extract := `{"twierdzenia":[` +
+		`{"tekst":"Kadencja Sejmu trwa 4 lata.","fragment":"a","rodzaj":"fakt"},` +
+		`{"tekst":"Senat ma 100 senatorów.","fragment":"b","rodzaj":"fakt"},` +
+		`{"tekst":"Sejm ma 460 posłów.","fragment":"c","rodzaj":"fakt"},` +
+		`{"tekst":"Prezydent ma pięcioletnią kadencję.","fragment":"d","rodzaj":"fakt"},` +
+		`{"tekst":"Konstytucja jest z 1997 roku.","fragment":"e","rodzaj":"fakt"}],"pominiete":0}`
+	provider := &fakeProvider{extract: extract, judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+	agent := newTestAgent(t, provider, &ragStub{search: searchWith(officialPassage())})
+	agent.config.MaxClaims = defaultMaxClaims
+	result := verify(t, agent, "Pięć twierdzeń o ustroju. Kolejne zdanie z faktami.", InputTypeText)
+
+	if len(result.Claims) != 5 {
+		t.Fatalf("expected all 5 claims, got %d", len(result.Claims))
+	}
+	for index, claim := range result.Claims {
+		if claim.ID != fmt.Sprintf("c%d", index+1) {
+			t.Fatalf("claims must keep the order of importance, got %s at %d", claim.ID, index)
+		}
+	}
+}
+
+// The model abstained, but two independent publishers settle the whole claim the same way: that is a verdict.
+func TestTwoIndependentSupportingSourcesConfirmDespiteACautiousModel(t *testing.T) {
+	second := secondNewsPassage()
+	judge := judgeWith("brak_dowodow",
+		citation(newsChunk, "kadencja Sejmu trwa cztery lata", "potwierdza"),
+		citation(secondNewsChunk, secondNewsQuote, "potwierdza"))
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith(newsPassage(), second)}),
+		claimSejm, InputTypeText)
+
+	claim := result.Claims[0]
+	if claim.Verdict != VerdictConfirmed || claim.EvidenceStrength != StrengthStrong {
+		t.Fatalf("expected confirmed on two independent sources, got %+v", claim)
+	}
+}
+
+// An official page that does not settle the claim sits beside two agreeing secondary sources: they decide.
+func TestAgreeingSecondarySourcesDecideBesideASilentOfficialSource(t *testing.T) {
+	judge := judgeWith("brak_dowodow",
+		citation(officialChunk, "Sejm i Senat są wybierane na czteroletnie kadencje", "kontekst"),
+		citation(newsChunk, "kadencja Sejmu trwa cztery lata", "potwierdza"),
+		citation(secondNewsChunk, secondNewsQuote, "potwierdza"))
+	search := searchWith(officialPassage(), newsPassage(), secondNewsPassage())
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: search}), claimSejm, InputTypeText)
+
+	if claim := result.Claims[0]; claim.Verdict != VerdictConfirmed || claim.EvidenceStrength != StrengthStrong {
+		t.Fatalf("two agreeing secondary sources must decide, got %+v", claim)
+	}
+}
+
+func TestOneSourceOrSourcesOnBothSidesStayAnAbstention(t *testing.T) {
+	cases := [][]SourceRef{
+		{{Publisher: "Portal", Role: RoleSupports}},
+		{{Publisher: "Portal", Role: RoleSupports}, {Publisher: "portal ", Role: RoleSupports}},
+		{{Publisher: "Portal", Role: RoleSupports}, {Publisher: "Gazeta", Role: RoleSupports}, {Publisher: "Radio", Role: RoleRefutes}},
+		{{Publisher: "Portal", Role: RoleContext}, {Publisher: "Gazeta", Role: RoleContext}},
+	}
+	for _, sources := range cases {
+		if verdict, ok := corroborated(sources); ok {
+			t.Errorf("%+v must not settle the claim, got %s", sources, verdict)
+		}
+	}
+	if verdict, ok := corroborated([]SourceRef{{Publisher: "Portal", Role: RoleRefutes}, {Publisher: "Gazeta", Role: RoleRefutes}}); !ok || verdict != VerdictFalse {
+		t.Fatalf("two independent refuting sources give false, got %s", verdict)
+	}
+}
+
 const titleChunk = "66666666-6666-6666-6666-666666666666"
 
 // The key date is only in the title of the page: quoting the title refutes a claim with another date.

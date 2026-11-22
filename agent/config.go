@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	defaultRagURL        = "http://localhost:8001"
-	defaultLLMBaseURL    = "http://127.0.0.1:52625/v1"
-	defaultLLMModel      = "qwen3:0.6b"
-	defaultMaxClaims     = 3
+	defaultRagURL     = "http://localhost:8001"
+	defaultLLMBaseURL = "http://127.0.0.1:52625/v1"
+	defaultLLMModel   = "qwen3:0.6b"
+	// Claims extracted from one text, most important first; the first claimConcurrency are always checked and the
+	// rest as long as the time budget allows (the answer says how many were checked).
+	defaultMaxClaims     = 10
 	defaultVerifyTimeout = 45 * time.Second // CONTRACT.md §2
 	// CONTRACT.md §2: the first question on a topic fills the corpus from gov.pl, follows secondary sources to the
 	// primary pages they cite and fetches travel notices on demand; later questions hit the ready corpus and cache.

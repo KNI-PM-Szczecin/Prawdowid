@@ -115,6 +115,8 @@ export interface RunMeta {
   injectionAttempts: number;
   abstained: boolean;
   timedOut: boolean;
+  // Set when the backend served the stored answer to the same question (consistency cache).
+  cached?: boolean;
 }
 
 // Closed information loop (CONTRACT.md §1a): "forwarded" only after the moderator's webhook accepted the case.

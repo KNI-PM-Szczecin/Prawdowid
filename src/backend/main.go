@@ -80,6 +80,7 @@ func run(logger *slog.Logger) error {
 		saveRun:          store.save,
 		deleteRun:        store.delete,
 		limiter:          newRateLimiter(config.RateLimitPerMinute, rateLimitWindow, logger),
+		results:          newConfiguredResultCache(config.ResultCacheMinutes),
 		now:              time.Now,
 		archivalAfter:    time.Duration(config.ArchivalDays) * hoursPerDay * time.Hour,
 		catalog:          newSourceCatalog(config.RagURL, catalogFetchTimeout),

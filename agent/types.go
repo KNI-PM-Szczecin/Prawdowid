@@ -100,6 +100,8 @@ type RunMeta struct {
 	InjectionAttempts int      `json:"injectionAttempts"`
 	Abstained         bool     `json:"abstained"`
 	TimedOut          bool     `json:"timedOut"`
+	// Cached is set by the backend when the answer is the stored result of the same question (consistency cache).
+	Cached bool `json:"cached"`
 }
 
 // Document is the checked text as the front shows it (CONTRACT.md §1a, optional).

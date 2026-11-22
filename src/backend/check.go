@@ -64,6 +64,8 @@ type checkHandlers struct {
 	cases *caseTracker
 	// ocr reads text from uploaded pictures through rag; nil disables POST /api/check/image with a technical error.
 	ocr *ocrClient
+	// results is optional: without it every check runs the agent again.
+	results *resultCache
 }
 
 func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request) {
@@ -90,7 +92,11 @@ func (h *checkHandlers) check(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	result, statusCode := h.runCheck(request.Context(), requestID, webChannel, body.Input, body.InputType)
+	ctx := request.Context()
+	if strings.Contains(strings.ToLower(request.Header.Get("Cache-Control")), noCacheDirective) {
+		ctx = withFreshResult(ctx)
+	}
+	result, statusCode := h.runCheck(ctx, requestID, webChannel, body.Input, body.InputType)
 	response := h.withSummary(result)
 	response.Cases = h.cases.track(request.Context(), result)
 	if body.InputType == agent.InputTypeURL && result.Status == agent.StatusOK {
@@ -181,16 +187,29 @@ func (h *checkHandlers) runCheck(ctx context.Context, requestID, channel, input,
 	if inputType == agent.InputTypeURL {
 		verifyRequest.Input = trimmed
 	}
-	result, err := h.verify(ctx, verifyRequest)
-	if err != nil {
-		h.logger.Error("verify failed", "requestId", requestID, "error", err)
-		return h.nonMerit(requestID, channel, agent.StatusTechnicalError, messageInternalError), http.StatusServiceUnavailable
+	cacheKey := resultCacheKey(inputType, storedRequest.Input, extraLimitations)
+	result, cached := agent.CheckResult{}, false
+	if !wantsFreshResult(ctx) {
+		result, cached = h.results.get(cacheKey)
 	}
-	result = normalizeResult(result)
+	if cached {
+		// Same verdicts, sources and justification as the first answer; this request keeps its own id and channel.
+		result.Meta.Channel = channel
+		result.Meta.ReceivedAt = h.now().UTC().Format(time.RFC3339)
+		result.Meta.Cached = true
+	} else {
+		verified, err := h.verify(ctx, verifyRequest)
+		if err != nil {
+			h.logger.Error("verify failed", "requestId", requestID, "error", err)
+			return h.nonMerit(requestID, channel, agent.StatusTechnicalError, messageInternalError), http.StatusServiceUnavailable
+		}
+		result = normalizeResult(verified)
+		if result.Status == agent.StatusOK && len(extraLimitations) > 0 {
+			result.Limitations = append(append([]string{}, extraLimitations...), result.Limitations...)
+		}
+		h.results.put(cacheKey, result)
+	}
 	result.RequestID = requestID
-	if result.Status == agent.StatusOK && len(extraLimitations) > 0 {
-		result.Limitations = append(append([]string{}, extraLimitations...), result.Limitations...)
-	}
 
 	// A failed audit write must not break the answer (AGENTS.md section 6).
 	if err := h.saveRun(context.WithoutCancel(ctx), storedRequest, maskResultForStorage(result)); err != nil {

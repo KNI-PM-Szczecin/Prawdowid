@@ -52,7 +52,7 @@ Odpowiedź (`CheckResult`):
     "channel": "web", "receivedAt": "2026-11-21T10:00:00Z", "latencyMs": 8200,
     "model": "...", "estimatedCostUsd": 0.004, "corpusVersion": "...",
     "retrievedPassages": 5, "searchErrors": 0, "injectionAttempts": 0,
-    "abstained": false, "timedOut": false
+    "abstained": false, "timedOut": false, "cached": false
   }
 }
 ```
@@ -122,6 +122,8 @@ func Verify(ctx context.Context, req VerifyRequest) (CheckResult, error)
 ```
 
 Budżet czasu (cel: mediana ≤ 30 s): `ctx` z limitem 45 s dla całego `Verify`, wywołanie `rag/` max 30 s, jedno wywołanie modelu max 15 s (`rag/` podniesione z 8 s do 12 s po pomiarach na Railway, gdzie rerank na współdzielonym CPU trwa 6–9 s, potem do 18 s, a teraz do 30 s, bo uzupełnianie korpusu z gov.pl, przeskok na źródła pierwotne i pobranie na żądanie komunikatu Odyseusza potrzebują czasu przy pierwszym pytaniu o temat; mediana zostaje ≤ 30 s, bo kolejne pytania trafiają w gotowy korpus i cache; `RAG_TIMEOUT_SECONDS` nadpisuje wartość). Jedno `/search` w `rag/` trwa najwyżej `RAG_SEARCH_TOTAL_BUDGET_SECONDS` (14 s) razem z uzupełnianiem korpusu (gov.pl i Odyseusz 6 s, przeskok 6 s, ponowienia Fact Check 4 s), więc mieści się w każdym limicie agenta (także w starszym 18 s); po budżecie odpowiedź idzie bez uzupełnienia (`gov_search` ze statusem `skipped`), a uzupełnianie kończy się w tle. Druga runda agenta rusza tylko, gdy do końca `Verify` zostało co najmniej 20 s. Backend: `WriteTimeout` 60 s, limit sprawdzenia z kanału Discord 50 s; front przerywa żądanie po 55 s. Po przekroczeniu: `technical_error` z `meta.timedOut = true`.
+
+**Spójność wyników (cache backendu).** Gotowy wynik sprawdzenia jest zapamiętywany na `CHECK_RESULT_CACHE_MINUTES` (30 min; 0 wyłącza) pod skrótem SHA-256 z rodzaju wejścia i treści po maskowaniu danych osobowych (małe litery, pojedyncze spacje); treść zgłoszenia nie jest kluczem. To samo pytanie na WWW, w kanale demonstracyjnym i w bocie Discord dostaje wtedy ten sam wynik (werdykty, źródła, uzasadnienie) z własnym `requestId`, kanałem, `receivedAt` i `meta.cached = true`; przebieg jest zapisywany jak każdy inny. `technical_error` nigdy nie trafia do cache. Nagłówek `Cache-Control: no-cache` na `POST /api/check` liczy wynik od nowa i nadpisuje zapamiętany. Cache jest w pamięci procesu, więc każdy deploy go czyści.
 `backend/` zapisuje przebieg sprawdzenia (pytanie zmaskowane, czas, użyte źródła, wynik, `meta`) na podstawie `CheckResult`.
 
 ### Kanały (drugi kanał: adapter demonstracyjny `POST /api/channels/demo` z ciałem `{ "text": "..." }` i odpowiedzią tekstową jak w komunikatorze, albo bot Discord `/factcheck` w `src/backend/discord.go`; oba używają tej samej ścieżki weryfikacji co WWW)

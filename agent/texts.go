@@ -41,6 +41,8 @@ const (
 	limitationPageTruncated     = "Strona była bardzo długa; sprawdzono jej początek."
 	limitationFactcheckMismatch = "Dla twierdzenia %s ocena weryfikatora faktów (%s) różniła się od wniosku ze źródeł. " +
 		"Weryfikator mógł oceniać inne, podobne twierdzenie, dlatego wstrzymujemy się od oceny."
+	limitationCorroborated = "Dla twierdzenia %s ocenę oparliśmy na zgodności co najmniej dwóch niezależnych źródeł, " +
+		"z których każde rozstrzyga całe twierdzenie."
 	limitationNumbersMismatch = "Dla twierdzenia %s pominęliśmy jako dowód źródła, które podają inne liczby niż twierdzenie " +
 		"(mogą dotyczyć innej sprawy)."
 	limitationModelFallback = "Dla twierdzenia %s model nie zwrócił poprawnej odpowiedzi; " +
