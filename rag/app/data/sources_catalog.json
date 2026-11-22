@@ -453,6 +453,15 @@
       "env": "RAG_GOV_SEARCH_ENABLED"
     },
     {
+      "name": "wikidata",
+      "provider": "Wikidata (Wikimedia Foundation), API wbsearchentities i wbgetentities",
+      "url": "https://www.wikidata.org/",
+      "role": "Dane o osobach wymienionych w twierdzeniu: krótki opis, data urodzenia i śmierci z danych strukturalnych. Wracają jako sourceType reference (dane encyklopedyczne), z linkiem do elementu i datą jego ostatniej zmiany; najwyżej 2 osoby na pytanie, poza limitem topK.",
+      "dataSent": "Tylko nazwy pisane wielką literą wyłuskane z twierdzenia (np. imię i nazwisko osoby publicznej), bez reszty treści. Dostawca: Wikimedia Foundation (USA, poza EOG).",
+      "terms": "Dane CC0 1.0, publiczne API bez klucza. Klient przedstawia się jako Prawdowid/0.1 z adresem repozytorium (wymóg Wikimedia).",
+      "env": "RAG_WIKIDATA_ENABLED"
+    },
+    {
       "name": "euvsdisinfo",
       "provider": "EUvsDisinfo (EEAS East StratCom Task Force), serwer MCP",
       "url": "https://euvsdisinfo.eu/",

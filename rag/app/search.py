@@ -20,6 +20,9 @@ from app.lexical import rating_phrases
 from app.models import ExternalSourceStatus, Passage, SearchFilters, SearchRequest, SearchResponse
 from app.query_expansion import expand
 from app.vector_store import STORE_ERRORS, RetrievedChunk, VectorStore, build_filter
+from app.wikidata import LICENSE as WIKIDATA_LICENSE
+from app.wikidata import PUBLISHER as WIKIDATA_PUBLISHER
+from app.wikidata import PersonFact, WikidataClient, WikidataResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,11 @@ FACTCHECK_DOCUMENT_PREFIX = "factcheck:"
 RATING_CHUNK_CANDIDATES = 20
 
 Candidate = RetrievedChunk | FactCheckReview
+REFERENCE_SOURCE_TYPE = "reference"
+WIKIDATA_DOCUMENT_PREFIX = "wikidata:"
+# Structured data from a curated knowledge base: trusted tier, high reliability for life dates of public figures.
+WIKIDATA_TIER = 1
+WIKIDATA_RELIABILITY = "high"
 
 
 def _relevance(logit: float) -> float:
@@ -88,6 +96,10 @@ def _factcheck_wanted(filters: SearchFilters | None) -> bool:
     return filters is None or not filters.source_types or FACTCHECK_SOURCE_TYPE in filters.source_types
 
 
+def _reference_wanted(filters: SearchFilters | None) -> bool:
+    return filters is None or not filters.source_types or REFERENCE_SOURCE_TYPE in filters.source_types
+
+
 def _within_date_filter(review: FactCheckReview, filters: SearchFilters | None) -> bool:
     if filters is None or filters.published_after is None:
         return True
@@ -107,6 +119,30 @@ def _flags(text: str, label: str) -> list[str]:
         return []
     logger.warning("Possible prompt injection in %s", label)
     return [INJECTION_FLAG]
+
+
+def _person_passage(fact: PersonFact, score: float, fetched_at: datetime) -> Passage:
+    text = fact.passage_text
+    return Passage(
+        document_id=f"{WIKIDATA_DOCUMENT_PREFIX}{fact.entity_id}",
+        title=f"Wikidata: {fact.label}",
+        publisher=WIKIDATA_PUBLISHER,
+        published_at=fact.modified,
+        fetched_at=fetched_at,
+        url=fact.url,
+        license=WIKIDATA_LICENSE,
+        source_type=REFERENCE_SOURCE_TYPE,
+        passage=text,
+        score=score,
+        flags=_flags(text, f"Wikidata entity {fact.entity_id}"),
+        chunk_id=fact.fact_id,
+        tier=WIKIDATA_TIER,
+        reliability=WIKIDATA_RELIABILITY,
+    )
+
+
+async def _skipped_people() -> WikidataResult:
+    return WikidataResult(status="skipped", facts=[])
 
 
 def _factcheck_passage(review: FactCheckReview, score: float, fetched_at: datetime) -> Passage:
@@ -227,6 +263,7 @@ async def search_passages(
     factcheck: FactCheckClient,
     incidents: VectorStore,
     refresh: bool = False,
+    wikidata: WikidataClient | None = None,
 ) -> SearchResponse:
     """
     Full retrieval pipeline: query expansion -> parallel hybrid search in the corpus, the incident catalog and
@@ -256,6 +293,9 @@ async def search_passages(
     queries = await expand(request.query)
     factcheck_task = asyncio.create_task(
         factcheck.search(request.query, queries.keywords) if _factcheck_wanted(filters) else _skipped_factcheck()
+    )
+    people_task = asyncio.create_task(
+        wikidata.people(request.query) if wikidata is not None and _reference_wanted(filters) else _skipped_people()
     )
     query_texts = [queries.original, queries.negative, queries.neutral]
     dense_vectors, lexical_vectors = await asyncio.to_thread(models.embed_queries, query_texts)
@@ -329,6 +369,22 @@ async def search_passages(
             logger.info("Dropped %d passages without complete metadata", skipped_incomplete)
         passages = await add_factcheck_ratings(passages, queries.original, models, store)
 
+    people_result = await people_task
+    if people_result.facts:
+        # Facts about the people the claim names are matched by name, not by topic, so they join the results beside
+        # the top passages (at most wikidata_max_people) instead of competing for a top-k slot; the rerank score
+        # still says how close each is to the claim.
+        logits = await asyncio.to_thread(
+            models.rerank, queries.original, [fact.rerank_text for fact in people_result.facts]
+        )
+        fetched_at = datetime.now(UTC)
+        known = {passage.chunk_id for passage in passages}
+        passages.extend(
+            _person_passage(fact, _relevance(logit), fetched_at)
+            for fact, logit in zip(people_result.facts, logits, strict=True)
+            if fact.fact_id not in known
+        )
+
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     logger.info(
         "search done in %d ms: expansion=%s candidates=%d results=%d factcheck=%s/%d campaign_matches=%d",
@@ -351,7 +407,7 @@ async def search_passages(
         context_xml=build_context_xml(passages),
         expanded_queries=queries,
         elapsed_ms=elapsed_ms,
-        external_sources=[factcheck_result.as_status(), catalog_status],
+        external_sources=[factcheck_result.as_status(), catalog_status, people_result.as_status()],
         campaign_alert=campaign_alert,
     )
     if any(source.status == FAILED_SOURCE_STATUS for source in response.external_sources):
