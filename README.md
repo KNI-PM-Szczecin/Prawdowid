@@ -36,7 +36,7 @@ Prototyp przygotowany na **HackNation 2026** dla zadania **Ministerstwa Spraw Za
                                                                           └── usługi zewnętrzne:
                                                                               OpenAI (gpt-6-luna), Google Fact Check,
                                                                               wyszukiwarka gov.pl, Odyseusz (MSZ),
-                                                                              Wikidata, EUvsDisinfo, Wikipedia
+                                                                              Wikidata, EUvsDisinfo, Wikipedia,
                                                                               RSS policji, Dziennik Ustaw
 ```
 
