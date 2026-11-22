@@ -34,6 +34,7 @@ Jakość weryfikacji i dowodów 30%, bezpieczeństwo i transparentność 20%, po
 - **Pilnuj powtórzeń.** Kolejne zdania i punkty nie mogą zaczynać się od tego samego słowa, a to samo słowo nie powinno wracać w sąsiednich zdaniach.
 - Jedna myśl na slajd. Tytuł jest wnioskiem, a nie nazwą działu. Najwyżej około 40 słów tekstu na slajd, resztę niosą schemat i zrzuty ekranu.
 - **Niczego nie wymyślaj.** Nie wpisuj liczb, wyników testów, kosztów ani nazw, których nie ma w tym pliku lub repozytorium. Pola `[DO UZUPEŁNIENIA]` zostaw w widocznym miejscu (np. szara ramka z napisem) i **wypisz je w podsumowaniu**; nie zgaduj ich zawartości.
+- Nazwy technologii (RAG, Go, Python, Qdrant itd.) mają być widoczne na slajdach 5 i 6, ale drugoplanowo.
 - Zrzuty ekranu dostarczy zespół. Do czasu ich dostarczenia wstaw **ramkę zastępczą** w odpowiednich proporcjach z opisem, co ma się w niej znaleźć.
 - Dane osobowe i klucze nie mogą pojawić się w żadnym miejscu.
 
@@ -86,6 +87,7 @@ Cały slajd to **zrzut ekranu wyniku** z opisanymi elementami (odnośnikami w fo
 ## 5. Źródła i korpus
 - **Tytuł:** Każdy dowód ma datę, wydawcę i uzasadnienie wyboru
 - **Trzy rodzaje:** źródła urzędowe (gov.pl, akty prawne), weryfikatorzy faktów (Google Fact Check, zapytanie na żywo) i źródła wtórne
+- **Wyszukiwanie dowodów (RAG):** system pobiera dowody z korpusu zamiast odpowiadać z pamięci modelu. Dopasowanie semantyczne (BGE-M3) łączy się ze słownikowym (BM25), a wyniki są ponownie szeregowane rerankerem.
 - Katalog zaufanych źródeł z regułami kwalifikowania i wykluczania, ocena wieku materiału, lista źródeł do audytu
 - Znane kampanie dezinformacyjne (EUvsDisinfo) dają ostrzeżenie, a nie werdykt
 - **Liczby korpusu demonstracyjnego:** [DO UZUPEŁNIENIA: dokumentów, domen, typów źródeł]
@@ -93,22 +95,23 @@ Cały slajd to **zrzut ekranu wyniku** z opisanymi elementami (odnośnikami w fo
 
 ## 6. Architektura
 - **Tytuł:** Kanały oddzielone od logiki, model do wymiany
-- **Diagram:** strona WWW, bot Discord i adapter demonstracyjny → backend (Go) → agent (Go) → wyszukiwanie (Python) → Qdrant i PostgreSQL. Model językowy za jednym interfejsem. Całość w Dockerze, wdrożenie na Railway.
+- **Diagram:** strona WWW (Preact), bot Discord i adapter demonstracyjny → backend (Go) → agent (Go) → moduł RAG (Python, FastAPI; wektory BGE-M3, BM25, reranker; Qdrant i PostgreSQL) → model językowy (OpenAI, wymienny na lokalny) za jednym interfejsem. Całość w Dockerze, wdrożenie na Railway.
 - **Podpis pod diagramem:** zmiana modelu lub dostawcy nie wymaga przebudowy systemu
+- Nazwy technologii widoczne, ale małą czcionką pod diagramem, żeby nie zasłaniały głównej myśli.
 - **Grafika:** schemat (źródło: `CONTRACT.md`)
 
 ## 7. Bezpieczeństwo, prywatność i ryzyka
 Ten slajd pokrywa wymóg briefu dotyczący ryzyk, pokazując je razem z zabezpieczeniami.
 - **Tytuł:** Siedem ryzyk, siedem zabezpieczeń
 - **Tabela:**
-  - Halucynacje → cytat musi stać w źródle, awaria nie jest werdyktem
+  - Halucynacje → odpowiedź opiera się na pobranych dowodach, a nie na pamięci modelu; cytat musi stać w źródle, a awaria nie jest werdyktem
   - Stronniczość źródeł → katalog zaufanych źródeł, lista do audytu, zakaz werdyktu z samej domeny
   - Prywatność → maskowanie e-maila, PESEL, telefonu i IBAN, usuwanie przebiegu, retencja 30 dni
   - Polecenia ukryte w treści → treść źródeł to dane, wykrywanie i zapis prób
   - Dostępność → panel ustawień, prosty język, status zamiast zgadywania przy awarii
   - Nadużycia → limit zapytań z jednego adresu, tokeny w zmiennych środowiska
   - Mało danych lub świeże wydarzenie → system się wstrzymuje, mówi, czego nie ustalił, i podaje to, co jest znane
-- Pod tabelą jedna linia: log czasu, modelu, błędów, wstrzymań i kosztu. **Miejsce przetwarzania danych:** [DO UZUPEŁNIENIA: dostawca modelu, Google, baza].
+- Pod tabelą jedna linia: log czasu, modelu, błędów, wstrzymań i kosztu. **Miejsce przetwarzania danych:** treść twierdzeń trafia do OpenAI (model językowy) i do Google (Fact Check), czyli do dostawców spoza EOG. Embeddingi i reranker działają lokalnie. [DO UZUPEŁNIENIA: lokalizacja bazy].
 
 ## 8. Interfejs i dostępność
 - **Tytuł:** Prosta odpowiedź, dostępna dla każdego
