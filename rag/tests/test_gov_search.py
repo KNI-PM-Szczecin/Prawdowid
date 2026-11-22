@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -9,7 +10,7 @@ from app.catalog import qualify
 from app.config import settings
 from app.corpus_sync import web_document_id
 from app.gov_search import GovSearchClient, GovSearchHit, parse_hits, select_hits, wanted
-from app.models import SearchFilters, SearchRequest
+from app.models import Passage, SearchFilters, SearchRequest
 
 OLD_PAGE = "/web/gov/uzyskaj-zasilek"
 NEW_PAGE = "/web/rodzina/zasilek-z-wyzsza-kwota"
@@ -41,12 +42,34 @@ def test_select_hits_keeps_best_match_and_adds_newest():
     assert select_hits([], 3) == []
 
 
+def _passage(score: float) -> Passage:
+    return Passage(
+        document_id="doc",
+        title="t",
+        publisher="p",
+        published_at=None,
+        fetched_at=datetime(2026, 1, 1, tzinfo=UTC),
+        url="https://www.gov.pl/x",
+        license=None,
+        source_type="official",
+        passage="tekst",
+        score=score,
+        flags=[],
+        chunk_id=uuid4(),
+        tier=1,
+        reliability="high",
+    )
+
+
 def test_wanted_only_without_enough_results_and_when_official_sources_allowed():
     plain = SearchRequest(query="Zasiłek pogrzebowy wynosi 4000 zł.")
-    assert wanted(plain, 0)
-    assert not wanted(plain, settings.gov_search_min_results)
+    clear_match, weak_match = _passage(0.8), _passage(settings.gov_search_sufficient_score - 0.1)
+    assert wanted(plain, [])
+    assert not wanted(plain, [clear_match])
+    assert wanted(plain, [weak_match])
+    assert not wanted(plain, [weak_match, clear_match])
     factcheck_only = SearchRequest(query="x y z", filters=SearchFilters(source_types=["factcheck"]))
-    assert not wanted(factcheck_only, 0)
+    assert not wanted(factcheck_only, [])
 
 
 @pytest.fixture

@@ -55,8 +55,11 @@ class Settings(BaseSettings):
     # pages of one site either keep the mean below 0.88 or spread their matches over many documents (share <= 0.67).
     near_duplicate_min_mean_cosine: float = 0.87
     near_duplicate_min_share: float = 0.7
-    # Sigmoid of the BGE reranker logit; below 0.5 (logit < 0) the pair is judged irrelevant, so it is not evidence.
-    rerank_min_score: float = 0.5
+    # Sigmoid of the BGE reranker logit. 0.5 (logit 0) is where the model itself calls a pair irrelevant, but causal and
+    # indirect claims ("X caused Y") scored below it even against passages that settle them, which emptied the answer.
+    # 0.35 (logit about -2.6) keeps those passages for the judge; measured on the jury cases, the no-evidence scenarios
+    # (D) still abstain because the judge, not this threshold, decides whether a passage supports the claim.
+    rerank_min_score: float = 0.35
     # Divides the logit before the sigmoid so strong matches (logit 5..10) stay distinguishable instead of all ~1.0.
     rerank_score_temperature: float = 4.0
 
@@ -151,6 +154,9 @@ class Settings(BaseSettings):
     gov_search_candidates: int = 10
     gov_search_max_pages: int = 3
     gov_search_min_results: int = 1
+    # A lowered rerank threshold lets weakly related passages through; when even the best one scores below this, the
+    # corpus has no clear answer and gov.pl is asked as well (true matches score about 0.75-0.85).
+    gov_search_sufficient_score: float = 0.6
     gov_search_timeout_seconds: float = 3.0
     gov_search_budget_seconds: float = 6.0
     # A stored gov.pl page older than this is downloaded again when a question needs it, so evidence stays current.
