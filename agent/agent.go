@@ -475,41 +475,28 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 		return a.checkClaimWithoutSources(ctx, r, claim, search.ContextXML)
 	}
 
-	answer, err := a.judge(ctx, r, claimID, claimText, search.ContextXML)
+	result, err := a.evaluate(ctx, r, &claim, claimText, search.Results, search.ContextXML)
 	if err != nil {
 		return Claim{}, err
 	}
-	if answer.Suspicious {
-		r.injections++
-		claim.Warnings = append(claim.Warnings, Warning{Type: WarningOther, Message: warningSuspicious})
-		a.logger.Warn("model reported instructions inside sources", "requestId", r.request.RequestID, "claimId", claimID)
+	if needsSecondSource(result) {
+		if second, ok := a.secondRound(ctx, r, &claim, claimText, search); ok {
+			result = second
+		}
 	}
-
-	passages := map[string]Passage{}
-	for _, passage := range search.Results {
-		passages[passage.ChunkID] = passage
-	}
-	sources, dropped := validateCitations(answer.Citations, passages)
-	if dropped > 0 {
-		a.logger.Info("citations dropped by validation", "requestId", r.request.RequestID, "claimId", claimID, "dropped", dropped)
-	}
-	proposed := mapVerdict(answer.Verdict)
-	ruling := applyFactcheckRatings(claimText, sources, passages, proposed)
-	demoted := demoteMismatchedNumbers(claimText, sources, passages)
-	ev := assessEvidence(sources, a.now())
-	d := decide(claimID, proposed, answer.Missing, sources, ev, dropped, ruling)
+	answer, sources, ev, d := result.answer, result.sources, result.ev, result.decision
 	r.limitations = append(r.limitations, d.limitations...)
-	if demoted > 0 {
-		a.logger.Info("citations with other numbers demoted to context", "requestId", r.request.RequestID, "claimId", claimID, "demoted", demoted)
+	if result.demoted > 0 {
+		a.logger.Info("citations with other numbers demoted to context", "requestId", r.request.RequestID, "claimId", claimID, "demoted", result.demoted)
 		r.limitations = append(r.limitations, fmt.Sprintf(limitationNumbersMismatch, claimID))
-		if d.verdict == VerdictInsufficientEvidence && proposed != VerdictInsufficientEvidence {
+		if d.verdict == VerdictInsufficientEvidence && result.proposed != VerdictInsufficientEvidence {
 			d.missing = stringPtr(missingNumbersMismatch)
 		}
 	}
 	if d.verdict == VerdictInsufficientEvidence && len(sources) == 0 {
 		// The search found passages but no quote survived: show the best ones as context, so an abstention still
 		// says what was found (e.g. an announcement without word on whether the event took place).
-		sources = fallbackSources(search.Results)
+		sources = fallbackSources(result.results)
 		ev = assessEvidence(sources, a.now())
 		if len(sources) > 0 {
 			a.logger.Info("context sources attached to abstention", "requestId", r.request.RequestID, "claimId", claimID, "sources", len(sources))
@@ -532,6 +519,140 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 		r.abstained = true
 	}
 	return claim, nil
+}
+
+// evaluation is one pass of the judge and the rules over a set of passages.
+type evaluation struct {
+	answer   judgeAnswer
+	proposed string
+	sources  []SourceRef
+	ev       evidence
+	decision decision
+	demoted  int
+	results  []Passage
+}
+
+// evaluate asks the judge about the passages and applies the rules (citations, fact-check ratings, numbers,
+// evidence strength, decide). Limitations from decide are returned in the evaluation, not recorded yet, so a pass
+// that is later replaced leaves no trace.
+func (a *Agent) evaluate(ctx context.Context, r *claimRun, claim *Claim, claimText string, results []Passage, contextXML string) (evaluation, error) {
+	answer, err := a.judge(ctx, r, claim.ID, claimText, contextXML)
+	if err != nil {
+		return evaluation{}, err
+	}
+	if answer.Suspicious {
+		r.injections++
+		claim.Warnings = append(claim.Warnings, Warning{Type: WarningOther, Message: warningSuspicious})
+		a.logger.Warn("model reported instructions inside sources", "requestId", r.request.RequestID, "claimId", claim.ID)
+	}
+	passages := map[string]Passage{}
+	for _, passage := range results {
+		passages[passage.ChunkID] = passage
+	}
+	sources, dropped := validateCitations(answer.Citations, passages)
+	if dropped > 0 {
+		a.logger.Info("citations dropped by validation", "requestId", r.request.RequestID, "claimId", claim.ID, "dropped", dropped)
+	}
+	proposed := mapVerdict(answer.Verdict)
+	ruling := applyFactcheckRatings(claimText, sources, passages, proposed)
+	demoted := demoteMismatchedNumbers(claimText, sources, passages)
+	ev := assessEvidence(sources, a.now())
+	return evaluation{
+		answer:   answer,
+		proposed: proposed,
+		sources:  sources,
+		ev:       ev,
+		decision: decide(claim.ID, proposed, answer.Missing, sources, ev, dropped, ruling),
+		demoted:  demoted,
+		results:  results,
+	}, nil
+}
+
+// needsSecondSource: the model settled the claim on a single decisive secondary source, which the rules do not accept
+// (one source is an abstention). A second search may bring an independent source that agrees or one that disagrees.
+func needsSecondSource(result evaluation) bool {
+	settled := result.proposed == VerdictConfirmed || result.proposed == VerdictFalse
+	return settled && result.ev.strength == StrengthModerate && result.decision.verdict == VerdictInsufficientEvidence
+}
+
+// secondRound searches again with rag's rewording of the claim (keywords, else the negated form), adds the new
+// passages to the first ones and judges once more. The second pass is used only when it settles the claim on strong
+// evidence or shows sources that contradict each other; otherwise the first pass (an abstention) stands. A failure in
+// the second round never fails the claim.
+func (a *Agent) secondRound(ctx context.Context, r *claimRun, claim *Claim, claimText string, first SearchResponse) (evaluation, bool) {
+	query := secondRoundQuery(claimText, first.ExpandedQueries)
+	if query == "" {
+		return evaluation{}, false
+	}
+	more, err := a.rag.Search(ctx, query, a.config.SearchTopK)
+	if err != nil {
+		a.logger.Warn("second search failed, keeping the first answer", "requestId", r.request.RequestID, "claimId", claim.ID, "error", err.Error())
+		return evaluation{}, false
+	}
+	results, contextXML, added := mergeSearches(first, more)
+	if added == 0 {
+		a.logger.Info("second search found no new source", "requestId", r.request.RequestID, "claimId", claim.ID)
+		return evaluation{}, false
+	}
+	a.noteSearch(r, more)
+	second, err := a.evaluate(ctx, r, claim, claimText, results, contextXML)
+	if err != nil {
+		a.logger.Warn("second judgment failed, keeping the first answer", "requestId", r.request.RequestID, "claimId", claim.ID, "error", err.Error())
+		return evaluation{}, false
+	}
+	settled := second.decision.verdict != VerdictInsufficientEvidence && second.ev.strength == StrengthStrong
+	contradicting := second.ev.supports > 0 && second.ev.refutes > 0
+	a.logger.Info("second search for an independent source", "requestId", r.request.RequestID, "claimId", claim.ID,
+		"added", added, "settled", settled, "contradicting", contradicting)
+	return second, settled || contradicting
+}
+
+func secondRoundQuery(claimText string, queries *ExpandedQueries) string {
+	if queries == nil {
+		return ""
+	}
+	for _, candidate := range []string{queries.Keywords, queries.Negative} {
+		trimmed := strings.TrimSpace(candidate)
+		if hasEnoughWords(trimmed) && !strings.EqualFold(trimmed, strings.TrimSpace(claimText)) {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+// contextSource is one <zrodlo> element of rag's contextXml; its id is the chunk id.
+var contextSource = regexp.MustCompile(`(?s)<zrodlo id="([^"]+)".*?</zrodlo>`)
+
+const contextClosingTag = "</dostepne_zrodla>"
+
+// mergeSearches adds the passages of the second search that the first did not have, both to the passage list and,
+// as their own <zrodlo> elements built by rag, to the first contextXml.
+func mergeSearches(first, second SearchResponse) ([]Passage, string, int) {
+	known := map[string]bool{}
+	for _, passage := range first.Results {
+		known[passage.ChunkID] = true
+	}
+	results := append([]Passage(nil), first.Results...)
+	added := map[string]bool{}
+	for _, passage := range second.Results {
+		if !known[passage.ChunkID] {
+			results = append(results, passage)
+			added[passage.ChunkID] = true
+		}
+	}
+	var extra strings.Builder
+	for _, match := range contextSource.FindAllStringSubmatch(second.ContextXML, -1) {
+		if added[match[1]] {
+			extra.WriteString(match[0])
+			extra.WriteString("\n")
+		}
+	}
+	closing := strings.LastIndex(first.ContextXML, contextClosingTag)
+	if len(added) == 0 || closing < 0 {
+		return first.Results, first.ContextXML, 0
+	}
+	contextXML := first.ContextXML[:closing] + extra.String() + first.ContextXML[closing:]
+	return results, contextXML, len(added)
 }
 
 // judge asks the model for a verdict; a malformed answer becomes an abstention, any other failure is returned.
