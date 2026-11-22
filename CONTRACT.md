@@ -124,7 +124,7 @@ func Verify(ctx context.Context, req VerifyRequest) (CheckResult, error)
 Budżet czasu (cel: mediana ≤ 30 s): `ctx` z limitem 25 s dla całego `Verify`, wywołanie `rag/` max 18 s (podniesione z 8 s do 12 s po pomiarach na Railway, gdzie rerank na współdzielonym CPU trwa 6–9 s, a potem do 18 s, bo ekspansja zapytań przez model i uzupełnianie korpusu z gov.pl dodają kilka sekund; `RAG_TIMEOUT_SECONDS` nadpisuje wartość). Po przekroczeniu: `technical_error` z `meta.timedOut = true`.
 `backend/` zapisuje przebieg sprawdzenia (pytanie zmaskowane, czas, użyte źródła, wynik, `meta`) na podstawie `CheckResult`.
 
-### Kanały (drugi kanał: adapter demonstracyjny `POST /api/channels/demo` z ciałem `{ "text": "..." }` i odpowiedzią tekstową jak w komunikatorze; prawdziwy adapter, np. bot Discord, może go zastąpić)
+### Kanały (drugi kanał: adapter demonstracyjny `POST /api/channels/demo` z ciałem `{ "text": "..." }` i odpowiedzią tekstową jak w komunikatorze, albo bot Discord `/factcheck` w `src/backend/discord.go`; oba używają tej samej ścieżki weryfikacji co WWW)
 
 ```go
 type ChannelAdapter interface {
@@ -136,7 +136,7 @@ type ChannelAdapter interface {
 }
 ```
 
-Zasady: kanał zmienia wyłącznie `Channel` i format odpowiedzi. Ten sam `Input` daje ten sam werdykt i źródła niezależnie od kanału (scenariusz G z briefu). Wejście z kanału jest walidowane (schemat, ten sam limit długości i ten sam limit żądań co `/api/check`) przed wywołaniem `Verify`. Adapter demonstracyjny nie ma podpisu ani tokena i nie zakłada spraw pętli informacji; prawdziwy adapter komunikatora musi weryfikować podpis lub token.
+Zasady: kanał zmienia wyłącznie `Channel` i format odpowiedzi. Ten sam `Input` daje ten sam werdykt i źródła niezależnie od kanału (scenariusz G z briefu). Wejście z kanału jest walidowane (schemat, ten sam limit długości i ten sam limit żądań co `/api/check`) przed wywołaniem `Verify`. Adapter demonstracyjny nie ma podpisu ani tokena i nie zakłada spraw pętli informacji. Bot Discord weryfikuje tożsamość sesją Gateway (`discordgo`), więc nie wymaga podpisu ani tokenu per żądanie; po przejściu na endpoint HTTP interactions wymagany jest podpis na kluczu `DISCORD_BOT_PUBLIC_KEY`.
 
 ## 3. agent ↔ rag (HTTP, Python)
 
