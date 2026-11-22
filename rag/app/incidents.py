@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from pathlib import Path
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -87,9 +88,44 @@ def rerank_text(hit: RetrievedChunk) -> str:
     return hit.text[: settings.incident_summary_max_chars]
 
 
-def build_campaign_alert(scored: list[tuple[RetrievedChunk, float]]) -> CampaignAlert | None:
-    """Keeps only strong matches; None means the claim resembles no known campaign closely enough."""
-    strong = sorted((pair for pair in scored if pair[1] >= settings.incident_min_score), key=lambda pair: -pair[1])
+NAME_TOKEN = re.compile(r"\b[A-ZĄĆĘŁŃÓŚŹŻ][\w-]*\b|\b\w*\d\w*\b")
+NAME_STEM_LENGTH = 5
+DIACRITICS = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
+
+
+SENTENCE_START = re.compile(r"(?:^|[.!?]\s+)$")
+
+
+def _name_stems(text: str, skip_sentence_start: bool = False) -> set[str]:
+    """
+    Capitalised words and acronyms (NATO, MI6, Ust-Łudze) folded to comparable stems, also across languages. With
+    skip_sentence_start the first word of each sentence is left out: "Polska jest…" is capitalised by position only.
+    """
+    return {
+        match.group(0).translate(DIACRITICS).casefold()[:NAME_STEM_LENGTH]
+        for match in NAME_TOKEN.finditer(text)
+        if not (skip_sentence_start and SENTENCE_START.search(text[: match.start()]))
+    }
+
+
+def _is_match(claim: str, chunk: RetrievedChunk, score: float) -> bool:
+    """
+    A strong score is enough. A paraphrase scores lower (0.6-0.7 for a real paraphrase of a known case), so a medium
+    score counts when the claim and the case share at least incident_min_shared_names proper names; a true claim
+    on the same broad topic ("Polska jest w NATO") shares one at most and gets no alert.
+    """
+    if score >= settings.incident_min_score:
+        return True
+    if score < settings.incident_named_min_score:
+        return False
+    case_text = f"{chunk.payload.get('title', '')} {chunk.payload.get('summary', '')}"
+    shared = _name_stems(claim, skip_sentence_start=True) & _name_stems(case_text)
+    return len(shared) >= settings.incident_min_shared_names
+
+
+def build_campaign_alert(scored: list[tuple[RetrievedChunk, float]], claim: str = "") -> CampaignAlert | None:
+    """Keeps only close matches; None means the claim resembles no known campaign closely enough."""
+    strong = sorted((pair for pair in scored if _is_match(claim, *pair)), key=lambda pair: -pair[1])
     if not strong:
         return None
     matches = [

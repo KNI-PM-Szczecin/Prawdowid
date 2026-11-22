@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     incident_retrieval_limit: int = 5
     # Stricter than evidence: wrongly tying a claim to a hostile campaign does more harm than a weak citation.
     incident_min_score: float = 0.7
+    # A paraphrase of a known case scores 0.6-0.7; it counts when it also shares proper names with the case.
+    incident_named_min_score: float = 0.55
+    incident_min_shared_names: int = 2
     incident_max_matches: int = 3
     incident_summary_max_chars: int = 400
     # app/data/seed_incidents.json fills an empty catalog at start (real EUvsDisinfo cases, context only).

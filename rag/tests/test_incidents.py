@@ -45,6 +45,32 @@ def test_no_alert_below_threshold_and_summary_is_trimmed():
     assert len(alert.matches[0].summary) == settings.incident_summary_max_chars
 
 
+CASE_SUMMARY = "Kampania twierdzi, że ZSP i agencja K7 zorganizowały sabotaż w porcie Nowy-Gród."
+MEDIUM_SCORE = 0.62
+
+
+def test_paraphrase_with_shared_names_gets_an_alert_at_a_medium_score():
+    claim = "Wojsko ZSP i agencja K7 miały zorganizować sabotaż w porcie Nowy-Gród."
+    alert = build_campaign_alert([(_hit("1", CASE_SUMMARY), MEDIUM_SCORE)], claim)
+    assert alert is not None and alert.matches[0].incident_id == "1"
+
+
+def test_true_claim_on_the_topic_gets_no_alert_at_a_medium_score():
+    # Only "ZSP" is shared ("Borowo" starts the sentence and is not in the case): one name is too few.
+    claim = "Borowo należy do ZSP od 1999 roku."
+    assert build_campaign_alert([(_hit("1", CASE_SUMMARY), MEDIUM_SCORE)], claim) is None
+
+
+def test_sentence_start_word_is_not_counted_as_a_name():
+    claim = "Nowy-Gród ma nowy port. Agencja K7 go chwali."
+    assert build_campaign_alert([(_hit("1", CASE_SUMMARY), MEDIUM_SCORE)], claim) is None
+
+
+def test_low_score_never_gets_an_alert_even_with_shared_names():
+    claim = "Wojsko ZSP i agencja K7 miały zorganizować sabotaż w porcie Nowy-Gród."
+    assert build_campaign_alert([(_hit("1", CASE_SUMMARY), settings.incident_named_min_score - 0.01)], claim) is None
+
+
 class FakeCatalog:
     def __init__(self):
         self.upserts: list[int] = []

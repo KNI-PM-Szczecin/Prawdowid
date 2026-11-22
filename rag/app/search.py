@@ -339,7 +339,9 @@ async def search_passages(
         logits = await asyncio.to_thread(models.rerank, queries.original, rerank_texts)
         relevances = [_relevance(logit) for logit in logits]
         scored = list(zip(candidates, relevances[: len(candidates)], strict=True))
-        campaign_alert = build_campaign_alert(list(zip(incident_hits, relevances[len(candidates) :], strict=True)))
+        campaign_alert = build_campaign_alert(
+            list(zip(incident_hits, relevances[len(candidates) :], strict=True)), request.query
+        )
         ranked = sorted(
             sorted(
                 (pair for pair in scored if pair[1] >= settings.rerank_min_score),
