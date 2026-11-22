@@ -26,10 +26,6 @@ const (
 	discordExpandHint      = "Daj %s, aby zobaczyć więcej"
 	discordCollapseHint    = "Kliknij %s ponownie, aby zwinąć"
 
-	discordConfidenceStrong   = "90%"
-	discordConfidenceModerate = "70%"
-	discordConfidenceWeak     = "50%"
-
 	discordReactionAlarm     = "🚨"
 	discordReactionQuestion  = "❓"
 	discordReactionConfirmed = "✅"
@@ -261,20 +257,6 @@ func discordVerdictHeadline(verdict string) string {
 	}
 }
 
-// discordConfidence maps evidence strength to a rough confidence percentage; abstentions return "".
-func discordConfidence(strength string) string {
-	switch strength {
-	case agent.StrengthStrong:
-		return discordConfidenceStrong
-	case agent.StrengthModerate:
-		return discordConfidenceModerate
-	case agent.StrengthWeak:
-		return discordConfidenceWeak
-	default:
-		return ""
-	}
-}
-
 // discordReactionEmoji is the toggle reaction: an alarm for false or misleading results,
 // a question mark for abstentions, and a check for confirmed ones.
 func discordReactionEmoji(claim agent.Claim) string {
@@ -289,7 +271,7 @@ func discordReactionEmoji(claim agent.Claim) string {
 }
 
 // formatDiscordReply renders a CheckResult for Discord. The short form is a verdict headline
-// with a confidence percentage, a concise justification, up to discordMaxShortSources links and a
+// with the verdict label, a concise justification, up to discordMaxShortSources links and a
 // hint to expand; the detailed form adds strength reasons, missing evidence, all sources with
 // publisher and quote, limitations and a hint to collapse.
 func formatDiscordReply(result agent.CheckResult, detailed bool) string {
@@ -337,13 +319,9 @@ func formatDiscordReply(result agent.CheckResult, detailed bool) string {
 	return builder.String()
 }
 
-// discordHeadline is the verdict label with a confidence percentage when the verdict is substantive.
+// discordHeadline is the verdict label for a claim.
 func discordHeadline(claim agent.Claim) string {
-	line := discordVerdictHeadline(claim.Verdict)
-	if confidence := discordConfidence(claim.EvidenceStrength); confidence != "" {
-		line += " — pewność " + confidence
-	}
-	return line
+	return discordVerdictHeadline(claim.Verdict)
 }
 
 // writeDiscordJustification appends the detailed reasoning behind a claim: the justification,

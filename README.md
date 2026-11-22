@@ -59,7 +59,7 @@ curl -X POST http://localhost:8080/api/channels/demo -H "Content-Type: applicati
 gdzie `wiadomosc.json` to `{"text": "treść do sprawdzenia"}` w UTF-8. Odpowiedź jest zwykłym tekstem z werdyktem, siłą podstawy, uzasadnieniem i źródłami, jak w komunikatorze. To samo zgłoszenie przez WWW i ten adapter daje ten sam wynik merytoryczny (scenariusz G).
 
 ### Bot Discord (drugi kanał)
-Slash komenda `/factcheck` w bocie Discord przyjmuje to samo co strona (tekst albo URL) i woła tę samą ścieżkę weryfikacji, więc wynik jest zgodny z WWW (scenariusz G). Odpowiedź jest krótka: werdykt, stopień pewności, uzasadnienie i do 4 źródeł; kliknięcie reakcji dodanej przez bota rozwija pełne uzasadnienie ze wszystkimi źródłami. Szczegóły konfiguracji: `src/backend/README.md`.
+Slash komenda `/factcheck` w bocie Discord przyjmuje to samo co strona (tekst albo URL) i woła tę samą ścieżkę weryfikacji, więc wynik jest zgodny z WWW (scenariusz G). Odpowiedź jest krótka: werdykt, uzasadnienie i do 4 źródeł; kliknięcie reakcji dodanej przez bota rozwija pełne uzasadnienie ze wskazaniem siły podstawy i wszystkie źródła. Szczegóły konfiguracji: `src/backend/README.md`.
 
 Włączenie: w [Discord Developer Portal](https://discord.com/developers/applications) załóż aplikację z botem, skopiuj token do `DISCORD_BOT_TOKEN` w `.env` (nigdy do repo) i opcjonalnie ustaw `DISCORD_GUILD_ID` na identyfikator serwera testowego (komenda rejestruje się wtedy od razu na tym serwerze). Zaproś bota na serwer z zakresem `applications.commands` i uprawnieniem `Add Reactions`. Bot uruchamia się razem z backendem (`src/backend/`) i łączy przez Gateway, więc nie potrzebuje publicznego adresu ani weryfikacji podpisu żądań.
 
