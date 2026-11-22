@@ -824,6 +824,27 @@ func TestInstructionNeverReachesTheSearchQuery(t *testing.T) {
 	}
 }
 
+const titleChunk = "66666666-6666-6666-6666-666666666666"
+
+// The key date is only in the title of the page: quoting the title refutes a claim with another date.
+func TestQuoteFromTheSourceTitleRefutes(t *testing.T) {
+	published := "2026-11-12T00:00:00Z"
+	page := Passage{
+		DocumentID: "web:swieto", Title: "3 maja - Święto Miasta Borowa", Publisher: "Urząd Miasta Borowa",
+		PublishedAt: &published, FetchedAt: "2026-11-21T00:00:00Z", URL: "https://borowo.example/swieto",
+		SourceType: SourceTypeOfficial, ChunkID: titleChunk, Score: 0.6, Flags: []string{}, Tier: 1, Reliability: "high",
+		Passage: "Uroczystości rozpoczęły się przemarszem ulicami miasta i koncertem orkiestry.",
+	}
+	judge := judgeWith("falszywe", citation(titleChunk, "3 maja - Święto Miasta Borowa", "obala"))
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: searchWith(page)}),
+		"Święto Miasta Borowa odbywa się w tym roku 23 grudnia.", InputTypeText)
+
+	claim := result.Claims[0]
+	if claim.Verdict != VerdictFalse || len(claim.Sources) != 1 || claim.Sources[0].Quote != "3 maja - Święto Miasta Borowa" {
+		t.Fatalf("a verbatim quote of the title must count, got %+v", claim)
+	}
+}
+
 const referenceChunk = "55555555-5555-5555-5555-555555555555"
 
 // A Wikidata fact about a person (died before the claimed event) is decisive on its own, like an official record.

@@ -82,7 +82,9 @@ func validateCitations(citations []judgeCitation, passages map[string]Passage) (
 	byDocument := map[string]int{}
 	for _, citation := range citations {
 		passage, ok := passages[citation.ID]
-		if !ok || seen[citation.ID] || !quoteInPassage(citation.Quote, passage.Passage) {
+		// The title is part of the source: pages often state the key fact (a date, a number) only there.
+		quoted := ok && (quoteInPassage(citation.Quote, passage.Passage) || quoteInPassage(citation.Quote, passage.Title))
+		if !ok || seen[citation.ID] || !quoted {
 			dropped++
 			continue
 		}
