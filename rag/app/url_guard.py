@@ -35,6 +35,8 @@ BLOCKED_NETWORKS = tuple(
         "ff00::/8",
     )
 )
+NAT64_NETWORK = ipaddress.ip_network("64:ff9b::/96")
+NAT64_IPV4_MASK = 0xFFFFFFFF
 ALLOWED_SCHEMES = ("http", "https")
 ALLOWED_PORTS = frozenset({80, 443})
 
@@ -43,6 +45,13 @@ def is_blocked_address(address: str) -> bool:
     """True for loopback, private, link-local and other non-routable addresses; an IPv6 zone suffix is
     link-local by definition and is stripped before the lookup."""
     parsed = ipaddress.ip_address(address.split("%", 1)[0])
+    if isinstance(parsed, ipaddress.IPv6Address):
+        # An IPv4 address written as IPv6 (::ffff:127.0.0.1, or NAT64 64:ff9b::7f00:1) reaches that IPv4 host,
+        # so it is checked as the embedded IPv4 address.
+        if parsed.ipv4_mapped is not None:
+            parsed = parsed.ipv4_mapped
+        elif parsed in NAT64_NETWORK:
+            parsed = ipaddress.IPv4Address(int(parsed) & NAT64_IPV4_MASK)
     return any(parsed in network for network in BLOCKED_NETWORKS)
 
 

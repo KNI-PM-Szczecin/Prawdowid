@@ -71,3 +71,21 @@ def test_zone_scoped_address_is_blocked(monkeypatch):
     monkeypatch.setattr(url_guard, "resolve_host", resolve)
     with pytest.raises(BlockedURLError):
         asyncio.run(assert_public_url("https://gov.pl/x"))
+
+
+@pytest.mark.parametrize(
+    "address",
+    ["::ffff:127.0.0.1", "::ffff:169.254.169.254", "::ffff:10.0.0.1", "64:ff9b::7f00:1", "64:ff9b::a9fe:a9fe"],
+)
+def test_ipv4_written_as_ipv6_is_checked_as_ipv4(address):
+    assert is_blocked_address(address)
+
+
+@pytest.mark.parametrize("address", ["::ffff:8.8.8.8", "64:ff9b::808:808", "2a00:1450:4001::64"])
+def test_public_ipv4_inside_ipv6_and_public_ipv6_stay_allowed(address):
+    assert not is_blocked_address(address)
+
+
+def test_mapped_loopback_url_is_rejected():
+    with pytest.raises(BlockedURLError):
+        asyncio.run(assert_public_url("http://[::ffff:127.0.0.1]/"))
