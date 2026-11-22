@@ -18,6 +18,7 @@ Pliki w tym folderze to konfiguracja modelu, nie kod (`AGENTS.md`: konfiguracja 
 
 ## Najważniejsze zasady promptu `judge` (stan po poprawkach z testów 22.11)
 
+- Źródła wtórne rozstrzygające sprawę liczą się tak samo jak urzędowe; milczenie albo ogólnikowość źródeł urzędowych nie unieważnia zgodnych źródeł wtórnych, a urzędowe źródło, które sprawy nie rozstrzyga, ma rolę „kontekst” (zasada 6a). W Go dwa niezależne źródła wtórne dają mocną podstawę (reguły 3 i 3b).
 - „Fałszywe” obejmuje źródło opisujące aktualny stan nie do pogodzenia z twierdzeniem, choć mu dosłownie nie zaprzecza (wsparcie zamiast wojny, inne kompetencje organu) (zasada 4).
 - Pole `szeroko_opisane` w JSON sędziego: zdarzenie ogólnokrajowe, które powinno już się wydarzyć. Przy wstrzymaniu bez rozstrzygającego źródła Go dodaje ostrzeżenie „Nie znaleźliśmy żadnej publikacji… silny sygnał, że informacja może być nieprawdziwa”; werdykt zostaje `insufficient_evidence` (scenariusz D briefu).
 - „Potwierdzone” obejmuje tę samą treść innymi słowami i liczbę wynikającą wprost z wyliczenia w źródle (zasada 4), żeby przepis sformułowany inaczej niż twierdzenie nie dawał wstrzymania.

@@ -862,6 +862,20 @@ func TestTwoIndependentSupportingSourcesConfirmDespiteACautiousModel(t *testing.
 	}
 }
 
+// An official page that does not settle the claim sits beside two agreeing secondary sources: they decide.
+func TestAgreeingSecondarySourcesDecideBesideASilentOfficialSource(t *testing.T) {
+	judge := judgeWith("brak_dowodow",
+		citation(officialChunk, "Sejm i Senat są wybierane na czteroletnie kadencje", "kontekst"),
+		citation(newsChunk, "kadencja Sejmu trwa cztery lata", "potwierdza"),
+		citation(secondNewsChunk, secondNewsQuote, "potwierdza"))
+	search := searchWith(officialPassage(), newsPassage(), secondNewsPassage())
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, &ragStub{search: search}), claimSejm, InputTypeText)
+
+	if claim := result.Claims[0]; claim.Verdict != VerdictConfirmed || claim.EvidenceStrength != StrengthStrong {
+		t.Fatalf("two agreeing secondary sources must decide, got %+v", claim)
+	}
+}
+
 func TestOneSourceOrSourcesOnBothSidesStayAnAbstention(t *testing.T) {
 	cases := [][]SourceRef{
 		{{Publisher: "Portal", Role: RoleSupports}},
