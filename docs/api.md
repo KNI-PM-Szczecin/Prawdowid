@@ -266,7 +266,7 @@ Przy samych wstrzymaniach `summary` = `{ "level": "unknown", "reasons": ["0 z 1 
 
 ### Przykład J — awaria źródła zewnętrznego (Google Fact Check)
 
-`rag/` przy błędzie klucza lub limicie **nie** zwraca 503: odpowiada normalnie z `externalSources: [{ "name": "google_factcheck", "status": "error" }]` i wynikami z korpusu. Decyzja należy do `agent/`:
+`rag/` przy błędzie klucza lub limicie **nie** zwraca 503 (dotyczy też Wikidaty, gov.pl i Odyseusza): odpowiada normalnie z `externalSources: [{ "name": "google_factcheck", "status": "error" }]` i wynikami z korpusu. Decyzja należy do `agent/`:
 
 - gdy korpus coś zwrócił → `status: "ok"` z werdyktem z korpusu i wpisem w `limitations`: „Nie mogłem teraz sprawdzić bazy weryfikatorów faktów z powodu błędu dostępu. To nie znaczy, że takiej weryfikacji nie ma.”;
 - gdy pytanie dotyczy wyłącznie tego, czy weryfikatorzy coś sprawdzali, a korpus milczy (J03) → `503` + `technical_error` z tym samym komunikatem. Nigdy „nie ma takiego artykułu”.
@@ -379,6 +379,24 @@ Pełny wynik: http://localhost:5173/wynik/6f1c2a9e-…
 - `GET /api/admin/checks?format=json|csv&from=…&to=…` — log sprawdzeń (zamaskowane pytanie, czas, źródła, wynik, `meta`). Wymaga `X-Admin-Token`.
 - `GET /api/admin/cases` (wdrożone, `src/backend/cases.go`, nagłówek `X-Admin-Token` = `MODERATOR_TOKEN`; bez skonfigurowanego tokena `403`) → `{ "cases": [{ "caseId", "claim", "reports", "campaign", "status", "createdAt", "updatedAt", "forwardedAt" }] }`. Sprawy tworzy automatycznie `POST /api/check` dla każdego twierdzenia `insufficient_evidence` (parafrazy grupuje `rag/ POST /reports/match`); nie ma `POST /api/admin/cases`. `status`: `logged` → `recommended` (co najmniej `MODERATOR_REPEAT_THRESHOLD` zgłoszeń, domyślnie 3, albo dopasowanie do katalogu kampanii) → `forwarded` (tylko gdy webhook `MODERATOR_WEBHOOK_URL` odpowiedział 2xx; bez webhooka sprawa zostaje `recommended`). To rozróżnia rekomendację przekazania od faktycznego przekazania (wymóg briefu). Odpowiedź `POST /api/check` ma pole `cases` z powiadomieniem dla obywatela (zob. typy w §5).
 
+### Źródła zewnętrzne (API wywoływane przez `rag/` i `agent/`)
+
+`backend/` nie woła ich sam. Pełny, aktualny opis daje `GET /api/sources/external` (proxy do `rag/ GET /sources/external`), a szczegóły są w `rag/README.md`. Stan każdego źródła w jednej odpowiedzi jest w `externalSources` (`ok`, `skipped`, `disabled`, `error`). Awaria źródła zewnętrznego nigdy nie jest werdyktem ani nie psuje wyszukiwania.
+
+| Źródło | Po co | Co dostaje dostawca | Klucz / wyłącznik |
+|---|---|---|---|
+| OpenAI (model językowy, `agent/`, opcjonalnie ekspansja zapytań w `rag/`) | wyodrębnianie twierdzeń i ocena | treść twierdzeń (po maskowaniu danych osobowych) | `LLM_API_KEY`, wymienny na lokalny |
+| Google Fact Check Tools API | oceny weryfikatorów faktów na żywo (`factcheck`) | jedno wyodrębnione twierdzenie i słowa kluczowe | `FACTCHECK_API_KEY`, pusty = wyłączone |
+| Wikidata (`reference`) | daty urodzenia i śmierci osób, żeby obalać twierdzenia o osobach nieżyjących | tylko nazwy pisane wielką literą wyłuskane z twierdzenia (Wikimedia Foundation, USA, poza EOG; dane CC0) | `RAG_WIKIDATA_ENABLED`, bez klucza |
+| Wyszukiwarka gov.pl | uzupełnianie luk w korpusie bieżącymi stronami | słowa kluczowe twierdzenia | `RAG_GOV_SEARCH_ENABLED` |
+| Polska Wikipedia (przeskok na źródło pierwotne) | wyłącznie lista adresów przypisów; artykuł nie jest dowodem ani nie jest indeksowany | słowa kluczowe twierdzenia | `RAG_HOP_ENABLED` |
+| Odyseusz (MSZ) | komunikaty dla podróżujących | zapytanie do publicznego API serwisu | `RAG_ODYSEUSZ_ENABLED` |
+| EUvsDisinfo (MCP) | import katalogu kampanii dezinformacyjnych do lokalnej bazy | nic z treści zgłoszeń (import jednostronny) | `EUVSDISINFO_TOKEN` |
+
+**Wikidata w kontrakcie.** Fragment ma `sourceType: "reference"`, `documentId` `wikidata:<Q…>`, licencję CC0, tier 1 i wiarygodność `high`. Agent liczy go jak źródło urzędowe (siła podstawy „mocna”, przesłanka „dane encyklopedyczne o osobie (Wikidata)”), a data śmierci wcześniejsza niż przypisane zdarzenie obala twierdzenie. Front pokazuje go jako „Dane encyklopedyczne”. Opis zachowania: `rag/README.md` (sekcja o Wikidacie), ryzyko prywatności: `docs/draft.md`.
+
+**Zmiany w odpowiedziach po #124.** Etykieta `insufficient_evidence` brzmi „Niepewne” (front, adapter demonstracyjny i bot Discord). Przy twierdzeniu o dużym wydarzeniu bez żadnej publikacji werdykt zostaje `insufficient_evidence`, ale dochodzi ostrzeżenie (`warnings[].type = other`), że milczenie mediów i instytucji to silny sygnał nieprawdziwości (`CONTRACT.md` §4). Twierdzenia w innym języku są tłumaczone na polski przy wyodrębnianiu, bo korpus, gov.pl i Google Fact Check są polskie.
+
 ## 5. Proponowane typy (TypeScript, dla frontu)
 
 Pola **[NOWE]** oznaczone komentarzem. Reszta 1:1 z `CONTRACT.md` §1.
@@ -444,7 +462,7 @@ interface Source {
   id: string; title: string; publisher: string;
   publishedAt: string | null; fetchedAt: string;
   url: string; license: string | null;
-  sourceType: "official" | "secondary" | "factcheck" | "incident";
+  sourceType: "official" | "secondary" | "factcheck" | "incident" | "reference";
   role: "supports" | "refutes" | "context";
   quote: string;
 }
@@ -465,7 +483,7 @@ Uwaga do `span`: Go liczy w bajtach, JS w jednostkach UTF-16. Proponujemy code p
 | `confirmed` | Prawda / „Fakt” | zielony |
 | `false` | Fałsz | czerwony |
 | `misleading` | Wprowadza w błąd | żółty |
-| `insufficient_evidence` | Brak wystarczających dowodów; „Sprzeczne źródła”, gdy `conflict != null`; „Ustalono częściowo”, gdy `sources` niepuste | szary / żółty |
+| `insufficient_evidence` | **„Niepewne”** (brak źródeł, jedno słabe źródło albo tylko część faktów; to nie znaczy ani prawda, ani fałsz); „Sprzeczne źródła”, gdy `conflict != null` | szary / żółty |
 | `not_verifiable` | Nie da się sprawdzić (opinia, przewidywanie) | szary |
 
 Stan po Figmie v3 (`Untitled (1).zip`, 21.11, 20:06). **Rozwiązane względem v2:** pełne ekrany mają ikonę statusu w pełnym kole zamiast pierścienia z procentem (więc `summary.score` wypada z propozycji); zielony opis nie mówi już o „większości źródeł” (popularność); chipy mają cztery jasne stany (świeży / archiwalny, oficjalna informacja / brak); chip reputacji zniknął. **Do decyzji z osobą od designu:**
