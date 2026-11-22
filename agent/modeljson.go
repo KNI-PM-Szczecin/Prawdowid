@@ -11,10 +11,19 @@ import (
 // ErrModelAnswer means the model replied, but not with the JSON the prompt asked for (after one retry).
 var ErrModelAnswer = errors.New("model answer is not valid JSON")
 
+// kindOpinion marks an extracted sentence that is an opinion, a wish or a prediction: it is shown as
+// not_verifiable and never searched (CONTRACT.md §4). Anything else is a factual claim.
+const kindOpinion = "opinia"
+
 // extractedClaim is one claim the model found in the submission.
 type extractedClaim struct {
 	Text     string `json:"tekst"`
 	Fragment string `json:"fragment"`
+	Kind     string `json:"rodzaj"`
+}
+
+func (c extractedClaim) isOpinion() bool {
+	return strings.EqualFold(strings.TrimSpace(c.Kind), kindOpinion)
 }
 
 type extractAnswer struct {

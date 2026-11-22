@@ -142,6 +142,10 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		}
 		return a.technicalError(r, err), nil
 	}
+	if document == nil {
+		// The text the agent checked (already masked by the backend): claims[].span points into it.
+		document = &Document{Text: text}
+	}
 	r.result.Document = document
 	if containsInstructions(text) {
 		r.injections++
@@ -167,6 +171,7 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 	}
 	for index := range checked {
 		r.mergeClaim(checked[index].run)
+		checked[index].claim.Span = findSpan(document.Text, claims[index].Fragment, claims[index].Text)
 		r.result.Claims = append(r.result.Claims, checked[index].claim)
 	}
 	return a.finish(r, StatusOK, ""), nil
@@ -180,25 +185,31 @@ type checkedClaim struct {
 // checkClaims runs one claim per worker, at most claimConcurrency at a time, and returns the results in claim order.
 // The answer therefore does not depend on which search finishes first (CONTRACT.md §2: the same input must give the
 // same verdict). A failure surfaces after every worker stops, so a technical_error never carries partial claims.
-func (a *Agent) checkClaims(ctx context.Context, request VerifyRequest, claims []string) ([]checkedClaim, error) {
+// An opinion needs no worker: it is not_verifiable by definition and is never searched.
+func (a *Agent) checkClaims(ctx context.Context, request VerifyRequest, claims []extractedClaim) ([]checkedClaim, error) {
 	results := make([]checkedClaim, len(claims))
 	errs := make([]error, len(claims))
 	semaphore := make(chan struct{}, claimConcurrency)
 	var wait sync.WaitGroup
-	for index, claimText := range claims {
+	for index, extracted := range claims {
+		claimID := fmt.Sprintf("c%d", index+1)
+		if extracted.isOpinion() {
+			results[index] = checkedClaim{claim: opinionClaim(claimID, extracted.Text), run: claimRun{request: request, abstained: true}}
+			continue
+		}
 		wait.Add(1)
 		go func(index int, claimText string) {
 			defer wait.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 			local := claimRun{request: request}
-			claim, err := a.checkClaim(ctx, &local, fmt.Sprintf("c%d", index+1), claimText)
+			claim, err := a.checkClaim(ctx, &local, claimID, claimText)
 			if err != nil {
 				errs[index] = err
 				return
 			}
 			results[index] = checkedClaim{claim: claim, run: local}
-		}(index, claimText)
+		}(index, extracted.Text)
 	}
 	wait.Wait()
 	for _, err := range errs {
@@ -230,11 +241,31 @@ func (a *Agent) resolveInput(ctx context.Context, request VerifyRequest) (string
 	return text, document, nil
 }
 
+// opinionClaim is the answer for a sentence the extractor marked as an opinion or a prediction (CONTRACT.md §4).
+func opinionClaim(claimID, text string) Claim {
+	return Claim{
+		ID:               claimID,
+		Text:             text,
+		Verdict:          VerdictNotVerifiable,
+		Justification:    justificationOpinion,
+		EvidenceStrength: StrengthNone,
+		StrengthReasons:  []string{reasonOpinion},
+		Sources:          []SourceRef{},
+		Warnings:         []Warning{},
+	}
+}
+
+// asSingleClaim wraps text the agent checks as it is (no extraction), so the whole text is also its fragment.
+func asSingleClaim(text string) []extractedClaim {
+	trimmed := strings.TrimSpace(text)
+	return []extractedClaim{{Text: trimmed, Fragment: trimmed}}
+}
+
 // extractClaims returns the claims to check: the input itself for a single statement, otherwise the model's list.
 // The usage covers every model call made here, including a retry after malformed JSON.
-func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, tokenUsage, error) {
+func (a *Agent) extractClaims(ctx context.Context, text string) ([]extractedClaim, int, tokenUsage, error) {
 	if isSingleStatement(text) {
-		return []string{strings.TrimSpace(text)}, 0, tokenUsage{}, nil
+		return asSingleClaim(text), 0, tokenUsage{}, nil
 	}
 	runes := []rune(text)
 	if len(runes) > a.config.ExtractMaxText {
@@ -247,14 +278,14 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 		if errors.Is(err, ErrModelAnswer) {
 			// A single statement that only looked complex: check it as it is rather than fail the request.
 			a.logger.Warn("claim extraction returned no JSON, checking the input as one claim", "error", err.Error())
-			return []string{strings.TrimSpace(text)}, 0, usageOf(completion), nil
+			return asSingleClaim(text), 0, usageOf(completion), nil
 		}
 		return nil, 0, usageOf(completion), err
 	}
-	claims := make([]string, 0, len(answer.Claims))
+	claims := make([]extractedClaim, 0, len(answer.Claims))
 	for _, claim := range answer.Claims {
 		if trimmed := strings.TrimSpace(claim.Text); hasEnoughWords(trimmed) {
-			claims = append(claims, trimmed)
+			claims = append(claims, extractedClaim{Text: trimmed, Fragment: claim.Fragment, Kind: claim.Kind})
 		}
 		if len(claims) == a.config.MaxClaims {
 			break
@@ -263,7 +294,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]string, int, 
 	if len(claims) == 0 {
 		if statement, ok := questionAsStatement(text); ok && hasEnoughWords(statement) {
 			a.logger.Info("extraction found no claim in a yes/no question, checking the question as a statement")
-			return []string{statement}, 0, usageOf(completion), nil
+			return []extractedClaim{{Text: statement, Fragment: text}}, 0, usageOf(completion), nil
 		}
 	}
 	return claims, max(answer.Omitted, 0), usageOf(completion), nil
