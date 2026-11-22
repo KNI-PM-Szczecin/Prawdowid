@@ -22,6 +22,7 @@ $column-width: 40rem;
       grid-template-columns: 1fr 1fr;
       gap: 0;
       max-width: none;
+      padding: 0;
     }
   }
 
@@ -35,9 +36,9 @@ $column-width: 40rem;
     @include from-lg {
       justify-self: end;
       width: 100%;
-      max-width: $column-width;
+      max-width: calc(#{$column-width} + 4rem);
       border-right: $border solid var(--line);
-      padding-right: 2rem;
+      padding: 2rem;
     }
   }
 
@@ -75,9 +76,10 @@ $column-width: 40rem;
   }
 
   // Figma: the claim panel sits on a blurred wash of its verdict colour (top-right). clip-path keeps the
-  // wash inside the drawer. On wide screens the drawer is fixed to the viewport below the sticky header
-  // and scrolls on its own, independently of the page. It slides in; the reduced-motion switch in
-  // global.scss shortens the transition to nothing.
+  // wash inside the drawer. On wide screens the drawer is the second grid column, sticky below the header
+  // with the viewport's height, and scrolls on its own; it ends with the result, so the footer runs under
+  // both columns at full width. It slides in; the reduced-motion switch in global.scss shortens the
+  // transition to nothing.
   &__side {
     position: relative;
     clip-path: inset(0);
@@ -89,15 +91,10 @@ $column-width: 40rem;
     }
 
     @include from-lg {
-      position: fixed;
+      position: sticky;
       top: var(--header-height, 0px);
-      right: 0;
-      bottom: 0;
-      z-index: 1;
-      width: 50%;
-      // Opaque, so the footer under the fixed drawer never shows through the cards.
-      border-left: $border solid var(--line);
-      background: var(--page);
+      align-self: start;
+      height: calc(100dvh - var(--header-height, 0px));
 
       @starting-style {
         transform: translateX(2rem);
