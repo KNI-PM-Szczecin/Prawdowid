@@ -43,6 +43,14 @@ const (
 	limitationInputInstructions = "Zgłoszenie zawierało polecenia skierowane do systemu. " +
 		"Potraktowaliśmy je jako zwykły tekst i nie zmieniły zasad sprawdzania."
 
+	// Brief scenario B: the age of the checked page is shown beside the verdict, never used as the verdict.
+	materialDateUnknown     = "nieznana"
+	warningArchivalMaterial = "Ta strona została opublikowana %s, ponad rok temu. Treść mogła się zdezaktualizować; " +
+		"sprawdź, czy dotyczy obecnej sytuacji."
+	limitationArchivalMaterial = "Sprawdzana strona pochodzi z %s (ponad rok temu); ocena dotyczy jej treści, " +
+		"nie tego, czy jest nadal aktualna."
+	limitationMaterialDateUnknown = "Nie ustaliliśmy daty publikacji tej strony, więc nie wiemy, czy jej treść jest aktualna."
+
 	// Brief scenario I: a match of the material is context about the page, never a verdict about its content.
 	materialMatchByURL = "Ten adres prowadzi do materiału, który mamy w naszych źródłach (zgodny adres). " +
 		"To informacja o samym materiale, nie ocena jego treści."

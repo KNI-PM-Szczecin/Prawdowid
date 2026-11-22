@@ -28,9 +28,10 @@ const (
 	SourceTypeSecondary = "secondary"
 	SourceTypeFactcheck = "factcheck"
 
-	WarningSourceStatus  = "source_status"
-	WarningIncidentMatch = "incident_match"
-	WarningOther         = "other"
+	WarningSourceStatus     = "source_status"
+	WarningIncidentMatch    = "incident_match"
+	WarningArchivalMaterial = "archival_material"
+	WarningOther            = "other"
 
 	InputTypeText = "text"
 	InputTypeURL  = "url"

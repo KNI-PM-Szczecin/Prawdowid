@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,13 @@ type fakeProvider struct {
 	// Tokens one call reports; the cost test checks that they reach meta.estimatedCostUsd.
 	inputTokens  int
 	outputTokens int
+	judgeUsers   []string
+}
+
+func (f *fakeProvider) judgeUserList() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.judgeUsers...)
 }
 
 func (f *fakeProvider) Name() string { return "fake-model" }
@@ -52,6 +60,7 @@ func (f *fakeProvider) Generate(_ context.Context, system, user string) (Complet
 	if strings.Contains(system, "<dostepne_zrodla>") && strings.Contains(user, "<dostepne_zrodla>") {
 		f.mu.Lock()
 		f.calls = append(f.calls, "judge")
+		f.judgeUsers = append(f.judgeUsers, user)
 		f.mu.Unlock()
 		completion.Text = f.judge
 		return completion, nil
@@ -449,6 +458,51 @@ func TestURLMaterialMatchIsContextWithExplicitBasis(t *testing.T) {
 	text := verify(t, newTestAgent(t, &fakeProvider{judge: judge}, matched), claimSejm, InputTypeText)
 	if text.MaterialMatch != nil || len(matched.matchBodyList()) != 1 {
 		t.Fatalf("text input must not be matched as material: %+v", text)
+	}
+}
+
+// Brief scenario B: the page's own date goes to the judge and an old page is flagged as archival beside the verdict.
+func TestOldPageIsFlaggedAsArchivalAndItsDateReachesTheJudge(t *testing.T) {
+	judge := judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")
+	oldDate := "2024-03-12T10:00:00Z"
+	provider := &fakeProvider{judge: judge}
+	rag := &ragStub{search: searchWith(officialPassage()), fetch: FetchResponse{URL: "https://example.gov.pl/a", Title: "Tytuł", Text: claimSejm, PublishedAt: &oldDate}}
+	result := verify(t, newTestAgent(t, provider, rag), "https://example.gov.pl/a", InputTypeURL)
+
+	if result.Status != StatusOK || len(result.Claims) != 1 || result.Claims[0].Verdict != VerdictConfirmed {
+		t.Fatalf("the age must not change the verdict: %+v", result)
+	}
+	warnings := result.Claims[0].Warnings
+	if len(warnings) != 1 || warnings[0].Type != WarningArchivalMaterial || !strings.Contains(warnings[0].Message, "2024-03-12") {
+		t.Fatalf("expected an archival warning with the date, got %+v", warnings)
+	}
+	if !slices.Contains(result.Limitations, fmt.Sprintf(limitationArchivalMaterial, "2024-03-12")) {
+		t.Fatalf("limitations: %+v", result.Limitations)
+	}
+	users := provider.judgeUserList()
+	if len(users) != 1 || !strings.Contains(users[0], "Data publikacji sprawdzanego materiału: 2024-03-12") {
+		t.Fatalf("judge prompt should carry the page date: %q", users)
+	}
+
+	fresh := "2026-11-01T10:00:00Z"
+	provider = &fakeProvider{judge: judge}
+	rag = &ragStub{search: searchWith(officialPassage()), fetch: FetchResponse{URL: "https://example.gov.pl/a", Title: "Tytuł", Text: claimSejm, PublishedAt: &fresh}}
+	result = verify(t, newTestAgent(t, provider, rag), "https://example.gov.pl/a", InputTypeURL)
+	if len(result.Claims[0].Warnings) != 0 || slices.Contains(result.Limitations, limitationMaterialDateUnknown) {
+		t.Fatalf("a fresh page gets no age warning: %+v", result)
+	}
+
+	provider = &fakeProvider{judge: judge}
+	rag = &ragStub{search: searchWith(officialPassage()), fetch: FetchResponse{URL: "https://example.gov.pl/a", Title: "Tytuł", Text: claimSejm}}
+	result = verify(t, newTestAgent(t, provider, rag), "https://example.gov.pl/a", InputTypeURL)
+	if !slices.Contains(result.Limitations, limitationMaterialDateUnknown) || !strings.Contains(provider.judgeUserList()[0], "materiału: nieznana") {
+		t.Fatalf("an undated page must say so: %+v", result.Limitations)
+	}
+
+	provider = &fakeProvider{judge: judge}
+	result = verify(t, newTestAgent(t, provider, &ragStub{search: searchWith(officialPassage())}), claimSejm, InputTypeText)
+	if slices.Contains(result.Limitations, limitationMaterialDateUnknown) || !strings.Contains(provider.judgeUserList()[0], "materiału: nieznana") {
+		t.Fatalf("text input has no page date and no limitation about it: %+v", result.Limitations)
 	}
 }
 

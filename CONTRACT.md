@@ -60,6 +60,7 @@ Odpowiedź (`CheckResult`):
 - `evidenceStrength`: `strong`, `moderate`, `weak`, `none`. `strengthReasons` to jawne przesłanki (jakość i aktualność źródeł, zgodność z tezą, liczba niezależnych potwierdzeń).
 - `sources[].role`: `supports`, `refutes`, `context`. `sources[].sourceType`: `official`, `secondary`, `factcheck`, `incident`. Lista `sources` jest pusta tylko przy `insufficient_evidence` i `not_verifiable`.
 - `warnings[].type`: `source_status`, `incident_match`, `archival_material`, `other`. **Ostrzeżenie nigdy nie jest podstawą werdyktu.**
+- `archival_material` (scenariusz B): `agent/` dodaje je do każdego twierdzenia, gdy sprawdzana strona (`inputType: url`) ma `document.publishedAt` starsze niż rok; treść mówi, kiedy stronę opublikowano. Do `limitations` trafia ta sama informacja, a przy braku daty publikacji zdanie, że nie wiadomo, czy treść jest aktualna. Data publikacji materiału idzie też do promptu sędziego (`judge.user.md`, „Data publikacji sprawdzanego materiału”), żeby prawdziwy materiał podany w złym czasie dostał `misleading` z cytatem pokazującym właściwy czas.
 - `incident_match` to dodatkowa kategoria „możliwa część kampanii dezinformacyjnej”. `agent/` tworzy ją z `campaignAlert` z `rag/` (§3): `message` z alertu, linki do dopasowanych spraw. Front pokazuje ją obok werdyktu, poza `evidenceStrength`; nie zmienia werdyktu ani siły podstawy.
 - `missing`: przy `insufficient_evidence` opis, czego nie udało się ustalić (po polsku).
 - `message`: wymagane, gdy `status !== "ok"`. `claims` jest wtedy pustą listą.
@@ -187,6 +188,7 @@ Pozostałe endpointy:
 - **Awaria zewnętrznego źródła** (np. Google Fact Check) nigdy nie znaczy „nie ma takiej publikacji”. Odpowiedź ujawnia ograniczenie w `limitations` („nie mogę teraz sprawdzić…”); gdy przy tym korpus nie dał żadnego fragmentu dla twierdzenia (awaria usługi była jedyną możliwą podstawą) → `technical_error` z komunikatem o błędzie dostępu do weryfikatorów (scenariusz J mentora).
 - `evidenceStrength` `none` lub `weak` bez cytatu nigdy nie daje `confirmed` ani `false`.
 - Treść, która nie jest twierdzeniem faktograficznym (opinia, przepowiednia) → `not_verifiable`.
+- **Czas i miejsce (scenariusz B).** Sędzia dostaje dzisiejszą datę i datę publikacji sprawdzanego materiału (dla tekstu: „nieznana”). Prawdziwy materiał przedstawiony jako bieżący, choć źródła umieszczają go w innym czasie lub miejscu (stary stan prawny, dawne wydarzenie, inne miasto) → `misleading` z cytatem pokazującym właściwy czas lub miejsce. Sam wiek strony nie zmienia werdyktu: daje ostrzeżenie `archival_material` i wpis w `limitations`.
 
 ## 5. agent: wewnętrzne interfejsy
 

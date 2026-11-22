@@ -7,7 +7,7 @@ Pliki w tym folderze to konfiguracja modelu, nie kod (`AGENTS.md`: konfiguracja 
 | `extract.system.md` | wyodrębnia twierdzenia z wejścia i oznacza, które są faktem, a które opinią | system |
 | `extract.user.md` | wejście użytkownika w bloku `<tekst>` | user |
 | `judge.system.md` | ocenia jedno twierdzenie na podstawie źródeł | system |
-| `judge.user.md` | twierdzenie, data i `contextXml` z `rag/` | user |
+| `judge.user.md` | twierdzenie, dzisiejsza data, data publikacji sprawdzanego materiału (albo „nieznana”) i `contextXml` z `rag/` | user |
 
 ## Dlaczego tak
 
@@ -38,7 +38,7 @@ Model proponuje, Go rozstrzyga. Odpowiedź modelu jest odrzucana albo obniżana,
 
 ## Przepływ `Verify`
 
-1. Wejście: `text` albo `url`. Dla `url` agent woła `POST /fetch` w `rag/` (ten sam parser co przy zasilaniu korpusu; decyzja zespołu: pobieranie zostaje w rag), dostaje tytuł i tekst strony. Maskowanie danych osobowych robi backend przed `Verify`.
+1. Wejście: `text` albo `url`. Dla `url` agent woła `POST /fetch` w `rag/` (ten sam parser co przy zasilaniu korpusu; decyzja zespołu: pobieranie zostaje w rag), dostaje tytuł, tekst i datę publikacji strony, a potem `POST /match` (czy strona jest znanym materiałem: `materialMatch`, kontekst). Strona starsza niż rok daje każdemu twierdzeniu ostrzeżenie `archival_material` i wpis w `limitations`; brak daty publikacji to osobny wpis w `limitations`. Maskowanie danych osobowych robi backend przed `Verify`.
 2. **Ekstrakcja**: wejście krótsze niż 2 słowa → `needs_clarification` bez modelu. Gdy wejście ma jedno zdanie (≤ 300 znaków, bez nowej linii, bez granicy zdania „. Wielka litera”, nie jest pytaniem), twierdzeniem jest samo wejście, bez modelu. Liczebnik porządkowy („po 65. roku”) nie dzieli zdania. Pytania idą do `extract`, który zamienia je na zdania oznajmujące i zachowuje słowa zakresu („tylko”, „wyłącznie”); pytanie „Czy …?”, z którego model nic nie wyciągnął, staje się zdaniem oznajmującym. Inaczej `extract` (tekst do 6000 znaków) → maks. 3 najważniejsze twierdzenia (najpierw fakty: główna teza i te z liczbami, datami, nazwami; opinie na końcu), każde z `rodzaj` (`fakt` albo `opinia`) i `fragment` (dosłowny kawałek tekstu); gdy model zgłosi `pominiete > 0`, do `limitations` trafia „Sprawdzono K najważniejsze twierdzenia z około N w tekście.” (K = liczba wyodrębnionych, N = K + `pominiete`). Niepoprawny JSON z ekstrakcji → cały tekst jako jedno twierdzenie. Pusta lista → `needs_clarification`.
 3. Dla każdego faktu: `POST /search` w `rag/` (`topK` 5) → reguła 7 albo `judge` → walidacja 1–6 → `Claim`. Opinia (`rodzaj: opinia`) nie jest wyszukiwana ani oceniana przez `judge`: dostaje `not_verifiable` ze stałym uzasadnieniem i bez źródeł (CONTRACT.md §4). Każdy `Claim` dostaje `span` (pozycja `fragment`, a w zapasie zdania twierdzenia, w `document.text`; parafraza → `null`), dzięki czemu front podświetla twierdzenie w tekście.
 4. Złożenie `CheckResult`: `limitations`, `meta` (model, czas, `corpusVersion`, `injectionAttempts`, `abstained`).
