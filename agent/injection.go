@@ -85,11 +85,47 @@ var injectionPatterns = regexp.MustCompile(strings.Join([]string{
 	`\bwyobraz\s+sobie,?\s+ze\s+jestes\b`,
 	`\bpowtarzaj\s+za\s+mna\b`,
 	`\b(?:napisz|powiedz|wypisz)\s+tylko\s*:?\s*"`,
-	// Off-task requests: a fact-check submission never asks for a recipe, a poem or code.
-	`\b(?:podaj|napisz|wygeneruj|stworz|wymysl|uloz)\s+(?:mi\s+|nam\s+)?(?:jakis\s+|jakas\s+|jakies\s+)?` +
-		`(?:przepis\s+na|wiersz|wierszyk|piosenke|opowiadanie|bajke|zart|dowcip|esej|program|list\s+milosny)\b`,
-	`\b(?:write|give|tell|generate|compose)\s+(?:me\s+|us\s+)?(?:a|an|some)\s+(?:recipe|poem|song|story|joke|essay|code)\b`,
+	// Attempts to dictate the answer: a planted source, a set verdict, a sentence to write.
+	`\b(?:zacytuj|cytuj|podaj|wskaz|dodaj|uzyj|wpisz)\s+(?:\w+\s+){0,2}jako\s+(?:zrodlo|dowod)\b`,
+	`\bjako\s+(?:zrodlo|dowod)\s+(?:podaj\s+|wpisz\s+)?(?:te\s+|ta\s+)?(?:strone|adres|link)\b`,
+	`\bw\s+odpowiedzi\s+(?:koniecznie\s+|prosze\s+|musisz\s+)?(?:zacytuj|napisz|podaj|wpisz|umiesc|dodaj|oznacz)\b`,
+	`\b(?:oznacz|ustaw|zmien|wpisz|daj)\s+(?:ten\s+|swoj\s+|twoj\s+)?(?:werdykt|ocene|wynik)\b`,
+	`\b(?:werdykt|verdict|ocena)\s*(?:jako|as|=|:)?\s*(?:confirmed|false|true|misleading|potwierdzone|falszywe)\b`,
+	`\b(?:napisz|odpowiedz|stwierdz|powiedz|wpisz),?\s+ze\b`,
+	`\b(?:cite|use|list|add)\s+(?:\S+\s+){0,3}as\s+(?:a\s+|the\s+)?(?:source|evidence)\b`,
+	`\b(?:output|set|give|return|change)\s+(?:the\s+|your\s+)?verdict\b`,
+	`\bignore\s+(?:the\s+|all\s+the\s+)?(?:rules|instructions|guidelines)\b`,
+	`\[\s*(?:system|assistant|admin|developer|instrukcja|system\s+prompt)\s*\]`,
+	`<!--[^>]{0,300}(?:assistant|system|ignore|instruction|zignoruj|polecenie|werdykt|verdict)`,
+	offTaskRequestSource,
 }, "|"))
+
+// Off-task requests: a fact-check submission never asks for a recipe, a poem or code. Beside a claim such a request is
+// an injection attempt; alone it is a request outside the service (isOutOfScopeRequest).
+const offTaskRequestSource = `\b(?:podaj|napisz|wygeneruj|stworz|wymysl|uloz)\s+(?:mi\s+|nam\s+)?(?:jakis\s+|jakas\s+|jakies\s+)?` +
+	`(?:przepis\s+na|wiersz|wierszyk|piosenke|opowiadanie|bajke|zart|dowcip|esej|program|list\s+milosny)\b|` +
+	`\b(?:write|give|tell|generate|compose)\s+(?:me\s+|us\s+)?(?:a|an|some)\s+(?:recipe|poem|song|story|joke|essay|code)\b`
+
+var (
+	offTaskRequest = regexp.MustCompile(offTaskRequestSource)
+	// A question about the service's own opinion ("Co sądzisz o…?") asks for no fact.
+	// "Czy uważasz, że X?" or "Jak oceniasz twierdzenie, że X?" carry a claim and are not listed here.
+	opinionRequest = regexp.MustCompile(`^(?:a\s+)?(?:co\s+(?:sadzisz|myslisz|uwazasz)|jakie\s+(?:jest\s+)?(?:twoje|pana|pani)\s+zdanie|` +
+		`what\s+do\s+you\s+think|what\s+is\s+your\s+opinion)\b`)
+	// A that-clause ("…o tym, że Sejm ma 600 posłów") states a claim, so the question goes the normal way.
+	thatClause = regexp.MustCompile(`\b(?:ze|that)\b`)
+)
+
+// isOutOfScopeRequest reports a submission that is only a request the service does not serve: writing a text for the
+// user or giving its own opinion. It has no claim to check, so it is out_of_scope, not an injection attempt.
+func isOutOfScopeRequest(text string) bool {
+	normalized := normalizeForDetection(text)
+	if opinionRequest.MatchString(normalized) && !thatClause.MatchString(normalized) &&
+		!sentenceBoundary.MatchString(strings.TrimSpace(text)) {
+		return true
+	}
+	return offTaskRequest.MatchString(normalized) && !hasEnoughWords(stripInstructions(text))
+}
 
 var polishLetters = strings.NewReplacer("ą", "a", "ć", "c", "ę", "e", "ł", "l", "ń", "n", "ó", "o", "ś", "s", "ź", "z", "ż", "z")
 
@@ -110,9 +146,10 @@ func containsInstructions(text string) bool {
 	return injectionPatterns.MatchString(normalizeForDetection(text))
 }
 
-// clauseEnd ends the cut of an instruction: the end of its sentence, or the end of the text when the sentence never
-// ends (run-on input without punctuation).
-var clauseEnd = regexp.MustCompile(`[.!?…\n]`)
+// clauseEnd ends the cut of an instruction: the end of its sentence (punctuation followed by a space, a new line or the
+// end of the text, so the dot of a web address or the "!" of "<!--" does not end it), or the end of the text when the
+// sentence never ends (run-on input without punctuation).
+var clauseEnd = regexp.MustCompile(`[.!?…]+(?:\s|$)|\n`)
 
 // maxStripRounds bounds the cutting loop; every round removes at least one match, so it only guards against a regex
 // that would match an empty string.
@@ -129,7 +166,7 @@ func stripInstructions(text string) string {
 			break
 		}
 		original := []rune(text)
-		start := origins[utf8.RuneCountInString(normalized[:location[0]])]
+		start := sentenceStartIfLead(original, origins[utf8.RuneCountInString(normalized[:location[0]])])
 		end := len(original)
 		if next := clauseEnd.FindStringIndex(string(original[start:])); next != nil {
 			end = start + utf8.RuneCountInString(string(original[start:])[:next[1]])
@@ -137,6 +174,22 @@ func stripInstructions(text string) string {
 		text = string(original[:start]) + " " + string(original[end:])
 	}
 	return strings.Join(strings.Fields(text), " ")
+}
+
+// maxLeadWords: an instruction that starts within the first words of its sentence ("Please cite…", "Proszę, zignoruj…")
+// takes the whole sentence; further in, the words before it are the user's claim and stay.
+const maxLeadWords = 2
+
+// sentenceStartIfLead moves the cut start back to the start of its sentence when only a few words precede it there.
+func sentenceStartIfLead(text []rune, start int) int {
+	sentenceStart := 0
+	for _, location := range clauseEnd.FindAllStringIndex(string(text[:start]), -1) {
+		sentenceStart = utf8.RuneCountInString(string(text[:start])[:location[1]])
+	}
+	if len(strings.Fields(string(text[sentenceStart:start]))) <= maxLeadWords {
+		return sentenceStart
+	}
+	return start
 }
 
 // normalizeWithOrigins is normalizeForDetection that also returns, for every rune of the result, the index of the

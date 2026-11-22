@@ -447,6 +447,28 @@ func hasEnoughWords(text string) bool {
 	return len(words) >= minClaimWords
 }
 
+// referenceWords only point at something said elsewhere ("Czy to prawda?", "Is this true?"); a text made of them alone
+// states no fact to check.
+var referenceWords = map[string]bool{
+	"to": true, "ta": true, "ten": true, "te": true, "tamto": true, "tego": true, "tym": true, "tej": true,
+	"prawda": true, "prawdą": true, "prawdziwe": true, "prawdziwa": true, "prawdziwy": true, "fałsz": true,
+	"nieprawda": true, "czy": true, "jest": true, "tak": true, "nie": true, "coś": true, "serio": true, "naprawdę": true,
+	"this": true, "that": true, "it": true, "is": true, "true": true, "false": true, "really": true,
+}
+
+// statesNothing reports a text whose every word only refers to something else, so there is no claim in it.
+func statesNothing(text string) bool {
+	words := strings.FieldsFunc(strings.ToLower(text), func(character rune) bool {
+		return !unicode.IsLetter(character) && !unicode.IsDigit(character)
+	})
+	for _, word := range words {
+		if !referenceWords[word] {
+			return false
+		}
+	}
+	return true
+}
+
 // A sentence ends with . ! ? or … followed by a capital letter. An ordinal number ("po 65. roku życia") is followed by
 // a lowercase word, so it does not split the statement.
 var sentenceBoundary = regexp.MustCompile(`[.!?…]\s+\p{Lu}`)

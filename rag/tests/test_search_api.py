@@ -1,3 +1,5 @@
+import asyncio
+import time
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -482,6 +484,29 @@ def test_gov_search_fills_the_gap_and_the_search_runs_again(client, monkeypatch)
     assert app.state.gov_search.queries == ["poseł x poparł ustawę y"]
     assert [result["passage"] for result in body["results"]] == [found_later.text]
     assert {"name": "gov_search", "status": "ok", "results": 1} in body["externalSources"]
+
+
+class SlowGovSearch(FakeGovSearch):
+    async def fill(self, query, models, store, claim=None):
+        await asyncio.sleep(SLOW_FILL_SECONDS)
+        return await super().fill(query, models, store, claim)
+
+
+SLOW_FILL_SECONDS = 2.0
+SHORT_SEARCH_BUDGET_SECONDS = 0.2
+
+
+def test_slow_gap_fill_never_delays_the_answer_past_the_search_budget(client, monkeypatch):
+    monkeypatch.setattr(settings, "search_total_budget_seconds", SHORT_SEARCH_BUDGET_SECONDS)
+    app.state.store = FakeStore([])
+    app.state.gov_search = SlowGovSearch(GapFillResult(status="ok", indexed=1))
+
+    started_at = time.monotonic()
+    body = client.post("/search", json=QUERY).json()
+
+    assert time.monotonic() - started_at < SLOW_FILL_SECONDS
+    assert body["results"] == []
+    assert {"name": "gov_search", "status": "skipped", "results": 0} in body["externalSources"]
 
 
 def test_odyseusz_notice_indexed_on_demand_is_found_by_the_search_that_follows(client, monkeypatch):

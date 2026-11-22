@@ -138,8 +138,11 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		return a.finish(r, StatusNeedsClarification, msgEmptyInput), nil
 	}
 
-	if request.InputType != InputTypeURL && !hasEnoughWords(input) {
+	if request.InputType != InputTypeURL && (!hasEnoughWords(input) || statesNothing(input)) {
 		return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
+	}
+	if request.InputType != InputTypeURL && isOutOfScopeRequest(input) {
+		return a.finish(r, StatusOutOfScope, msgOutOfScopeRequest), nil
 	}
 
 	text, document, err := a.resolveInput(ctx, r, request)
@@ -294,7 +297,8 @@ func (a *Agent) resolveInput(ctx context.Context, r *run, request VerifyRequest)
 		return pageText(page), document, nil
 	}
 
-	links := findLinks(input)
+	// Links inside a detected instruction ("cite this page as the source") are never fetched.
+	links := findLinks(stripInstructions(input))
 	switch {
 	case len(links) == 0:
 		return input, nil, nil
@@ -434,7 +438,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]extractedClai
 	}
 	claims := make([]extractedClaim, 0, len(answer.Claims))
 	for _, claim := range answer.Claims {
-		if trimmed := strings.TrimSpace(claim.Text); hasEnoughWords(trimmed) {
+		if trimmed := strings.TrimSpace(claim.Text); hasEnoughWords(trimmed) && !statesNothing(trimmed) {
 			claims = append(claims, extractedClaim{Text: trimmed, Fragment: claim.Fragment, Kind: claim.Kind})
 		}
 		if len(claims) == a.config.MaxClaims {
@@ -442,7 +446,7 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]extractedClai
 		}
 	}
 	if len(claims) == 0 {
-		if statement, ok := questionAsStatement(text); ok && hasEnoughWords(statement) {
+		if statement, ok := questionAsStatement(text); ok && hasEnoughWords(statement) && !statesNothing(statement) {
 			a.logger.Info("extraction found no claim in a yes/no question, checking the question as a statement")
 			return []extractedClaim{{Text: statement, Fragment: text}}, 0, usageOf(completion), nil
 		}
@@ -584,6 +588,12 @@ func (a *Agent) secondRound(ctx context.Context, r *claimRun, claim *Claim, clai
 	if query == "" {
 		return evaluation{}, false
 	}
+	needed := min(secondRoundMinRemaining, a.config.RagTimeout+a.config.LLMTimeout)
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < needed {
+		// Too little time for one more search and judgment: the abstention now beats a timeout later.
+		a.logger.Info("no time left for a second search", "requestId", r.request.RequestID, "claimId", claim.ID)
+		return evaluation{}, false
+	}
 	more, err := a.rag.Search(ctx, query, a.config.SearchTopK)
 	if err != nil {
 		a.logger.Warn("second search failed, keeping the first answer", "requestId", r.request.RequestID, "claimId", claim.ID, "error", err.Error())
@@ -606,6 +616,10 @@ func (a *Agent) secondRound(ctx context.Context, r *claimRun, claim *Claim, clai
 		"added", added, "settled", settled, "contradicting", contradicting)
 	return second, settled || contradicting
 }
+
+// secondRoundMinRemaining covers one rag search (rag answers within its 14 s search budget) and one judgment; with
+// shorter configured timeouts their sum is enough.
+const secondRoundMinRemaining = 20 * time.Second
 
 func secondRoundQuery(claimText string, queries *ExpandedQueries) string {
 	if queries == nil {

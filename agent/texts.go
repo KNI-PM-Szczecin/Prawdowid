@@ -14,6 +14,9 @@ const (
 	msgUnsupportedService = "Nie odczytujemy filmów, nagrań ani wpisów z serwisów społecznościowych " +
 		"(YouTube, TikTok, Facebook, Instagram, X). Wklej treść wpisu albo link do artykułu z tekstem."
 	msgEmptyInput           = "Wpisz informację do sprawdzenia albo wklej adres strony."
+	msgOutOfScopeRequest    = "Prawdowid sprawdza doniesienia i twierdzenia o faktach. Nie pisze tekstów (np. przepisów, " +
+		"wierszy) i nie wyraża własnych opinii. Wklej informację, którą chcesz sprawdzić, np. „Od stycznia bilety " +
+		"w Gdańsku są darmowe”."
 	msgFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów z powodu błędu dostępu do zewnętrznej usługi, " +
 		"a w naszych źródłach nie ma publikacji na ten temat. To ograniczenie techniczne, nie ocena treści. " +
 		"Spróbuj ponownie za chwilę."

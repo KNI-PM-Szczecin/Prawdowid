@@ -1,4 +1,5 @@
 import json
+import sys
 import time
 
 import httpx
@@ -79,6 +80,35 @@ def _send(client: httpx.Client, case: Case, repeat: int) -> tuple[RunRecord, htt
         case_id=case.id, repeat=repeat, http_status=response.status_code, body=body, error=None, elapsed_ms=elapsed_ms
     )
     return record, response
+
+
+READINESS_PATH = "/api/sources/catalog"
+READINESS_ATTEMPTS = 20
+READINESS_WAIT_SECONDS = 15.0
+HTTP_OK = 200
+
+
+def wait_until_ready(
+    base_url: str, transport: httpx.BaseTransport | None = None, sleep=time.sleep, attempts: int = READINESS_ATTEMPTS
+) -> bool:
+    """
+    Waits until the backend and rag answer (GET /api/sources/catalog goes through to rag). A run started during a
+    deploy, while rag loads its models, would record every case as technical_error and measure nothing.
+    """
+    with httpx.Client(base_url=base_url, timeout=REQUEST_TIMEOUT_SECONDS, transport=transport) as client:
+        for attempt in range(attempts):
+            try:
+                status = client.get(READINESS_PATH).status_code
+            except httpx.HTTPError as error:
+                status_text = type(error).__name__
+            else:
+                if status == HTTP_OK:
+                    return True
+                status_text = f"HTTP {status}"
+            print(f"System jeszcze niegotowy ({status_text}), próba {attempt + 1}/{attempts}.", file=sys.stderr)
+            if attempt < attempts - 1:
+                sleep(READINESS_WAIT_SECONDS)
+    return False
 
 
 def run_cases(
