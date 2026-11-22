@@ -56,14 +56,14 @@ def _relevance(logit: float) -> float:
     return 1.0 / (1.0 + math.exp(-logit / settings.rerank_score_temperature))
 
 
-def _merge_candidates(result_sets: list[list[RetrievedChunk]], pool_size: int) -> list[RetrievedChunk]:
+def _merge_candidates(result_sets: list[list[RetrievedChunk]]) -> list[RetrievedChunk]:
     best_by_id: dict[UUID, RetrievedChunk] = {}
     for results in result_sets:
         for chunk in results:
             current = best_by_id.get(chunk.chunk_id)
             if current is None or chunk.fusion_score > current.fusion_score:
                 best_by_id[chunk.chunk_id] = chunk
-    return sorted(best_by_id.values(), key=lambda chunk: chunk.fusion_score, reverse=True)[:pool_size]
+    return sorted(best_by_id.values(), key=lambda chunk: chunk.fusion_score, reverse=True)
 
 
 def _diversify(chunks: list[RetrievedChunk], max_per_document: int) -> list[RetrievedChunk]:
@@ -196,18 +196,24 @@ async def search_passages(
         incidents.hybrid_search(dense_vectors[0], sparse_vectors[0], settings.incident_retrieval_limit, None),
         incidents.count(),
     )
+    merged = _merge_candidates(list(result_sets))
+    # The metadata join runs before the rerank pool is cut: a Qdrant point whose chunk PostgreSQL marks deleted (a
+    # re-ingest elsewhere, eviction, prune) is not evidence, and letting it take one of the few pool slots used to
+    # leave the pool full of stale points, so every search came back empty although live evidence was retrieved.
+    metadata = await db.fetch_passage_metadata([chunk.chunk_id for chunk in merged])
+    live = [chunk for chunk in merged if chunk.chunk_id in metadata]
+    if len(live) < len(merged):
+        logger.warning(
+            "Skipped %d of %d retrieved chunks without active metadata (Qdrant and PostgreSQL out of sync)",
+            len(merged) - len(live),
+            len(merged),
+        )
     factcheck_result = await factcheck_task
     reviews = [review for review in factcheck_result.reviews if _within_date_filter(review, filters)]
     candidates: list[Candidate] = [
-        *_diversify(
-            _merge_candidates(list(result_sets), settings.retrieval_limit_per_query),
-            settings.pool_max_chunks_per_document,
-        ),
+        *_diversify(live[: settings.retrieval_limit_per_query], settings.pool_max_chunks_per_document),
         *reviews,
     ]
-
-    corpus_candidates = [candidate for candidate in candidates if isinstance(candidate, RetrievedChunk)]
-    metadata_task = asyncio.create_task(db.fetch_passage_metadata([chunk.chunk_id for chunk in corpus_candidates]))
 
     passages: list[Passage] = []
     campaign_alert = None
@@ -234,7 +240,6 @@ async def search_passages(
             reverse=True,
         )
         fetched_at = datetime.now(UTC)
-        metadata = await metadata_task
         skipped_incomplete = 0
         for candidate, score in ranked:
             if isinstance(candidate, FactCheckReview):
@@ -251,8 +256,6 @@ async def search_passages(
                 break
         if skipped_incomplete:
             logger.info("Dropped %d passages without complete metadata", skipped_incomplete)
-    else:
-        await metadata_task
 
     elapsed_ms = round((time.perf_counter() - started_at) * MILLISECONDS_PER_SECOND)
     logger.info(
