@@ -14,11 +14,15 @@ const (
 	defaultLLMModel      = "qwen3:0.6b"
 	defaultMaxClaims     = 3
 	defaultVerifyTimeout = 25 * time.Second // CONTRACT.md §2
-	// CONTRACT.md §2 allows 12 s: the first measurement on Railway (rerank on a shared CPU) went over 8 s.
+	// CONTRACT.md §2 allows 18 s: the first measurement on Railway (rerank on a shared CPU) went over 8 s, and the
+	// model expansion plus the gov.pl fill add a few seconds.
 	defaultRagTimeout     = 18 * time.Second
 	defaultLLMTimeout     = 10 * time.Second
 	defaultSearchTopK     = 5
 	defaultExtractMaxText = 6000 // characters of page/submission text handed to the extraction prompt
+	// The second research round needs this much of the Verify budget left, otherwise it would end in a timeout
+	// instead of an answer.
+	defaultSecondRoundMinRemaining = 10 * time.Second
 	// Hosted OpenAI list prices for gpt-6-luna (USD per 1M tokens, https://platform.openai.com/docs/pricing).
 	// Both can be changed with LLM_PRICE_INPUT_PER_M and LLM_PRICE_OUTPUT_PER_M.
 	defaultLLMPriceInputPerM  = 0.10
@@ -43,6 +47,9 @@ type Config struct {
 	RagTimeout         time.Duration
 	LLMTimeout         time.Duration
 	ExtractMaxText     int
+	// SecondRound enables one deeper research round when the judge abstains (AGENT_SECOND_ROUND=false turns it off).
+	SecondRound             bool
+	SecondRoundMinRemaining time.Duration
 }
 
 // ConfigFromEnv builds the configuration from RAG_URL, LLM_BASE_URL, LLM_API_KEY, LLM_MODEL and AGENT_* variables.
@@ -53,12 +60,14 @@ func ConfigFromEnv() (Config, error) {
 		LLMAPIKey:  os.Getenv("LLM_API_KEY"),
 		LLMModel:   stringFromEnv("LLM_MODEL", defaultLLMModel),
 
-		LLMReasoningEffort: os.Getenv("LLM_REASONING_EFFORT"),
-		VerifyTimeout:      defaultVerifyTimeout,
-		RagTimeout:         defaultRagTimeout,
-		LLMTimeout:         defaultLLMTimeout,
-		SearchTopK:         defaultSearchTopK,
-		ExtractMaxText:     defaultExtractMaxText,
+		LLMReasoningEffort:      os.Getenv("LLM_REASONING_EFFORT"),
+		VerifyTimeout:           defaultVerifyTimeout,
+		RagTimeout:              defaultRagTimeout,
+		LLMTimeout:              defaultLLMTimeout,
+		SearchTopK:              defaultSearchTopK,
+		ExtractMaxText:          defaultExtractMaxText,
+		SecondRound:             os.Getenv("AGENT_SECOND_ROUND") != "false",
+		SecondRoundMinRemaining: defaultSecondRoundMinRemaining,
 	}
 	var err error
 	if config.MaxClaims, err = intFromEnv("AGENT_MAX_CLAIMS", defaultMaxClaims); err != nil {

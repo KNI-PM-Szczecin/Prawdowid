@@ -114,6 +114,9 @@ class SearchRequest(ApiModel):
     query: str = Field(min_length=3, max_length=QUERY_MAX_CHARS)
     top_k: int = Field(default=settings.rerank_top_k, ge=1, le=settings.rerank_top_k_max)
     filters: SearchFilters | None = None
+    # True asks for the deeper round the agent runs after the judge abstained: the gov.pl fill and the secondary ->
+    # primary hop run whatever the passage scores are (a topical passage can still fail to settle the claim).
+    research: bool = False
 
 
 class ExpandedQueries(ApiModel):
@@ -296,6 +299,15 @@ class ExternalSourceStatus(ApiModel):
     results: int
 
 
+class Coverage(ApiModel):
+    """What the evidence corpus covers right now, so an abstention can say what was (not) searched."""
+
+    documents: int
+    newest_published_at: Timestamp | None
+    feeds_monitored: int
+    last_feed_refresh_at: Timestamp | None
+
+
 class SearchResponse(ApiModel):
     results: list[Passage]
     corpus_version: str
@@ -304,6 +316,7 @@ class SearchResponse(ApiModel):
     elapsed_ms: int
     external_sources: list[ExternalSourceStatus]
     campaign_alert: CampaignAlert | None = None
+    coverage: Coverage | None = None
 
 
 class SourceAuditEntry(ApiModel):

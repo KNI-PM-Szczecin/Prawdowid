@@ -155,6 +155,10 @@ def client(monkeypatch):
     async def register_reads(chunk_ids):
         return None
 
+    async def corpus_coverage():
+        return 161, datetime(2026, 11, 20, tzinfo=UTC)
+
+    monkeypatch.setattr(db, "corpus_coverage", corpus_coverage)
     monkeypatch.setattr(db, "fetch_passage_metadata", fetch_metadata)
     monkeypatch.setattr(db, "corpus_version", corpus_version)
     monkeypatch.setattr(db, "register_reads", register_reads)
@@ -483,3 +487,28 @@ def test_primary_hop_runs_only_after_gov_search_did_not_help(client, monkeypatch
 def test_primary_hop_is_not_asked_when_the_corpus_answers(client):
     client.post("/search", json=QUERY)
     assert app.state.primary_hop.calls == []
+
+
+def test_search_reports_what_the_corpus_covers(client):
+    coverage = client.post("/search", json=QUERY).json()["coverage"]
+    assert coverage["documents"] == 161
+    assert coverage["newestPublishedAt"].startswith("2026-11-20")
+    assert coverage["feedsMonitored"] >= 1
+    assert "lastFeedRefreshAt" in coverage
+
+
+def test_a_failing_statistics_query_does_not_fail_the_search(client, monkeypatch):
+    async def broken():
+        raise OSError("database unreachable")
+
+    monkeypatch.setattr(db, "corpus_coverage", broken)
+    response = client.post("/search", json=QUERY)
+    assert response.status_code == 200
+    assert response.json()["coverage"] is None
+
+
+def test_research_flag_forces_the_gap_fill_and_the_hop_even_when_the_corpus_answers(client):
+    response = client.post("/search", json={**QUERY, "research": True})
+    assert response.status_code == 200
+    assert app.state.gov_search.queries == ["poseł x poparł ustawę y"]
+    assert len(app.state.primary_hop.calls) == 1

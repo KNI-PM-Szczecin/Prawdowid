@@ -80,7 +80,7 @@ def wanted(request: SearchRequest, found: list[Passage]) -> bool:
     filters = request.filters
     if filters is not None and filters.source_types and OFFICIAL_SOURCE_TYPE not in filters.source_types:
         return False
-    if len(found) < settings.gov_search_min_results:
+    if request.research or len(found) < settings.gov_search_min_results:
         return True
     return max(passage.score for passage in found) < settings.gov_search_sufficient_score
 

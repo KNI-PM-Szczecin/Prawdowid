@@ -143,6 +143,18 @@ async def fetch_law_rules(position: int, year: int) -> list[str]:
     return [row["rule"] for row in rows if row["rule"]]
 
 
+async def corpus_coverage() -> tuple[int, datetime | None]:
+    """Active documents and the newest publication date among them."""
+    row = await pool().fetchrow(
+        """
+        SELECT COUNT(*) AS documents, MAX(s.published_at) AS newest
+        FROM sources s
+        WHERE EXISTS (SELECT 1 FROM document_metadata m WHERE m.source_id = s.document_id AND NOT m.is_deleted)
+        """
+    )
+    return row["documents"], row["newest"]
+
+
 async def document_fetched_at(document_id: str) -> datetime | None:
     """When the active copy of a document was fetched; None when the corpus has no active chunks for it."""
     return await pool().fetchval(

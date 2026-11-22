@@ -19,7 +19,7 @@ from app.embeddings import EmbeddingModels
 from app.euvsdisinfo import EuvsDisinfoClient, sync_cases, sync_state
 from app.eviction import run_eviction
 from app.factcheck import FactCheckClient
-from app.feeds import feed_state, refresh_feeds
+from app.feeds import feed_state, load_feeds, refresh_feeds
 from app.fetcher import FetchError, fetch_page
 from app.gov_search import GovSearchClient
 from app.gov_search import wanted as gov_search_wanted
@@ -31,6 +31,7 @@ from app.material import match_material
 from app.models import (
     CorpusFetchRequest,
     CorpusSyncStatus,
+    Coverage,
     DeletionReport,
     EuvsDisinfoSyncStatus,
     EvictionReport,
@@ -245,10 +246,26 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks) -> S
                 )
             fill_statuses.append(hop.as_status())
         response = response.model_copy(update={"external_sources": [*response.external_sources, *fill_statuses]})
+    response = response.model_copy(update={"coverage": await _coverage()})
     corpus_chunk_ids = [item.chunk_id for item in response.results if item.source_type != FACTCHECK_SOURCE_TYPE]
     if corpus_chunk_ids:
         background_tasks.add_task(db.register_reads, corpus_chunk_ids)
     return response
+
+
+async def _coverage() -> Coverage | None:
+    """Best effort: a failing statistics query must never fail a search."""
+    try:
+        documents, newest = await db.corpus_coverage()
+    except (asyncpg.PostgresError, OSError):
+        logger.warning("Coverage statistics unavailable", exc_info=True)
+        return None
+    return Coverage(
+        documents=documents,
+        newest_published_at=newest,
+        feeds_monitored=len(load_feeds()),
+        last_feed_refresh_at=feed_state.last_finished_at,
+    )
 
 
 @app.post("/ingest", response_model=list[IngestResult], dependencies=AdminOnly)

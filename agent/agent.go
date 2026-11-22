@@ -67,8 +67,8 @@ type claimRun struct {
 	// materialDate is the publication date of the checked page (YYYY-MM-DD) or empty when unknown or for text input.
 	materialDate string
 	limitations  []string
-	injections  int
-	searchErrs  int
+	injections   int
+	searchErrs   int
 	// factcheckDown is set when the fact-check service failed for this claim's search (CONTRACT.md §4).
 	factcheckDown bool
 	passages      int
@@ -77,6 +77,7 @@ type claimRun struct {
 	corpus        *string
 	abstained     bool
 	campaign      *CampaignAlert
+	coverage      *Coverage
 }
 
 // claimConcurrency caps parallel claims: each one is a rag search plus a model call, and three is both the
@@ -443,13 +444,102 @@ func (a *Agent) extractClaims(ctx context.Context, text string) ([]extractedClai
 	return claims, max(answer.Omitted, 0), usageOf(completion), nil
 }
 
-// checkClaim runs search, the judge and the rules for one claim.
+// clone copies a claimRun so a second round can start from the state before the first judge ran.
+func (r claimRun) clone() claimRun {
+	r.limitations = append([]string(nil), r.limitations...)
+	return r
+}
+
+// checkClaim runs search, the judge and the rules for one claim. When the judge abstains although rag did not go
+// beyond the corpus (a passage that is on topic but settles nothing), one deeper round follows: rag fills the gap from
+// gov.pl and follows secondary sources to the primary pages they cite, and the judge decides again on the new set.
 func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText string) (Claim, error) {
-	search, err := a.rag.Search(ctx, claimText, a.config.SearchTopK)
+	search, err := a.rag.Search(ctx, claimText, a.config.SearchTopK, false)
 	if err != nil {
 		return Claim{}, err
 	}
 	a.noteSearch(r, search)
+	base := r.clone()
+	claim, err := a.checkSearch(ctx, r, claimID, claimText, search)
+	if err != nil {
+		return Claim{}, err
+	}
+	if a.worthSecondRound(ctx, claim, search) {
+		if deeper, ok := a.secondRound(ctx, base, r, claimID, claimText, search); ok {
+			claim = deeper
+		}
+	}
+	if claim.Verdict == VerdictInsufficientEvidence && r.coverage != nil {
+		r.limitations = appendUnique(r.limitations, coverageLimitation(*r.coverage))
+	}
+	return claim, nil
+}
+
+// worthSecondRound: the judge abstained, rag did not already research beyond the corpus, and the Verify budget
+// still has room for a deeper search plus a second judge call.
+func (a *Agent) worthSecondRound(ctx context.Context, claim Claim, search SearchResponse) bool {
+	if !a.config.SecondRound || claim.Verdict != VerdictInsufficientEvidence || search.researched() {
+		return false
+	}
+	deadline, hasDeadline := ctx.Deadline()
+	return !hasDeadline || time.Until(deadline) >= a.config.SecondRoundMinRemaining
+}
+
+// secondRound searches again with research=true and, when that brought passages the first search did not have,
+// judges again from the state before the first judge. ok=false keeps the first answer (nothing new, or a failure:
+// the first answer is still a valid abstention).
+func (a *Agent) secondRound(ctx context.Context, base claimRun, r *claimRun, claimID, claimText string, first SearchResponse) (Claim, bool) {
+	deeper, err := a.rag.Search(ctx, claimText, a.config.SearchTopK, true)
+	if err != nil {
+		a.logger.Warn("second research round failed, keeping the first answer", "requestId", r.request.RequestID, "claimId", claimID, "error", err.Error())
+		return Claim{}, false
+	}
+	if !hasNewPassages(first, deeper) {
+		a.logger.Info("second research round found nothing new", "requestId", r.request.RequestID, "claimId", claimID)
+		return Claim{}, false
+	}
+	second := base.clone()
+	// Tokens already billed for the first judge stay on the bill; the first round's passages are replaced.
+	second.inputTokens += r.inputTokens - base.inputTokens
+	second.outputTokens += r.outputTokens - base.outputTokens
+	second.passages -= len(first.Results)
+	a.noteSearch(&second, deeper)
+	claim, err := a.checkSearch(ctx, &second, claimID, claimText, deeper)
+	if err != nil {
+		a.logger.Warn("second judge failed, keeping the first answer", "requestId", r.request.RequestID, "claimId", claimID, "error", err.Error())
+		return Claim{}, false
+	}
+	*r = second
+	return claim, true
+}
+
+// hasNewPassages reports whether the deeper search returned a fragment the first one did not.
+func hasNewPassages(first, deeper SearchResponse) bool {
+	known := make(map[string]bool, len(first.Results))
+	for _, passage := range first.Results {
+		known[passage.ChunkID] = true
+	}
+	for _, passage := range deeper.Results {
+		if !known[passage.ChunkID] {
+			return true
+		}
+	}
+	return false
+}
+
+// coverageLimitation tells what the corpus covers, so an abstention can say what was (not) searched.
+func coverageLimitation(coverage Coverage) string {
+	newest := ""
+	if coverage.NewestPublishedAt != nil {
+		if published, err := time.Parse(time.RFC3339, *coverage.NewestPublishedAt); err == nil {
+			newest = ", najnowszy opublikowany " + published.Format("2006-01-02")
+		}
+	}
+	return fmt.Sprintf(limitationCoverage, coverage.Documents, newest)
+}
+
+// checkSearch runs the judge and the rules for one claim on one search result.
+func (a *Agent) checkSearch(ctx context.Context, r *claimRun, claimID, claimText string, search SearchResponse) (Claim, error) {
 	claim := Claim{ID: claimID, Text: claimText, StrengthReasons: []string{}, Sources: []SourceRef{}, Warnings: []Warning{}}
 	for _, passage := range search.Results {
 		for _, flag := range passage.Flags {
@@ -594,6 +684,9 @@ func noSourcesMissing(modelMissing *string) string {
 
 func (a *Agent) noteSearch(r *claimRun, search SearchResponse) {
 	r.passages += len(search.Results)
+	if search.Coverage != nil {
+		r.coverage = search.Coverage
+	}
 	if search.CorpusVersion != "" {
 		r.corpus = stringPtr(search.CorpusVersion)
 	}

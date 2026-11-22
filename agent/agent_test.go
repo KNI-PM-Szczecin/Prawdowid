@@ -26,11 +26,13 @@ var fixedNow = time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
 
 // fakeProvider answers by prompt kind: the judge prompt mentions <dostepne_zrodla>, the extractor <tekst>.
 type fakeProvider struct {
-	judge   string
-	extract string
-	err     error
-	mu      sync.Mutex
-	calls   []string
+	judge string
+	// judgeSecond answers the second judge call, after a deeper research round.
+	judgeSecond string
+	extract     string
+	err         error
+	mu          sync.Mutex
+	calls       []string
 	// Tokens one call reports; the cost test checks that they reach meta.estimatedCostUsd.
 	inputTokens  int
 	outputTokens int
@@ -63,6 +65,9 @@ func (f *fakeProvider) Generate(_ context.Context, system, user string) (Complet
 		f.judgeUsers = append(f.judgeUsers, user)
 		f.mu.Unlock()
 		completion.Text = f.judge
+		if f.judgeSecond != "" && len(f.judgeUsers) >= 2 {
+			completion.Text = f.judgeSecond
+		}
 		return completion, nil
 	}
 	return Completion{}, errors.New("unexpected prompt")
@@ -111,6 +116,9 @@ type ragStub struct {
 	mu           sync.Mutex
 	queries      []string
 	matchBodies  []map[string]any
+	// deeper answers a search with research=true; researchFlags records the flag of every search.
+	deeper        *SearchResponse
+	researchFlags []bool
 }
 
 func (s *ragStub) fetchedList() []string {
@@ -132,6 +140,12 @@ func (f *fakeProvider) callList() []string {
 	return append([]string(nil), f.calls...)
 }
 
+func (s *ragStub) researchList() []bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]bool(nil), s.researchFlags...)
+}
+
 func (s *ragStub) queryList() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -146,10 +160,16 @@ func (s *ragStub) server(t *testing.T) *httptest.Server {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		s.mu.Lock()
 		s.queries = append(s.queries, body["query"].(string))
+		research, _ := body["research"].(bool)
+		s.researchFlags = append(s.researchFlags, research)
 		s.mu.Unlock()
 		if s.searchStatus != 0 && s.searchStatus != http.StatusOK {
 			w.WriteHeader(s.searchStatus)
 			_, _ = w.Write([]byte(`{"error":{"code":"index_unavailable","message":"x"}}`))
+			return
+		}
+		if research, _ := body["research"].(bool); research && s.deeper != nil {
+			_ = json.NewEncoder(w).Encode(s.deeper)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(s.search)
@@ -207,6 +227,7 @@ func newTestAgent(t *testing.T, provider LLMProvider, rag *ragStub) *Agent {
 		RagURL: server.URL, LLMBaseURL: "http://unused", LLMModel: "fake-model", MaxClaims: 3, SearchTopK: 5,
 		VerifyTimeout: 5 * time.Second, RagTimeout: 2 * time.Second, LLMTimeout: 2 * time.Second, ExtractMaxText: 6000,
 		LLMPriceInputPerM: 0.10, LLMPriceOutputPerM: 0.50,
+		SecondRound: true, SecondRoundMinRemaining: time.Second,
 	}
 	a, err := New(config, provider, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
 	if err != nil {
@@ -777,8 +798,11 @@ func TestTwoWordClaimsAreChecked(t *testing.T) {
 	for _, input := range []string{"5G zabija", "COVID-19 istnieje"} {
 		rag := &ragStub{search: searchWith(officialPassage())}
 		result := verify(t, newTestAgent(t, &fakeProvider{judge: judgeJSON("brak_dowodow", "Sejm i Senat są wybierane na czteroletnie kadencje", "kontekst")}, rag), input, InputTypeText)
-		if result.Status != StatusOK || len(rag.queryList()) != 1 {
-			t.Errorf("%q: expected a checked claim, got %s %v", input, result.Status, rag.queryList())
+		// An abstention triggers the second research round, so the same claim may be searched twice.
+		queries := rag.queryList()
+		unique := slices.Compact(slices.Clone(queries))
+		if result.Status != StatusOK || len(unique) != 1 || unique[0] != input {
+			t.Errorf("%q: expected a checked claim, got %s %v", input, result.Status, queries)
 		}
 	}
 }
@@ -953,5 +977,118 @@ func TestFactcheckOutageWithCorpusResultsIsOnlyALimitation(t *testing.T) {
 	}
 	if !slices.Contains(result.Limitations, limitationFactcheckUnavailable) {
 		t.Fatalf("expected the outage in limitations, got %v", result.Limitations)
+	}
+}
+
+// A topical passage that settles nothing: the judge abstains, rag did not research beyond the corpus.
+func topicalPassage() Passage {
+	published := "2026-11-17T00:00:00Z"
+	return Passage{
+		DocumentID: "hop-topical", Title: "Zarzuty za pochwalanie zbrodni", Publisher: "Administracja rządowa RP", PublishedAt: &published,
+		FetchedAt: "2026-11-21T00:00:00Z", URL: "https://www.gov.pl/web/po-lomza/x", SourceType: SourceTypeOfficial,
+		Passage: "Zarzuty dotyczą publicznego pochwalania zbrodni wielokrotnego zabójstwa dokonanego 7 listopada 2026 roku w Krakowie.",
+		Score:   0.8, Flags: []string{}, ChunkID: newsChunk, Tier: 1, Reliability: "high",
+	}
+}
+
+func abstainJSON() string {
+	return `{"werdykt":"brak_dowodow","uzasadnienie":"Źródła nie podają kim był sprawca.","cytaty":[],` +
+		`"brakuje":"Nie ustalono obywatelstwa sprawcy.","podejrzane":false}`
+}
+
+func TestSecondRoundTurnsAnAbstentionIntoAVerdictWithTheNewSource(t *testing.T) {
+	deeper := searchWith(topicalPassage(), officialPassage())
+	deeper.ExternalSources = append(deeper.ExternalSources, ExternalSourceStatus{Name: externalSourcePrimaryHop, Status: "ok", Results: 1})
+	provider := &fakeProvider{
+		judge:       abstainJSON(),
+		judgeSecond: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza"),
+	}
+	rag := &ragStub{search: searchWith(topicalPassage()), deeper: &deeper}
+	result := verify(t, newTestAgent(t, provider, rag), claimSejm, InputTypeText)
+
+	if flags := rag.researchList(); len(flags) != 2 || flags[0] || !flags[1] {
+		t.Fatalf("expected a plain search and then a research search, got %v", flags)
+	}
+	if claim := result.Claims[0]; claim.Verdict != VerdictConfirmed || len(claim.Sources) != 1 {
+		t.Fatalf("the second round must decide on the new sources: %+v", claim)
+	}
+	if result.Meta.Abstained {
+		t.Fatal("the answer is no longer an abstention, so meta.abstained must be false")
+	}
+	if calls := provider.callList(); len(calls) != 2 {
+		t.Fatalf("one judge call per round, got %v", calls)
+	}
+}
+
+func TestSecondRoundIsSkippedWhenRagAlreadyResearchedOrTheJudgeDecided(t *testing.T) {
+	researched := searchWith(topicalPassage())
+	researched.ExternalSources = append(researched.ExternalSources, ExternalSourceStatus{Name: externalSourceGovSearch, Status: "ok"})
+	rag := &ragStub{search: researched}
+	verify(t, newTestAgent(t, &fakeProvider{judge: abstainJSON()}, rag), claimSejm, InputTypeText)
+	if flags := rag.researchList(); len(flags) != 1 {
+		t.Fatalf("rag already researched, a second round would repeat it: %v", flags)
+	}
+
+	decided := &ragStub{search: searchWith(officialPassage())}
+	provider := &fakeProvider{judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+	verify(t, newTestAgent(t, provider, decided), claimSejm, InputTypeText)
+	if flags := decided.researchList(); len(flags) != 1 {
+		t.Fatalf("a decided claim needs no second round: %v", flags)
+	}
+}
+
+func TestSecondRoundKeepsTheFirstAnswerWhenNothingNewComesBack(t *testing.T) {
+	same := searchWith(topicalPassage())
+	rag := &ragStub{search: same, deeper: &same}
+	provider := &fakeProvider{judge: abstainJSON()}
+	result := verify(t, newTestAgent(t, provider, rag), claimSejm, InputTypeText)
+
+	if claim := result.Claims[0]; claim.Verdict != VerdictInsufficientEvidence || !result.Meta.Abstained {
+		t.Fatalf("expected the first abstention to stand: %+v", claim)
+	}
+	if calls := provider.callList(); len(calls) != 1 {
+		t.Fatalf("no new passages, so no second judge call: %v", calls)
+	}
+}
+
+func TestSecondRoundNeedsTimeLeftAndCanBeSwitchedOff(t *testing.T) {
+	rag := &ragStub{search: searchWith(topicalPassage())}
+	agentOff := newTestAgent(t, &fakeProvider{judge: abstainJSON()}, rag)
+	agentOff.config.SecondRound = false
+	verify(t, agentOff, claimSejm, InputTypeText)
+	if flags := rag.researchList(); len(flags) != 1 {
+		t.Fatalf("AGENT_SECOND_ROUND=false must keep a single search: %v", flags)
+	}
+
+	rag = &ragStub{search: searchWith(topicalPassage())}
+	agentTight := newTestAgent(t, &fakeProvider{judge: abstainJSON()}, rag)
+	agentTight.config.SecondRoundMinRemaining = time.Hour
+	verify(t, agentTight, claimSejm, InputTypeText)
+	if flags := rag.researchList(); len(flags) != 1 {
+		t.Fatalf("not enough budget left for a second round: %v", flags)
+	}
+}
+
+func TestAbstentionReportsWhatTheCorpusCovers(t *testing.T) {
+	newest := "2026-11-20T00:00:00Z"
+	search := searchWith(topicalPassage())
+	search.ExternalSources = append(search.ExternalSources, ExternalSourceStatus{Name: externalSourceGovSearch, Status: "ok"})
+	search.Coverage = &Coverage{Documents: 161, NewestPublishedAt: &newest, FeedsMonitored: 2}
+	result := verify(t, newTestAgent(t, &fakeProvider{judge: abstainJSON()}, &ragStub{search: search}), claimSejm, InputTypeText)
+
+	want := "Pokrycie źródeł: 161 dokumentów w korpusie, najnowszy opublikowany 2026-11-20. " +
+		"Brak wzmianki w tych źródłach jest sygnałem, ale nie dowodem: korpus nie jest wyczerpujący."
+	if !slices.Contains(result.Limitations, want) {
+		t.Fatalf("coverage limitation missing: %v", result.Limitations)
+	}
+
+	decided := searchWith(officialPassage())
+	decided.Coverage = search.Coverage
+	provider := &fakeProvider{judge: judgeJSON("potwierdzone", "Sejm i Senat są wybierane na czteroletnie kadencje", "potwierdza")}
+	confirmed := verify(t, newTestAgent(t, provider, &ragStub{search: decided}), claimSejm, InputTypeText)
+	for _, limitation := range confirmed.Limitations {
+		if strings.HasPrefix(limitation, "Pokrycie źródeł") {
+			t.Fatalf("a confirmed claim must not carry the coverage note: %v", confirmed.Limitations)
+		}
 	}
 }

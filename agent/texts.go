@@ -33,6 +33,8 @@ const (
 
 	limitationFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów (usługa niedostępna); " +
 		"wynik opiera się tylko na korpusie źródeł."
+	limitationCoverage = "Pokrycie źródeł: %d dokumentów w korpusie%s. Brak wzmianki w tych źródłach jest sygnałem, " +
+		"ale nie dowodem: korpus nie jest wyczerpujący."
 	limitationCatalogEmpty      = "Katalog znanych kampanii dezinformacyjnych jest pusty; dopasowanie nie było możliwe."
 	limitationClaimsSkipped     = "Sprawdzono %d najważniejsze twierdzenia z około %d w tekście."
 	limitationPageTruncated     = "Strona była bardzo długa; sprawdzono jej początek."

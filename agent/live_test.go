@@ -28,7 +28,7 @@ func (q *quotingProvider) Generate(ctx context.Context, system, user string) (Co
 		return Completion{}, errors.New("stub: judge user message has an unexpected layout")
 	}
 	claim := strings.TrimSpace(user[start+len(header) : end])
-	search, err := q.rag.Search(ctx, claim, 5)
+	search, err := q.rag.Search(ctx, claim, 5, false)
 	if err != nil || len(search.Results) == 0 {
 		return Completion{Text: `{"werdykt":"brak_dowodow","uzasadnienie":"Brak źródeł.","cytaty":[],"brakuje":"Brak publikacji.","podejrzane":false}`}, nil
 	}

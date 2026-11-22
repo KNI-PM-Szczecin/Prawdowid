@@ -74,6 +74,8 @@ const (
 	flagSuspectedInjection      = "suspected_injection"
 	externalSourceFactcheck     = "google_factcheck"
 	externalSourceIncidentCatal = "incident_catalog"
+	externalSourceGovSearch     = "gov_search"
+	externalSourcePrimaryHop    = "primary_hop"
 	externalStatusError         = "error"
 	externalStatusDisabled      = "disabled"
 	// What rag/ renders for an empty result list; used when an older rag sends no contextXml at all.
@@ -123,6 +125,27 @@ type SearchResponse struct {
 	ContextXML      string                 `json:"contextXml"`
 	ExternalSources []ExternalSourceStatus `json:"externalSources"`
 	CampaignAlert   *ragCampaignAlert      `json:"campaignAlert"`
+	Coverage        *Coverage              `json:"coverage"`
+}
+
+// Coverage says what the evidence corpus held when the search ran (CONTRACT.md §3); an abstention reports it.
+type Coverage struct {
+	Documents         int     `json:"documents"`
+	NewestPublishedAt *string `json:"newestPublishedAt"`
+	FeedsMonitored    int     `json:"feedsMonitored"`
+	LastFeedRefreshAt *string `json:"lastFeedRefreshAt"`
+}
+
+// researched reports whether rag already went beyond the corpus for this search (gov.pl fill or the primary hop),
+// in which case a deeper second round would only repeat that work.
+func (s SearchResponse) researched() bool {
+	for _, external := range s.ExternalSources {
+		if (external.Name == externalSourceGovSearch || external.Name == externalSourcePrimaryHop) &&
+			external.Status != externalStatusDisabled {
+			return true
+		}
+	}
+	return false
 }
 
 // FetchResponse is rag's answer to POST /fetch.
@@ -159,6 +182,8 @@ func NewRagClient(baseURL string, timeout time.Duration) *RagClient {
 type searchRequest struct {
 	Query string `json:"query"`
 	TopK  int    `json:"topK"`
+	// Research asks rag for the deeper round (gov.pl fill and primary hop whatever the scores are).
+	Research bool `json:"research,omitempty"`
 }
 
 type fetchRequest struct {
@@ -166,9 +191,11 @@ type fetchRequest struct {
 }
 
 // Search returns evidence for one claim; an empty Results list means no relevant evidence, not an error.
-func (r *RagClient) Search(ctx context.Context, query string, topK int) (SearchResponse, error) {
+// research=true is the second round after the judge abstained: rag then also fills the gap from gov.pl and follows
+// secondary sources to the primary pages they cite, which takes seconds.
+func (r *RagClient) Search(ctx context.Context, query string, topK int, research bool) (SearchResponse, error) {
 	var response SearchResponse
-	status, body, err := r.post(ctx, "/search", searchRequest{Query: query, TopK: topK})
+	status, body, err := r.post(ctx, "/search", searchRequest{Query: query, TopK: topK, Research: research})
 	if err != nil {
 		return response, err
 	}
