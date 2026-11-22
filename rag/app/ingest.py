@@ -131,7 +131,13 @@ async def ingest_document(
             for chunk_id, text, dense, sparse in zip(chunk_ids, texts, dense_vectors, sparse_vectors, strict=True)
         ]
     )
-    await db.upsert_source_with_chunks(source, text_hash, chunk_ids)
+    try:
+        await db.upsert_source_with_chunks(source, text_hash, chunk_ids)
+    except Exception:
+        # Qdrant was written first; without the metadata the points would be orphans that search retrieves and
+        # then drops, so the write is undone before the error reaches the caller.
+        await store.delete(chunk_ids)
+        raise
 
     if previous_ids:
         # PostgreSQL is the source of truth: chunks marked deleted stop being evidence even when the index

@@ -55,7 +55,7 @@ Rozgrzewka: przy starcie, przed przyjęciem pierwszego żądania (`app/warmup.py
 | Qdrant | Statyczny tekst fragmentu i wektory: dense (BGE-M3, 1024) + sparse (BM25 z IDF). Payload: `chunk_id`, `source_id`, `text`, `topic_tag`, `source_type`, `published_at` (dwa ostatnie z indeksem do filtrów). |
 | PostgreSQL (Supabase albo lokalny) | `sources` (tytuł, wydawca, link, daty `TIMESTAMPTZ`, licencja, typ) i `document_metadata` (tier, wiarygodność, ochrona, `read_count`, soft delete). Stan zmienny jest tu, nie w Qdrancie. Tabele mają włączone RLS bez polityk, więc REST API Supabase ich nie wystawia. |
 | FastEmbed (ONNX, CPU) | BGE-M3 dense, BM25 sparse, `bge-reranker-v2-m3` (int8). Wszystko w kontenerze, bez GPU. |
-| APScheduler | Eviction codziennie o 3:00, optymalizacja segmentów Qdranta o 4:00. |
+| APScheduler | Eviction codziennie o 3:00, uzgodnienie Qdranta z Postgresem o 4:00, optymalizacja segmentów Qdranta o 4:30. |
 
 Przepływ `POST /search`: ekspansja zapytania (oryginał, negacja, neutralne) → 3 równoległe zapytania hybrydowe (RRF, po 30, z filtrami `sourceTypes` i `publishedAfter` wewnątrz Qdranta) → pula 12 unikalnych → reranking cross-encoderem względem oryginału → `score = sigmoid(logit / 4)` w skali 0..1, odcięcie poniżej 0,5 → `topK` wyników (domyślnie 5, maksymalnie 7, więcej daje 422) → złączenie z metadanymi z Postgresa → **odrzucenie fragmentów bez tytułu, wydawcy, linku, daty pobrania lub daty publikacji** → blok `<dostepne_zrodla>` → w tle `read_count + 1`. Fact-check bez daty weryfikacji też nie wraca w `results`.
 
@@ -103,5 +103,9 @@ Usuwa tylko wtedy, gdy liczba aktywnych fragmentów przekracza `RAG_EVICTION_MAX
 `score = wiek_dni × (2.0 dla tier 3) × 0.4 − read_count × 0.6 (+30, gdy temat zajmuje > 30% bazy)`.
 Nigdy nie schodzi poniżej `RAG_EVICTION_MIN_DOCUMENTS` (100) dokumentów ani `RAG_EVICTION_MIN_DOMAINS` (10) domen, czyli minimum korpusu z briefu.
 Soft delete w Postgresie i hard delete w Qdrancie są w jednej transakcji: gdy Qdrant zawiedzie, Postgres się wycofuje.
+
+## Uzgodnienie Qdranta z Postgresem
+
+Postgres jest źródłem prawdy o cyklu życia fragmentu (soft delete, eviction, prune). `ingest` zapisuje najpierw Qdrant, potem Postgres; gdy zapis metadanych się nie uda, nowe punkty są od razu usuwane z Qdranta. Mimo to po przerwanych importach albo starszych wersjach kodu w Qdrancie zostawały wektory fragmentów, które Postgres miał już jako usunięte (zmierzone lokalnie: 1830 z 4279 punktów). Taki punkt wraca z wyszukiwania, zabiera miejsce w puli rerankera i dopiero przy złączeniu z metadanymi jest odrzucany, więc wyników jest mniej niż `topK`. `POST /admin/corpus/reconcile` (token admina) usuwa z Qdranta punkty oznaczone w Postgresie jako usunięte i zwraca liczbę punktów nieznanych Postgresowi; `?includeUnknown=true` usuwa także te, ale tylko gdy nie trwa żaden import, bo trwający import ma już wektory w Qdrancie, a wiersze w Postgresie dopiero po chwili. To samo uruchamia harmonogram codziennie o 4:00, przed optymalizacją segmentów.
 
 Konfiguracja: zmienne `RAG_*` (pełna lista w `app/config.py`).

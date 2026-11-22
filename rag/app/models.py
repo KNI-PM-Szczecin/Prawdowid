@@ -294,3 +294,10 @@ class DeletionReport(ApiModel):
 class EvictionReport(ApiModel):
     active_before: int
     evicted: int
+
+
+class ReconcileReport(ApiModel):
+    stale_deleted: int
+    unknown: int
+    unknown_deleted: int
+    active_chunks: int

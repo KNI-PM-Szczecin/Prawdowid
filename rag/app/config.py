@@ -156,7 +156,9 @@ class Settings(BaseSettings):
     eviction_topic_quota_share: float = 0.30
     eviction_topic_overquota_bonus: float = 30.0
     eviction_cron_hour: int = 3
+    # Vector reconcile runs on the hour, the Qdrant optimizer half an hour later on a collection without stale points.
     optimize_cron_hour: int = 4
+    optimize_cron_minute: int = 30
 
 
 settings = Settings()

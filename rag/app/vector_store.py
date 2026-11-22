@@ -11,6 +11,7 @@ from app.embeddings import SparseVector
 DENSE_VECTOR_NAME = "dense"
 SPARSE_VECTOR_NAME = "bm25"
 NIGHTLY_DELETED_THRESHOLD = 0.05
+SCROLL_PAGE_SIZE = 1000
 SOURCE_TYPE_FIELD = "source_type"
 PUBLISHED_AT_FIELD = "published_at"
 
@@ -121,6 +122,18 @@ class VectorStore:
 
     async def count(self) -> int:
         return (await self._client.count(self._collection, exact=True)).count
+
+    async def point_ids(self) -> list[UUID]:
+        """Every point id in the collection, without payloads or vectors; used to reconcile with PostgreSQL."""
+        ids: list[UUID] = []
+        offset = None
+        while True:
+            points, offset = await self._client.scroll(
+                self._collection, limit=SCROLL_PAGE_SIZE, offset=offset, with_payload=False, with_vectors=False
+            )
+            ids.extend(UUID(str(point.id)) for point in points)
+            if offset is None:
+                return ids
 
     async def hybrid_search(
         self, dense: list[float], sparse: SparseVector, limit: int, payload_filter: models.Filter | None

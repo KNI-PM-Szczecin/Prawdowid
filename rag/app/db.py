@@ -180,6 +180,12 @@ async def corpus_version() -> str:
     return f"{row['last_added']:%Y%m%dT%H%M%S}-{row['active']}-{row['total']}"
 
 
+async def chunk_states() -> dict[UUID, bool]:
+    """Every chunk PostgreSQL knows, mapped to its is_deleted flag; the reference for reconciling Qdrant."""
+    rows = await pool().fetch("SELECT chunk_id, is_deleted FROM document_metadata")
+    return {row["chunk_id"]: row["is_deleted"] for row in rows}
+
+
 async def mark_chunks_deleted(chunk_ids: list[UUID]) -> None:
     await pool().execute("UPDATE document_metadata SET is_deleted = TRUE WHERE chunk_id = ANY($1::uuid[])", chunk_ids)
 
