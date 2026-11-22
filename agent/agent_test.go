@@ -267,8 +267,13 @@ func TestFabricatedQuoteIsDroppedAndVerdictDowngraded(t *testing.T) {
 	result := verify(t, newTestAgent(t, provider, &ragStub{search: searchWith(officialPassage())}), claimSejm, InputTypeText)
 
 	claim := result.Claims[0]
-	if claim.Verdict != VerdictInsufficientEvidence || len(claim.Sources) != 0 || claim.Missing == nil {
-		t.Fatalf("expected abstention without sources, got %+v", claim)
+	if claim.Verdict != VerdictInsufficientEvidence || claim.Missing == nil || claim.EvidenceStrength != StrengthWeak {
+		t.Fatalf("expected a weak abstention, got %+v", claim)
+	}
+	for _, source := range claim.Sources {
+		if source.Role != RoleContext || strings.Contains(source.Quote, "ani dnia dłużej") {
+			t.Fatalf("the fabricated quote must be gone and only context may remain, got %+v", claim.Sources)
+		}
 	}
 	if !result.Meta.Abstained {
 		t.Fatal("meta.abstained should be true")

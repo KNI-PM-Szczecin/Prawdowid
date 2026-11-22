@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -110,6 +112,80 @@ func validateCitations(citations []judgeCitation, passages map[string]Passage) (
 		})
 	}
 	return valid, dropped
+}
+
+const (
+	// maxFallbackSources caps the passages shown as context when the model cited nothing valid.
+	maxFallbackSources = 2
+	// maxFallbackQuoteRunes caps the verbatim opening of a passage shown as the quote of a context source.
+	maxFallbackQuoteRunes = 280
+)
+
+// fallbackSources picks the best-scored passages with full metadata (title, publisher, publication date, link) as
+// context for an abstention without valid citations, so the citizen sees what was found. They never carry a verdict:
+// the role is always context and the quote is the verbatim opening of the passage. Flagged passages are skipped.
+func fallbackSources(results []Passage) []SourceRef {
+	candidates := make([]Passage, 0, len(results))
+	for _, passage := range results {
+		if hasFullMetadata(passage) && !slices.Contains(passage.Flags, flagSuspectedInjection) {
+			candidates = append(candidates, passage)
+		}
+	}
+	slices.SortStableFunc(candidates, func(left, right Passage) int { return cmp.Compare(right.Score, left.Score) })
+	sources := []SourceRef{}
+	seenDocuments := map[string]bool{}
+	for _, passage := range candidates {
+		if len(sources) == maxFallbackSources {
+			break
+		}
+		quote := passageOpening(passage.Passage, maxFallbackQuoteRunes)
+		if seenDocuments[passage.DocumentID] || len([]rune(quote)) < minQuoteRunes {
+			continue
+		}
+		seenDocuments[passage.DocumentID] = true
+		sources = append(sources, SourceRef{
+			ID:          passage.ChunkID,
+			Title:       passage.Title,
+			Publisher:   passage.Publisher,
+			PublishedAt: passage.PublishedAt,
+			FetchedAt:   passage.FetchedAt,
+			URL:         passage.URL,
+			License:     passage.License,
+			SourceType:  passage.SourceType,
+			Role:        RoleContext,
+			Quote:       quote,
+		})
+	}
+	return sources
+}
+
+func hasFullMetadata(passage Passage) bool {
+	return strings.TrimSpace(passage.Title) != "" && strings.TrimSpace(passage.Publisher) != "" &&
+		passage.PublishedAt != nil && strings.TrimSpace(*passage.PublishedAt) != "" &&
+		strings.TrimSpace(passage.URL) != "" && strings.TrimSpace(passage.FetchedAt) != "" && passage.ChunkID != ""
+}
+
+var sentenceEnd = regexp.MustCompile(`[.!?…]\s`)
+
+// passageOpening returns the verbatim start of a passage, at most limit runes long, cut after the last full sentence
+// that fits, or else at the last word boundary, so the quote is never a broken word.
+func passageOpening(text string, limit int) string {
+	trimmed := strings.TrimSpace(text)
+	runes := []rune(trimmed)
+	if len(runes) <= limit {
+		return trimmed
+	}
+	head := string(runes[:limit])
+	if ends := sentenceEnd.FindAllStringIndex(head, -1); len(ends) > 0 {
+		cut := strings.TrimSpace(head[:ends[len(ends)-1][1]])
+		if len([]rune(cut)) >= minQuoteRunes {
+			return cut
+		}
+	}
+	if space := strings.LastIndexFunc(head, unicode.IsSpace); space > 0 {
+		return strings.TrimSpace(head[:space])
+	}
+	return head
 }
 
 // Fact-checker ratings as rag renders them: "Ocena weryfikatora (Demagog): Fałsz. ..."
@@ -222,11 +298,52 @@ var roleForFactcheckVerdict = map[string]string{
 	VerdictNotVerifiable: RoleContext,
 }
 
+// Word stems that name the act of checking ("sprawdzał", "zweryfikował", "zbadał") and fact-checkers in general;
+// publishers are matched by name, so the rule works for any fact-checker the sources carry. "Ocenił" is left out on
+// purpose: "X ocenił to jako prawdę" is a claim about the rating itself and must be checked against it.
+var (
+	checkingVerbStems    = []string{"sprawdz", "weryfikow", "zbada"}
+	factcheckerWordStems = []string{"weryfikator", "fact-check", "factcheck", "fact check"}
+)
+
+// minPublisherNameRunes keeps a blank or one-letter publisher from matching every claim.
+const minPublisherNameRunes = 3
+
+// isFactcheckMetaClaim reports whether the claim is about a fact-checker's check itself ("X sprawdzał, czy …"), not
+// about the checked fact. Such a claim is true when the check exists, whatever rating the fact-checker gave.
+func isFactcheckMetaClaim(claimText string, publishers ...string) bool {
+	lowered := strings.ToLower(claimText)
+	if !containsAny(lowered, checkingVerbStems) {
+		return false
+	}
+	if containsAny(lowered, factcheckerWordStems) {
+		return true
+	}
+	for _, publisher := range publishers {
+		name := strings.ToLower(strings.TrimSpace(publisher))
+		if len([]rune(name)) >= minPublisherNameRunes && strings.Contains(lowered, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAny(text string, stems []string) bool {
+	for _, stem := range stems {
+		if strings.Contains(text, stem) {
+			return true
+		}
+	}
+	return false
+}
+
 // applyFactcheckRatings reads the rating from the full passage of every cited fact-check (the quote may be only
 // the claim part). A rating that matches the model's verdict aligns the citation role with it. A rating that differs
 // is not applied: the fact-checker may have rated a different claim on the same topic (CONTRACT.md §4: the rating is
 // evidence, not a ready verdict, and topical similarity is not enough), so decide turns it into an abstention.
-func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage, proposed string) factcheckRuling {
+// For a claim about the check itself (isFactcheckMetaClaim) the rating says nothing about the claim: the cited
+// fact-check supports a confirmed verdict (the check exists) and is otherwise left as the model cited it.
+func applyFactcheckRatings(claimText string, sources []SourceRef, passages map[string]Passage, proposed string) factcheckRuling {
 	ruling := factcheckRuling{}
 	for index := range sources {
 		if sources[index].SourceType != SourceTypeFactcheck {
@@ -237,6 +354,13 @@ func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage, pro
 			continue
 		}
 		publisher, verdict, known := factcheckVerdict(passage.Passage)
+		if isFactcheckMetaClaim(claimText, sources[index].Publisher, publisher) {
+			if proposed == VerdictConfirmed {
+				sources[index].Role = RoleSupports
+				ruling.agrees = true
+			}
+			continue
+		}
 		if !known {
 			continue
 		}
@@ -255,6 +379,8 @@ func applyFactcheckRatings(sources []SourceRef, passages map[string]Passage, pro
 
 // decide applies CONTRACT.md §4: confirmed/false need strong evidence with matching roles; a cited fact-check whose
 // rating differs from the model's verdict makes the claim an abstention; otherwise weak evidence also abstains.
+// Misleading needs a decisive citation (supports or refutes) or an agreeing fact-check rating: a source that is only
+// context, e.g. about another place or period than the claim, settles nothing (prompt rules 7 and 11).
 func decide(claimID, proposed string, modelMissing *string, sources []SourceRef, ev evidence, dropped int, ruling factcheckRuling) decision {
 	result := decision{verdict: proposed, missing: modelMissing, consistent: true}
 	if ruling.conflicts && !ruling.agrees {
@@ -281,7 +407,7 @@ func decide(claimID, proposed string, modelMissing *string, sources []SourceRef,
 	}
 	roleMatches := (needsRole == RoleSupports && ev.supports > 0) || (needsRole == RoleRefutes && ev.refutes > 0)
 	if result.verdict == VerdictMisleading {
-		roleMatches = ev.supports+ev.refutes > 0 || len(sources) > 0
+		roleMatches = ev.supports+ev.refutes > 0 || ruling.agrees
 	}
 	if len(sources) == 0 {
 		result.verdict = VerdictInsufficientEvidence

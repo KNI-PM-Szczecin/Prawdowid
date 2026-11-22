@@ -67,8 +67,8 @@ type claimRun struct {
 	// materialDate is the publication date of the checked page (YYYY-MM-DD) or empty when unknown or for text input.
 	materialDate string
 	limitations  []string
-	injections  int
-	searchErrs  int
+	injections   int
+	searchErrs   int
 	// factcheckDown is set when the fact-check service failed for this claim's search (CONTRACT.md §4).
 	factcheckDown bool
 	passages      int
@@ -487,7 +487,7 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 		a.logger.Info("citations dropped by validation", "requestId", r.request.RequestID, "claimId", claimID, "dropped", dropped)
 	}
 	proposed := mapVerdict(answer.Verdict)
-	ruling := applyFactcheckRatings(sources, passages, proposed)
+	ruling := applyFactcheckRatings(claimText, sources, passages, proposed)
 	demoted := demoteMismatchedNumbers(claimText, sources, passages)
 	ev := assessEvidence(sources, a.now())
 	d := decide(claimID, proposed, answer.Missing, sources, ev, dropped, ruling)
@@ -497,6 +497,15 @@ func (a *Agent) checkClaim(ctx context.Context, r *claimRun, claimID, claimText 
 		r.limitations = append(r.limitations, fmt.Sprintf(limitationNumbersMismatch, claimID))
 		if d.verdict == VerdictInsufficientEvidence && proposed != VerdictInsufficientEvidence {
 			d.missing = stringPtr(missingNumbersMismatch)
+		}
+	}
+	if d.verdict == VerdictInsufficientEvidence && len(sources) == 0 {
+		// The search found passages but no quote survived: show the best ones as context, so an abstention still
+		// says what was found (e.g. an announcement without word on whether the event took place).
+		sources = fallbackSources(search.Results)
+		ev = assessEvidence(sources, a.now())
+		if len(sources) > 0 {
+			a.logger.Info("context sources attached to abstention", "requestId", r.request.RequestID, "claimId", claimID, "sources", len(sources))
 		}
 	}
 
