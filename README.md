@@ -58,6 +58,22 @@ curl -X POST http://localhost:8080/api/channels/demo -H "Content-Type: applicati
 ```
 gdzie `wiadomosc.json` to `{"text": "treść do sprawdzenia"}` w UTF-8. Odpowiedź jest zwykłym tekstem z werdyktem, siłą podstawy, uzasadnieniem i źródłami, jak w komunikatorze. To samo zgłoszenie przez WWW i ten adapter daje ten sam wynik merytoryczny (scenariusz G). Bot Discord nie jest zaimplementowany.
 
+Jakie linki obsługujemy (`rag/app/fetcher.py`, lista serwisów w `rag/app/data/fetch_rules.json`):
+
+| Adres | Co się dzieje |
+|---|---|
+| Strona HTML z tekstem (portale, gov.pl, Dziennik Ustaw, EUR-Lex, GUS, weryfikatorzy faktów) | pobieramy główną treść (`<article>`/`<main>`), tytuł i datę publikacji z metadanych albo elementu oznaczonego jako data, sprawdzamy twierdzenia |
+| Sam adres w polu tekstowym | traktowany jako link |
+| Tekst z jednym adresem w środku („sprawdź też tę stronę: …”) | sprawdzamy tekst razem z pobraną stroną; polecenia ukryte w stronie są ignorowane i liczone |
+| Tekst z kilkoma adresami | sprawdzamy sam tekst, stron nie pobieramy (informacja w ograniczeniach) |
+| YouTube, TikTok, Vimeo, Facebook, Instagram, X/Twitter, Threads, LinkedIn | nie odczytujemy wideo ani wpisów: odpowiedź `out_of_scope` z prośbą o wklejenie treści, bez żadnego żądania do serwisu |
+| PDF, obraz, dokument pod adresem | `needs_clarification`: prośba o wklejenie tekstu albo dodanie zrzutu ekranu |
+| Zapora antybotowa (Cloudflare, Incapsula: np. `isap.sejm.gov.pl`, `ulc.gov.pl`) albo strona tylko ze skryptem (np. listy depesz `pap.pl`) | `needs_clarification` z informacją o blokadzie; zabezpieczeń nie obchodzimy |
+| Adres prywatny, błąd HTTP, przekierowania w pętli, strona ponad 2 MB | `needs_clarification`: nie udało się odczytać strony |
+| Strona „nie znaleziono” zwracana z kodem 200 (np. gov.pl) | tekst portalu bez twierdzeń → `needs_clarification` o braku twierdzeń |
+
+Sprawdzone 22.11.2026 na lokalnym rag (`scratchpad/fetch_probe.py` w sesji): 18 adresów, każdy z powyższych rodzajów dał oczekiwany wynik. Data publikacji z metadanych bywa datą utworzenia (Wikipedia podaje 2002 r.), a strony bez metadanych i elementu z datą (Dziennik Ustaw, EUR-Lex, GUS) nie mają daty przy sprawdzaniu przez URL; w korpusie te same dokumenty mają datę z importu.
+
 Lista źródeł do audytu (wymóg briefu): `GET /api/sources` (dokumenty korpusu z tytułem, wydawcą, datami, licencją i linkiem), `GET /api/sources/catalog` (katalog zaufanych źródeł z zasadami kwalifikacji), `GET /api/sources/external` (usługi zewnętrzne i co dostają). Linki są w stopce strony.
 
 Zrzut ekranu albo zdjęcie z tekstem (scenariusz F; przycisk na stronie albo):

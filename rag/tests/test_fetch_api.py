@@ -27,14 +27,16 @@ def test_fetch_returns_page_text_and_truncation_flag(client, monkeypatch):
     assert body["truncated"] is True
 
 
-def test_fetch_failure_is_422_with_reason(client, monkeypatch):
+def test_fetch_failure_is_422_with_reason_and_code(client, monkeypatch):
     async def failing_fetch_page(http_client, url):
-        raise FetchError("HTTP 403")
+        raise FetchError("not HTML: application/pdf", "not_html")
 
     monkeypatch.setattr(main, "fetch_page", failing_fetch_page)
-    response = client.post("/fetch", json={"url": "https://ulc.gov.pl/x"})
+    response = client.post("/fetch", json={"url": "https://ulc.gov.pl/x.pdf"})
     assert response.status_code == 422
-    assert "HTTP 403" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert detail["code"] == "not_html"
+    assert "application/pdf" in detail["message"]
 
 
 def test_fetch_rejects_non_url(client):

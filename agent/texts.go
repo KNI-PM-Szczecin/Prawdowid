@@ -7,6 +7,12 @@ const (
 	msgNoClaims = "Nie znaleźliśmy w tekście twierdzenia, które da się sprawdzić. " +
 		"Wklej konkretną informację, np. „Rząd podniósł płacę minimalną do 5000 zł”."
 	msgPageUnreadable       = "Nie udało się odczytać treści tej strony. Wklej jej tekst albo wybierz inny adres."
+	msgPageBlocked          = "Ta strona blokuje automatyczne pobieranie albo wczytuje treść dopiero skryptem, więc nie możemy " +
+		"jej odczytać. Wklej tekst, który chcesz sprawdzić."
+	msgPageIsFile = "Ten adres prowadzi do pliku (np. PDF, obraz albo dokument), a nie do strony z tekstem. " +
+		"Wklej tekst do sprawdzenia; zrzut ekranu możesz dodać przyciskiem ze zdjęciem."
+	msgUnsupportedService = "Nie odczytujemy filmów, nagrań ani wpisów z serwisów społecznościowych " +
+		"(YouTube, TikTok, Facebook, Instagram, X). Wklej treść wpisu albo link do artykułu z tekstem."
 	msgEmptyInput           = "Wpisz informację do sprawdzenia albo wklej adres strony."
 	msgFactcheckUnavailable = "Nie mogę teraz sprawdzić ocen weryfikatorów faktów z powodu błędu dostępu do zewnętrznej usługi, " +
 		"a w naszych źródłach nie ma publikacji na ten temat. To ograniczenie techniczne, nie ocena treści. " +
@@ -42,6 +48,15 @@ const (
 
 	limitationInputInstructions = "Zgłoszenie zawierało polecenia skierowane do systemu. " +
 		"Potraktowaliśmy je jako zwykły tekst i nie zmieniły zasad sprawdzania."
+
+	// A link inside the text (mentor scenario E): the page is fetched as part of the checked material.
+	limitationLinkFetched = "Tekst zawierał adres %s; pobraliśmy tę stronę i sprawdziliśmy ją razem z tekstem."
+	limitationLinkNotFetched = "Tekst zawierał adres %s, ale nie udało się odczytać tej strony; " +
+		"sprawdziliśmy sam tekst."
+	limitationLinkUnsupported = "Tekst zawierał adres %s; nie odczytujemy filmów ani wpisów z serwisów " +
+		"społecznościowych, więc sprawdziliśmy sam tekst."
+	limitationLinksSkipped = "Tekst zawierał kilka adresów; żadnej strony nie pobraliśmy, sprawdziliśmy sam tekst. " +
+		"Wklej jeden adres, żeby sprawdzić stronę."
 
 	// Brief scenario B: the age of the checked page is shown beside the verdict, never used as the verdict.
 	materialDateUnknown     = "nieznana"

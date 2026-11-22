@@ -15,8 +15,60 @@ import (
 // Errors from rag/, mapped to statuses by Verify.
 var (
 	ErrRagUnavailable = errors.New("rag unavailable") // index_unavailable, transport, timeout -> technical_error
-	ErrFetchRejected  = errors.New("fetch rejected")  // 422 from POST /fetch -> needs_clarification
+	ErrFetchRejected  = errors.New("fetch rejected")  // 422 from POST /fetch -> needs_clarification or out_of_scope
 )
+
+// Reasons rag gives for a rejected page (CONTRACT.md §3, POST /fetch); the agent picks the citizen's message by them.
+const (
+	FetchCodeUnsupportedHost = "unsupported_host"
+	FetchCodeNotHTML         = "not_html"
+	FetchCodeNoText          = "no_text"
+	FetchCodeBotWall         = "bot_wall"
+)
+
+// fetchRejection carries rag's reason code; errors.Is(err, ErrFetchRejected) still holds.
+type fetchRejection struct {
+	code   string
+	detail string
+}
+
+func (r *fetchRejection) Error() string { return "fetch rejected (" + r.code + "): " + r.detail }
+
+func (r *fetchRejection) Is(target error) bool { return target == ErrFetchRejected }
+
+// fetchRejectionCode returns rag's reason code for a rejected fetch, or "" for any other error.
+func fetchRejectionCode(err error) string {
+	var rejection *fetchRejection
+	if errors.As(err, &rejection) {
+		return rejection.code
+	}
+	return ""
+}
+
+type fetchErrorBody struct {
+	Detail json.RawMessage `json:"detail"`
+}
+
+type fetchErrorDetail struct {
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+// parseFetchRejection reads rag's 422 body: `{"detail": {"message", "code"}}`, or a plain string from an older rag.
+func parseFetchRejection(body []byte) *fetchRejection {
+	var envelope fetchErrorBody
+	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Detail) > 0 {
+		var detail fetchErrorDetail
+		if err := json.Unmarshal(envelope.Detail, &detail); err == nil && detail.Code != "" {
+			return &fetchRejection{code: detail.Code, detail: detail.Message}
+		}
+		var message string
+		if err := json.Unmarshal(envelope.Detail, &message); err == nil {
+			return &fetchRejection{detail: message}
+		}
+	}
+	return &fetchRejection{detail: truncate(string(body), maxErrorBodyLen)}
+}
 
 const (
 	flagSuspectedInjection      = "suspected_injection"
@@ -143,7 +195,7 @@ func (r *RagClient) Fetch(ctx context.Context, url string) (FetchResponse, error
 		}
 		return response, nil
 	case http.StatusUnprocessableEntity:
-		return response, fmt.Errorf("%w: %s", ErrFetchRejected, truncate(string(body), maxErrorBodyLen))
+		return response, parseFetchRejection(body)
 	default:
 		return response, fmt.Errorf("%w: fetch HTTP %d: %s", ErrRagUnavailable, status, truncate(string(body), maxErrorBodyLen))
 	}

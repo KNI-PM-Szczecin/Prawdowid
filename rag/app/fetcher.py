@@ -1,13 +1,19 @@
+import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
+from functools import cache
 from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
 from app.config import settings
 from app.url_guard import BlockedURLError, assert_public_url
+
+FETCH_RULES_PATH = Path(__file__).parent / "data" / "fetch_rules.json"
 
 HTML_CONTENT_TYPES = ("text/html", "application/xhtml+xml")
 SKIPPED_ELEMENTS = {"script", "style", "noscript", "svg", "template", "iframe", "head"}
@@ -24,8 +30,42 @@ WHITESPACE = re.compile(r"[^\S\n]+")
 BOT_WALL_TITLES = ("pardon our interruption", "just a moment", "access denied", "attention required", "請稍候")
 
 
+# Why a page could not be used, for agent/ to pick the message (CONTRACT.md section 3). The text stays for logs.
+FETCH_UNSUPPORTED_HOST = "unsupported_host"
+FETCH_BLOCKED = "blocked"
+FETCH_REDIRECT = "redirect"
+FETCH_HTTP_ERROR = "http_error"
+FETCH_NETWORK = "network"
+FETCH_TOO_LARGE = "too_large"
+FETCH_NOT_HTML = "not_html"
+FETCH_NO_TEXT = "no_text"
+FETCH_BOT_WALL = "bot_wall"
+
+
 class FetchError(Exception):
     """The page could not be fetched or is not HTML; the URL is skipped and counted, never half-indexed."""
+
+    def __init__(self, message: str, code: str = FETCH_NETWORK) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+@cache
+def unsupported_hosts() -> dict[str, str]:
+    """Host -> kind ("video", "social") from app/data/fetch_rules.json; a data file, changed without code."""
+    payload = json.loads(FETCH_RULES_PATH.read_text(encoding="utf-8"))
+    return {host: kind for kind, hosts in payload["unsupportedHosts"].items() for host in hosts}
+
+
+def unsupported_host_kind(url: str) -> str | None:
+    """The kind of service we do not read (video, social) when the host or one of its parents is listed."""
+    host = (urlsplit(url).hostname or "").lower()
+    labels = host.split(".")
+    for start in range(len(labels) - 1):
+        kind = unsupported_hosts().get(".".join(labels[start:]))
+        if kind is not None:
+            return kind
+    return None
 
 
 @dataclass(frozen=True)
@@ -248,7 +288,7 @@ async def _read_limited(response: httpx.Response) -> bytes:
     async for chunk in response.aiter_bytes():
         received += len(chunk)
         if received > settings.corpus_fetch_max_bytes:
-            raise FetchError(f"page larger than {settings.corpus_fetch_max_bytes} bytes")
+            raise FetchError(f"page larger than {settings.corpus_fetch_max_bytes} bytes", FETCH_TOO_LARGE)
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -262,10 +302,12 @@ async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
     """
     current = url
     for _hop in range(settings.corpus_fetch_max_redirects + 1):
+        if (kind := unsupported_host_kind(current)) is not None:
+            raise FetchError(f"unsupported {kind} service: {urlsplit(current).hostname}", FETCH_UNSUPPORTED_HOST)
         try:
             await assert_public_url(current)
         except BlockedURLError as error:
-            raise FetchError(f"blocked: {error}") from error
+            raise FetchError(f"blocked: {error}", FETCH_BLOCKED) from error
         try:
             async with client.stream(
                 "GET", current, headers={"User-Agent": settings.corpus_fetch_user_agent}, follow_redirects=False
@@ -273,7 +315,7 @@ async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
                 # Redirects first: httpx raise_for_status treats an unfollowed 3xx as an error.
                 if response.is_redirect:
                     if response.next_request is None:
-                        raise FetchError("redirect without a target")
+                        raise FetchError("redirect without a target", FETCH_REDIRECT)
                     current = str(response.next_request.url)
                     continue
                 response.raise_for_status()
@@ -282,16 +324,16 @@ async def fetch_page(client: httpx.AsyncClient, url: str) -> FetchedPage:
                 body = await _read_limited(response)
                 page_url = str(response.url)
         except httpx.HTTPStatusError as error:
-            raise FetchError(f"HTTP {error.response.status_code}") from error
+            raise FetchError(f"HTTP {error.response.status_code}", FETCH_HTTP_ERROR) from error
         except httpx.HTTPError as error:
-            raise FetchError(type(error).__name__) from error
+            raise FetchError(type(error).__name__, FETCH_NETWORK) from error
         if not content_type.startswith(HTML_CONTENT_TYPES):
-            raise FetchError(f"not HTML: {content_type.split(';')[0] or 'unknown'}")
+            raise FetchError(f"not HTML: {content_type.split(';')[0] or 'unknown'}", FETCH_NOT_HTML)
         html = body.decode(charset, errors="replace")
         title, text = extract_text(html)
         if not text:
-            raise FetchError("no visible text (JavaScript-only page?)")
+            raise FetchError("no visible text (JavaScript-only page?)", FETCH_NO_TEXT)
         if title.casefold().startswith(BOT_WALL_TITLES):
-            raise FetchError(f"anti-bot wall: {title}")
+            raise FetchError(f"anti-bot wall: {title}", FETCH_BOT_WALL)
         return FetchedPage(url=page_url, title=title, text=text, published_at=extract_published_at(html))
-    raise FetchError("too many redirects")
+    raise FetchError("too many redirects", FETCH_REDIRECT)

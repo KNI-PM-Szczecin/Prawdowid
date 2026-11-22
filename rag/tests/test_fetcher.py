@@ -114,6 +114,57 @@ def test_fetch_page_rejects_errors_non_html_empty_and_oversized(response):
         asyncio.run(fetch_page(_client(lambda request: response), "https://www.gov.pl/x"))
 
 
+@pytest.mark.parametrize(
+    ("response", "code"),
+    [
+        (httpx.Response(404, text="nie ma"), fetcher.FETCH_HTTP_ERROR),
+        (httpx.Response(200, content=b"%PDF-1.4", headers={"content-type": "application/pdf"}), fetcher.FETCH_NOT_HTML),
+        (
+            httpx.Response(
+                200, text="<html><body><script>app()</script></body></html>", headers={"content-type": "text/html"}
+            ),
+            fetcher.FETCH_NO_TEXT,
+        ),
+        (
+            httpx.Response(
+                200,
+                text="<html><head><title>Just a moment</title></head><body><p>x</p></body></html>",
+                headers={"content-type": "text/html"},
+            ),
+            fetcher.FETCH_BOT_WALL,
+        ),
+    ],
+)
+def test_fetch_page_names_the_reason_with_a_code(response, code):
+    with pytest.raises(FetchError) as raised:
+        asyncio.run(fetch_page(_client(lambda request: response), "https://www.gov.pl/x"))
+    assert raised.value.code == code
+
+
+@pytest.mark.parametrize(
+    ("url", "kind"),
+    [
+        ("https://www.youtube.com/watch?v=abc", "video"),
+        ("https://youtu.be/abc", "video"),
+        ("https://m.facebook.com/story.php?id=1", "social"),
+        ("https://x.com/user/status/1", "social"),
+        ("https://www.gov.pl/web/premier/x", None),
+        ("https://notx.com/a", None),
+    ],
+)
+def test_unsupported_host_kind_matches_host_and_subdomains(url, kind):
+    assert fetcher.unsupported_host_kind(url) == kind
+
+
+def test_fetch_page_refuses_video_and_social_hosts_before_any_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request may be sent to an unsupported host")
+
+    with pytest.raises(FetchError) as raised:
+        asyncio.run(fetch_page(_client(handler), "https://www.tiktok.com/@a/video/1"))
+    assert raised.value.code == fetcher.FETCH_UNSUPPORTED_HOST
+
+
 def test_fetch_page_follows_redirects_and_checks_every_hop(monkeypatch):
     checked = []
 
