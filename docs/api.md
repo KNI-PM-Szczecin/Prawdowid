@@ -29,7 +29,7 @@ Bazowy adres lokalnie: `http://localhost:3001` (`PORT` w `src/backend/config.go`
 
 | Metoda i ścieżka | Po co | Priorytet |
 |---|---|---|
-| `POST /api/check` | sprawdzenie tekstu lub URL (WWW). Tekst z jednym linkiem w środku sprawdza też tę stronę; link do wideo/serwisu społecznościowego → `out_of_scope`, plik → `needs_clarification` (tabela w `README.md`, kody w `CONTRACT.md` §3) | **MVP, pionowy przekrój** |
+| `POST /api/check` | sprawdzenie tekstu lub URL (WWW). Tekst z jednym linkiem w środku sprawdza też tę stronę; link do wideo/serwisu społecznościowego → `out_of_scope`, plik → `needs_clarification` (tabela niżej, kody w `CONTRACT.md` §3) | **MVP, pionowy przekrój** |
 | `POST /api/check/image` (wdrożone, `src/backend/check_image.go`) | zrzut ekranu lub zdjęcie z tekstem (scenariusz F): `multipart/form-data`, pole `image` (PNG/JPEG/WEBP do 5 MB). OCR lokalnie w rag (`POST /ocr`, Tesseract), odczytany tekst idzie tą samą ścieżką `runCheck` co tekst; odpowiedź jak `POST /api/check` plus ograniczenia o OCR i o dacie widocznej na obrazie | funkcja premiowana |
 | `GET /api/checks/{requestId}` **[NOWE, niezaimplementowane]** | odczyt zapisanego wyniku: odświeżenie strony wyniku, link z drugiego kanału do pełnego widoku | MVP |
 | `DELETE /api/checks/{requestId}` (wdrożone) | usunięcie sesji demo (wymóg prywatności) | MVP |
@@ -73,7 +73,25 @@ Nieznane pola → odrzucenie (`DisallowUnknownFields`). Backend maskuje e-mail, 
 
 Każde ciało ma kształt `CheckResult`.
 
-### Przykład A — wynik pozytywny (ekran „Good”)
+### Jakie adresy obsługujemy
+
+(`rag/app/fetcher.py`, lista serwisów w `rag/app/data/fetch_rules.json`):
+
+| Adres | Co się dzieje |
+|---|---|
+| Strona HTML z tekstem (portale, gov.pl, Dziennik Ustaw, EUR-Lex, GUS, weryfikatorzy faktów) | pobieramy główną treść (`<article>`/`<main>`), tytuł i datę publikacji z metadanych albo elementu oznaczonego jako data, sprawdzamy twierdzenia |
+| Sam adres w polu tekstowym | traktowany jako link |
+| Tekst z jednym adresem w środku („sprawdź też tę stronę: …") | sprawdzamy tekst razem z pobraną stroną; polecenia ukryte w stronie są ignorowane i liczone |
+| Tekst z kilkoma adresami | sprawdzamy sam tekst, stron nie pobieramy (informacja w ograniczeniach) |
+| YouTube, TikTok, Vimeo, Facebook, Instagram, X/Twitter, Threads, LinkedIn | nie odczytujemy wideo ani wpisów: odpowiedź `out_of_scope` z prośbą o wklejenie treści, bez żadnego żądania do serwisu |
+| PDF, obraz, dokument pod adresem | `needs_clarification`: prośba o wklejenie tekstu albo dodanie zrzutu ekranu |
+| Zapora antybotowa (Cloudflare, Incapsula: np. `isap.sejm.gov.pl`, `ulc.gov.pl`) albo strona tylko ze skryptem (np. listy depesz `pap.pl`) | `needs_clarification` z informacją o blokadzie; zabezpieczeń nie obchodzimy |
+| Adres prywatny, błąd HTTP, przekierowania w pętli, strona ponad 2 MB | `needs_clarification`: nie udało się odczytać strony |
+| Strona „nie znaleziono" zwracana z kodem 200 (np. gov.pl) | tekst portalu bez twierdzeń → `needs_clarification` o braku twierdzeń |
+
+Sprawdzone 22.11.2026 na lokalnym rag: 18 adresów, każdy z powyższych rodzajów dał oczekiwany wynik. Data publikacji z metadanych bywa datą utworzenia (Wikipedia podaje 2002 r.), a strony bez metadanych i elementu z datą (Dziennik Ustaw, EUR-Lex, GUS) nie mają daty przy sprawdzaniu przez URL; w korpusie te same dokumenty mają datę z importu.
+
+### Przykład A — wynik pozytywny (ekran „Good")
 
 ```json
 {
