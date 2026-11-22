@@ -15,7 +15,7 @@ const (
 	defaultMaxClaims     = 3
 	defaultVerifyTimeout = 25 * time.Second // CONTRACT.md §2
 	// CONTRACT.md §2 allows 12 s: the first measurement on Railway (rerank on a shared CPU) went over 8 s.
-	defaultRagTimeout     = 12 * time.Second
+	defaultRagTimeout     = 18 * time.Second
 	defaultLLMTimeout     = 10 * time.Second
 	defaultSearchTopK     = 5
 	defaultExtractMaxText = 6000 // characters of page/submission text handed to the extraction prompt

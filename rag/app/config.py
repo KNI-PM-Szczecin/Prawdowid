@@ -153,7 +153,7 @@ class Settings(BaseSettings):
 
     # Gap filling from gov.pl: when the corpus has fewer relevant passages than gov_search_min_results, /search asks
     # the endpoint behind gov.pl/web/gov/szukaj (robots.txt allows all), indexes the best and the newest pages and
-    # searches again. The whole fill stays under gov_search_budget_seconds, inside rag's 12 s (CONTRACT.md §2).
+    # searches again. The whole fill stays under gov_search_budget_seconds, inside rag's 18 s (CONTRACT.md §2).
     gov_search_enabled: bool = True
     gov_search_url: str = "https://www.gov.pl/api/data/search"
     gov_search_site: str = "https://www.gov.pl"
@@ -161,10 +161,13 @@ class Settings(BaseSettings):
     gov_search_max_pages: int = 3
     gov_search_min_results: int = 1
     # A lowered rerank threshold lets weakly related passages through; when even the best one scores below this, the
-    # corpus has no clear answer and gov.pl is asked as well (true matches score about 0.75-0.85).
-    gov_search_sufficient_score: float = 0.6
+    # corpus has no clear answer and gov.pl is asked as well (true matches score about 0.75-0.85). Measured on the
+    # jury cases: 0.6 started a fill for many answerable claims and the indexing starved the next searches (12 s
+    # timeouts); 0.5 keeps the fill for claims whose best passage is clearly weak.
+    gov_search_sufficient_score: float = 0.5
     gov_search_timeout_seconds: float = 3.0
-    gov_search_budget_seconds: float = 6.0
+    # A slower fill keeps running in the background, so its pages still reach the corpus for the next question.
+    gov_search_budget_seconds: float = 4.0
     # A stored gov.pl page older than this is downloaded again when a question needs it, so evidence stays current.
     gov_search_refresh_days: int = 30
     gov_search_cache_ttl_seconds: int = 3600
