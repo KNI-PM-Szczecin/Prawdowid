@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     # fetched again every day and the Dz.U. acts re-imported once a week, so a newer consolidated text replaces
     # the old one. The same imports can still be started by hand through the admin endpoints.
     corpus_refresh_enabled: bool = True
+    # RSS feeds of catalog sources (app/data/feeds.json) are read often: a new police statement can settle a claim
+    # the older documents do not mention. Each run indexes only entries the corpus does not have yet.
+    feeds_refresh_enabled: bool = True
+    feeds_refresh_interval_minutes: int = 60
+    feeds_max_bytes: int = 1_000_000
     corpus_refresh_cron_hour: int = 5
     law_refresh_cron_day_of_week: str = "mon"
     law_refresh_cron_hour: int = 6

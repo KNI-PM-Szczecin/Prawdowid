@@ -6,6 +6,7 @@ from app.maintenance import (
     JOB_CORPUS_REFRESH,
     JOB_EUVSDISINFO,
     JOB_EVICTION,
+    JOB_FEEDS_REFRESH,
     JOB_LAW_REFRESH,
     JOB_OPTIMIZE,
     JOB_RECONCILE,
@@ -32,7 +33,14 @@ def test_official_sources_are_refreshed_on_a_schedule(monkeypatch):
     scheduler = AsyncIOScheduler()
     register_maintenance_jobs(scheduler, FakeStore(), object(), FakeStore(), FakeEuvsDisinfo(enabled=False))
 
-    assert job_ids(scheduler) == {JOB_EVICTION, JOB_RECONCILE, JOB_OPTIMIZE, JOB_CORPUS_REFRESH, JOB_LAW_REFRESH}
+    assert job_ids(scheduler) == {
+        JOB_EVICTION,
+        JOB_RECONCILE,
+        JOB_OPTIMIZE,
+        JOB_CORPUS_REFRESH,
+        JOB_LAW_REFRESH,
+        JOB_FEEDS_REFRESH,
+    }
     refresh = scheduler.get_job(JOB_CORPUS_REFRESH)
     assert refresh.args[0] == ["https://www.gov.pl/web/premier/x"]
     assert str(refresh.trigger.fields[5]) == str(settings.corpus_refresh_cron_hour)
