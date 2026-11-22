@@ -54,6 +54,7 @@ type run struct {
 	claimRun
 	startedAt time.Time
 	result    CheckResult
+	material  *MaterialMatch
 }
 
 // claimRun holds what one claim contributes to the answer; claims run in parallel, so each one writes here
@@ -149,6 +150,9 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		document = &Document{Text: text}
 	}
 	r.result.Document = document
+	if request.InputType == InputTypeURL {
+		r.material = a.matchMaterial(ctx, r, document)
+	}
 	if containsInstructions(text) {
 		r.injections++
 		r.limitations = append(r.limitations, limitationInputInstructions)
@@ -232,7 +236,7 @@ func (a *Agent) resolveInput(ctx context.Context, request VerifyRequest) (string
 		return "", nil, err
 	}
 	fetchedAt := a.now().UTC().Format(time.RFC3339)
-	document := &Document{Text: page.Text, URL: stringPtr(page.URL), FetchedAt: &fetchedAt}
+	document := &Document{Text: page.Text, URL: stringPtr(page.URL), PublishedAt: page.PublishedAt, FetchedAt: &fetchedAt}
 	if page.Title != "" {
 		document.Title = stringPtr(page.Title)
 	}
@@ -241,6 +245,48 @@ func (a *Agent) resolveInput(ctx context.Context, request VerifyRequest) (string
 		text = page.Title + "\n" + text
 	}
 	return text, document, nil
+}
+
+// matchMaterial asks rag whether the submitted page is a known material (brief scenario I). The answer is context
+// beside the verdict, so a failure here only logs and adds a limitation; it never turns the check into an error.
+func (a *Agent) matchMaterial(ctx context.Context, r *run, document *Document) *MaterialMatch {
+	if document == nil || document.URL == nil {
+		return nil
+	}
+	response, err := a.rag.MatchMaterial(ctx, *document.URL, document.Title, document.PublishedAt)
+	if err != nil {
+		a.logger.Warn("material match failed", "requestId", r.request.RequestID, "error", err.Error())
+		r.limitations = appendUnique(r.limitations, limitationMaterialMatchUnavailable)
+		return nil
+	}
+	if len(response.Matches) == 0 {
+		r.limitations = appendUnique(r.limitations, limitationNoMaterialMatch)
+		return nil
+	}
+	return &MaterialMatch{Message: materialMatchMessage(response.Matches), Matches: response.Matches}
+}
+
+// materialMatchMessage names the strongest basis explicitly: the citizen must see why the page was recognised.
+func materialMatchMessage(matches []MaterialMatchItem) string {
+	byURL, incident := false, false
+	for _, match := range matches {
+		if match.Kind == MaterialKindIncident {
+			incident = true
+		}
+		for _, basis := range match.Basis {
+			if basis == MaterialBasisURL {
+				byURL = true
+			}
+		}
+	}
+	switch {
+	case incident:
+		return materialMatchIncident
+	case byURL:
+		return materialMatchByURL
+	default:
+		return materialMatchByTitleAndDate
+	}
 }
 
 // opinionClaim is the answer for a sentence the extractor marked as an opinion or a prediction (CONTRACT.md §4).
@@ -496,6 +542,7 @@ func (a *Agent) finish(r *run, status, message string) CheckResult {
 		result.Document = nil
 	}
 	result.CampaignAlert = r.campaign
+	result.MaterialMatch = r.material
 	result.Limitations = appendUniqueAll(result.Limitations, r.limitations)
 	model := a.provider.Name()
 	cost := estimateCost(r.inputTokens, r.outputTokens, a.config.LLMPriceInputPerM, a.config.LLMPriceOutputPerM)

@@ -49,13 +49,15 @@ def parse_case(case: dict) -> IncidentIn | None:
     claim = _plain_text(case.get("claim"))
     title = _plain_text(case.get("title")) or claim[: settings.incident_summary_max_chars]
     timestamp = case.get("date")
+    disinformation_links = [link for link in case.get("linksToDisinformation") or [] if isinstance(link, dict)]
     languages = sorted(
         {
             link["language"]["name"]
-            for link in case.get("linksToDisinformation") or []
+            for link in disinformation_links
             if isinstance(link.get("language"), dict) and link["language"].get("name")
         }
     )
+    links = [link["url"] for link in disinformation_links if isinstance(link.get("url"), str) and link["url"]]
     try:
         return IncidentIn(
             incident_id=str(case["id"]),
@@ -67,6 +69,7 @@ def parse_case(case: dict) -> IncidentIn | None:
             countries=[country["title"] for country in case.get("countries") or [] if country.get("title")],
             languages=languages,
             license=LICENSE_NOTE,
+            links=links,
         )
     except (KeyError, ValidationError):
         return None

@@ -167,6 +167,41 @@ async def find_duplicate_document(content_hash: str, document_id: str) -> str | 
     )
 
 
+ACTIVE_SOURCE_FIELDS = (
+    "s.document_id, s.title, s.publisher, s.url, s.published_at, s.fetched_at, s.license, s.source_type"
+)
+ACTIVE_SOURCE_CONDITION = (
+    "EXISTS (SELECT 1 FROM document_metadata m WHERE m.source_id = s.document_id AND NOT m.is_deleted)"
+)
+
+
+async def sources_on_host(host: str, limit: int) -> list[asyncpg.Record]:
+    """Active documents whose address contains the host; the caller compares full addresses after normalisation."""
+    return await pool().fetch(
+        f"""
+        SELECT {ACTIVE_SOURCE_FIELDS} FROM sources s
+        WHERE position($1 IN lower(s.url)) > 0 AND {ACTIVE_SOURCE_CONDITION}
+        LIMIT $2
+        """,
+        host.lower(),
+        limit,
+    )
+
+
+async def sources_published_between(start: datetime, end: datetime, limit: int) -> list[asyncpg.Record]:
+    return await pool().fetch(
+        f"""
+        SELECT {ACTIVE_SOURCE_FIELDS} FROM sources s
+        WHERE s.published_at BETWEEN $1 AND $2 AND {ACTIVE_SOURCE_CONDITION}
+        ORDER BY s.published_at DESC
+        LIMIT $3
+        """,
+        start,
+        end,
+        limit,
+    )
+
+
 async def list_sources() -> list[asyncpg.Record]:
     return await pool().fetch(
         """

@@ -31,7 +31,23 @@ var demoStrengthLabels = map[string]string{
 	agent.StrengthNone:     "brak",
 }
 
+var demoBasisLabels = map[string]string{
+	agent.MaterialBasisURL:   "zgodny adres",
+	agent.MaterialBasisTitle: "zgodny tytuł",
+	agent.MaterialBasisDate:  "zgodna data publikacji",
+}
+
 var lineBreakPattern = regexp.MustCompile(`[\r\n]+`)
+
+func materialBasisLabels(basis []string) []string {
+	labels := make([]string, 0, len(basis))
+	for _, entry := range basis {
+		if label, found := demoBasisLabels[entry]; found {
+			labels = append(labels, label)
+		}
+	}
+	return labels
+}
 
 // demoAdapter is the mock second channel (AGENTS.md priority 4): a real Discord adapter can replace it later.
 type demoAdapter struct{}
@@ -72,6 +88,21 @@ func (demoAdapter) ToReply(result agent.CheckResult) ([]byte, error) {
 	}
 
 	var builder strings.Builder
+	if result.MaterialMatch != nil {
+		builder.WriteString("Znamy ten materiał: ")
+		builder.WriteString(singleLine(result.MaterialMatch.Message))
+		for _, item := range result.MaterialMatch.Matches {
+			builder.WriteString("\n- ")
+			builder.WriteString(singleLine(item.Title))
+			builder.WriteString(" — ")
+			builder.WriteString(singleLine(item.Publisher))
+			builder.WriteString(" (podstawa: ")
+			builder.WriteString(strings.Join(materialBasisLabels(item.Basis), ", "))
+			builder.WriteString(")\n   ")
+			builder.WriteString(singleLine(item.URL))
+		}
+		builder.WriteString("\n\n")
+	}
 	for claimIndex, claim := range result.Claims {
 		if claimIndex > 0 {
 			builder.WriteString("\n\n")

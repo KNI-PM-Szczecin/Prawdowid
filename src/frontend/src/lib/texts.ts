@@ -1,4 +1,15 @@
-import type { Badge, CaseStatus, EvidenceStrength, SourceRole, SourceType, SummaryLevel, Verdict, WarningType } from "./types";
+import type {
+  Badge,
+  CaseStatus,
+  EvidenceStrength,
+  MaterialMatchBasis,
+  MaterialMatchKind,
+  SourceRole,
+  SourceType,
+  SummaryLevel,
+  Verdict,
+  WarningType,
+} from "./types";
 
 export const texts = {
   appName: "Prawdowid",
@@ -173,6 +184,20 @@ export const texts = {
     moreInfo: "Więcej informacji",
     matchesLabel: "Podobne znane przypadki",
   },
+  material: {
+    title: "Znamy ten materiał",
+    basisLabel: "Na jakiej podstawie",
+    basis: {
+      url: "zgodny adres",
+      title: "zgodny tytuł",
+      date: "zgodna data publikacji",
+    } satisfies Record<MaterialMatchBasis, string>,
+    kind: {
+      corpus_document: "dokument w naszych źródłach",
+      incident: "wpis w katalogu znanych kampanii",
+    } satisfies Record<MaterialMatchKind, string>,
+  },
+  checkedPublishedAt: "Data publikacji strony",
   verdict: {
     confirmed: "Prawda",
     false: "Fałsz",

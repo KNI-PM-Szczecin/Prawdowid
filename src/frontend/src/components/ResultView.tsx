@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { toneClass, verdictTone } from "../lib/presentation";
+import { formatDate, toneClass, verdictTone } from "../lib/presentation";
 import { texts } from "../lib/texts";
 import type { CheckResult } from "../lib/types";
 import { BadgeList } from "./BadgeList";
@@ -8,6 +8,7 @@ import { CaseNoticeBox } from "./CaseNoticeBox";
 import { ClaimList } from "./ClaimList";
 import { ClaimPanel } from "./ClaimPanel";
 import { HighlightedText } from "./HighlightedText";
+import { MaterialMatchBox } from "./MaterialMatchBox";
 import "./ResultView.scss";
 import { SummaryBox } from "./SummaryBox";
 import { TechnicalDetails } from "./TechnicalDetails";
@@ -86,9 +87,16 @@ export function ResultView({ result, submittedInput, onNewCheck }: ResultViewPro
             {document.url}
           </p>
         )}
+        {document?.url && formatDate(document.publishedAt ?? null) && (
+          <p class="result-view__url">
+            <strong>{texts.checkedPublishedAt}: </strong>
+            {formatDate(document.publishedAt ?? null)}
+          </p>
+        )}
 
         {result.summary && <SummaryBox summary={result.summary} />}
         {result.campaignAlert && <CampaignAlertBox alert={result.campaignAlert} />}
+        {result.materialMatch && <MaterialMatchBox match={result.materialMatch} />}
         <BadgeList badges={result.badges ?? []} />
 
         <HighlightedText

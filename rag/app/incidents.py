@@ -6,9 +6,11 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from app.config import settings
 from app.embeddings import EmbeddingModels
 from app.models import CAMPAIGN_CATEGORY, CampaignAlert, IncidentIn, IncidentMatch
+from app.urls import normalize_url
 from app.vector_store import RawPoint, RetrievedChunk, VectorStore
 
 CATALOG_STATUS_NAME = "incident_catalog"
+LINKS_FIELD = "links"
 SEED_INCIDENTS_PATH = Path(__file__).parent / "data" / "seed_incidents.json"
 SOURCE_LABELS = {"euvsdisinfo": "EUvsDisinfo"}
 CAMPAIGN_MESSAGE = (
@@ -65,6 +67,7 @@ async def index_incidents(incidents: list[IncidentIn], models: EmbeddingModels, 
                     "countries": incident.countries,
                     "languages": incident.languages,
                     "license": incident.license,
+                    LINKS_FIELD: sorted({normalize_url(str(link)) for link in incident.links}),
                 },
             )
             for incident, dense, sparse in zip(incidents, dense_vectors, sparse_vectors, strict=True)

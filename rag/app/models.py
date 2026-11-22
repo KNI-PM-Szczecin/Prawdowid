@@ -156,6 +156,8 @@ class IncidentIn(ApiModel):
     countries: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
     license: str | None = None
+    # Addresses of the material that spread the claim (EUvsDisinfo linksToDisinformation); matched by POST /match.
+    links: list[HttpUrl] = Field(default_factory=list)
 
 
 class IncidentIngestRequest(ApiModel):
@@ -196,6 +198,38 @@ class FetchResponse(ApiModel):
     title: str
     text: str
     truncated: bool
+    published_at: Timestamp | None = None
+
+
+MATCH_TITLE_MAX_CHARS = 1000
+MaterialMatchKind = Literal["corpus_document", "incident"]
+MaterialMatchBasis = Literal["url", "title", "date"]
+
+
+class MaterialMatchRequest(ApiModel):
+    """A submitted page (after fetch) to compare with the corpus and the incident catalog (brief scenario I)."""
+
+    url: HttpUrl
+    title: str | None = Field(default=None, max_length=MATCH_TITLE_MAX_CHARS)
+    published_at: Timestamp | None = None
+
+
+class MaterialMatchItem(ApiModel):
+    kind: MaterialMatchKind
+    basis: list[MaterialMatchBasis]
+    title: str
+    publisher: str
+    url: str
+    published_at: Timestamp | None
+    source_type: SourceType | None = None
+    incident_id: str | None = None
+    source: str | None = None
+
+
+class MaterialMatchResponse(ApiModel):
+    """Context only: whether the submitted material itself is known, never a verdict about its content."""
+
+    matches: list[MaterialMatchItem]
 
 
 class CorpusFetchRequest(ApiModel):
