@@ -96,3 +96,50 @@ def test_ensure_seed_corpus_skips_existing_and_duplicates(monkeypatch):
     assert report.skipped_duplicates == 1
     assert report.failed == 0
     assert ingested == [documents[1].source.document_id]
+
+
+class StoreWithVectors:
+    def __init__(self, ids):
+        self._ids = ids
+
+    async def point_ids(self):
+        return list(self._ids)
+
+
+def _run_with_chunks(monkeypatch, chunks_by_index, vectors):
+    """Three seed documents; chunks_by_index gives PostgreSQL's active chunks, vectors what this Qdrant holds."""
+    documents = load_seed_documents()[:3]
+    chunks = {document.source.document_id: chunks_by_index.get(index, []) for index, document in enumerate(documents)}
+    ingested: list[str] = []
+
+    async def active_chunk_ids(document_id):
+        return chunks[document_id]
+
+    async def fake_ingest(document, models, store, allow_near_duplicate=False):
+        ingested.append(document.source.document_id)
+
+    monkeypatch.setattr(seed, "load_seed_documents", lambda: documents)
+    monkeypatch.setattr(seed.db, "active_chunk_ids_for_document", active_chunk_ids)
+    monkeypatch.setattr(seed, "ingest_document", fake_ingest)
+    report = asyncio.run(seed.ensure_seed_corpus(models=None, store=StoreWithVectors(vectors)))
+    return report, [documents.index(next(d for d in documents if d.source.document_id == i)) for i in ingested]
+
+
+def test_seed_with_all_vectors_here_is_skipped(monkeypatch):
+    report, ingested = _run_with_chunks(monkeypatch, {0: ["a", "b"], 1: ["c"], 2: ["d"]}, {"a", "b", "c", "d"})
+    assert ingested == [] and report.already_present == 3 and report.missing_vectors == 0
+
+
+def test_seed_indexed_by_another_environment_is_indexed_again(monkeypatch):
+    report, ingested = _run_with_chunks(monkeypatch, {0: ["a"], 1: ["c"], 2: ["d"]}, {"a", "d"})
+    assert ingested == [1] and report.missing_vectors == 1 and report.indexed == 1 and report.already_present == 2
+
+
+def test_seed_with_some_vectors_missing_is_indexed_again(monkeypatch):
+    report, ingested = _run_with_chunks(monkeypatch, {0: ["a", "b"], 1: ["c"], 2: ["d"]}, {"a", "c", "d"})
+    assert ingested == [0] and report.missing_vectors == 1
+
+
+def test_seed_unknown_to_postgres_is_indexed_without_counting_as_missing_vectors(monkeypatch):
+    report, ingested = _run_with_chunks(monkeypatch, {0: ["a"], 1: ["c"]}, {"a", "c"})
+    assert ingested == [2] and report.missing_vectors == 0 and report.indexed == 1
