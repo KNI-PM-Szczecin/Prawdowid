@@ -95,6 +95,9 @@ $column-width: 40rem;
       bottom: 0;
       z-index: 1;
       width: 50%;
+      // Opaque, so the footer under the fixed drawer never shows through the cards.
+      border-left: $border solid var(--line);
+      background: var(--page);
 
       @starting-style {
         transform: translateX(2rem);
