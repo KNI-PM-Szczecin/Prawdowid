@@ -160,13 +160,20 @@ func (a *Agent) Verify(ctx context.Context, request VerifyRequest) (CheckResult,
 		r.material = a.matchMaterial(ctx, r, document)
 		r.materialDate = a.noteMaterialAge(r, document)
 	}
+	checkedText := text
 	if containsInstructions(text) {
 		r.injections++
 		r.limitations = append(r.limitations, limitationInputInstructions)
 		a.logger.Warn("prompt injection in submission", "requestId", request.RequestID, "inputType", request.InputType)
+		// The instruction is cut out of what is checked, so it never becomes part of a claim, a search query or the
+		// model's input; the document shown to the citizen keeps the full text.
+		checkedText = stripInstructions(text)
+		if !hasEnoughWords(checkedText) {
+			return a.finish(r, StatusNeedsClarification, msgNoClaims), nil
+		}
 	}
 
-	claims, omitted, usage, err := a.extractClaims(ctx, text)
+	claims, omitted, usage, err := a.extractClaims(ctx, checkedText)
 	r.addUsage(usage)
 	if err != nil {
 		return a.technicalError(r, err), nil
