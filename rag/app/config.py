@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     odyseusz_api_url: str = "https://odyseusz.gov.pl/api/v1/informacje"
     odyseusz_site: str = "https://odyseusz.gov.pl"
     odyseusz_refresh_interval_minutes: int = 60
+    # The first full import embeds every country's notice on a shared CPU for many minutes; started right after a
+    # deploy it would slow the first checks. Questions do not wait for it: a named country is fetched on demand.
+    odyseusz_first_run_delay_minutes: int = 45
     odyseusz_request_delay_seconds: float = 0.5
     odyseusz_timeout_seconds: float = 5.0
     odyseusz_max_bytes: int = 2_000_000
