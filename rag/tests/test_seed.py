@@ -107,7 +107,7 @@ class StoreWithVectors:
 
 
 def _run_with_chunks(monkeypatch, chunks_by_index, vectors):
-    """Three seed documents; chunks_by_index gives PostgreSQL's active chunks, vectors what this Qdrant holds."""
+    """Three seed documents; chunks_by_index gives PostgreSQL's active chunks, vectors what the vector table holds."""
     documents = load_seed_documents()[:3]
     chunks = {document.source.document_id: chunks_by_index.get(index, []) for index, document in enumerate(documents)}
     ingested: list[str] = []

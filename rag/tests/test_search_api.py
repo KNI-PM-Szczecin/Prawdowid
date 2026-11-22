@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 from app import db, search
 from app.config import settings
-from app.embeddings import SparseVector
 from app.euvsdisinfo import EuvsDisinfoClient
 from app.factcheck import FactCheckResult, FactCheckReview
 from app.gov_search import GapFillResult
@@ -25,7 +24,7 @@ class FakeModels:
         self._logits = logits
 
     def embed_queries(self, queries):
-        return [[0.0]] * len(queries), [SparseVector(indices=[], values=[])] * len(queries)
+        return [[0.0]] * len(queries), [[]] * len(queries)
 
     def rerank(self, query, documents):
         return [self._logits[document] for document in documents]
@@ -281,7 +280,7 @@ def test_factcheck_without_review_date_is_not_returned(client):
 
 
 def test_index_failure_is_503_index_unavailable(client):
-    app.state.store = FakeStore([], failure=RuntimeError("qdrant down"))
+    app.state.store = FakeStore([], failure=RuntimeError("vector index down"))
     response = client.post("/search", json=QUERY)
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "index_unavailable"
@@ -389,14 +388,14 @@ def test_health_reports_each_dependency_and_degrades_to_503(client):
         "status": "ok",
         "corpusVersion": CORPUS_VERSION,
         "database": "ok",
-        "qdrant": "ok",
+        "vectorIndex": "ok",
         "incidentCatalog": "ok",
     }
-    app.state.store = FakeStore([], failure=RuntimeError("qdrant down"))
+    app.state.store = FakeStore([], failure=RuntimeError("vector index down"))
     response = client.get("/health")
     assert response.status_code == 503
     assert response.json()["status"] == "degraded"
-    assert response.json()["qdrant"] == "unavailable"
+    assert response.json()["vectorIndex"] == "unavailable"
     assert response.json()["database"] == "ok"
 
 

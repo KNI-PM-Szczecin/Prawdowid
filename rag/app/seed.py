@@ -32,16 +32,16 @@ def load_seed_documents() -> list[DocumentIn]:
 async def ensure_seed_corpus(models, store) -> SeedCorpusReport:
     """
     Indexes missing seed documents one by one after startup. A document counts as present only when PostgreSQL lists
-    active chunks for it and every one of them has a vector in this Qdrant: another environment sharing the database
-    may have indexed it into its own Qdrant, and then this one would never find it. A bad document never stops the
-    rest, and every failure is logged. This keeps the demo corpus stable without fetching live pages at runtime.
+    active chunks for it and every one of them has a vector row: a document whose vectors were lost (restored
+    backup, manual cleanup) would otherwise never be found. A bad document never stops the rest,
+    and every failure is logged. This keeps the demo corpus stable without fetching live pages at runtime.
     """
     report = SeedCorpusReport()
     try:
         vectors: set[UUID] | None = set(await store.point_ids())
     except Exception:
         vectors = None
-        logger.exception("Qdrant point list unavailable, seed presence is judged by PostgreSQL only")
+        logger.exception("Vector table unavailable, seed presence is judged by PostgreSQL only")
     for document in load_seed_documents():
         document_id = document.source.document_id
         try:
@@ -55,7 +55,7 @@ async def ensure_seed_corpus(models, store) -> SeedCorpusReport:
             continue
         if existing_chunks:
             report.missing_vectors += 1
-            logger.info("Seed document %s has no vectors in this Qdrant, indexing it again", document_id)
+            logger.info("Seed document %s has no vectors, indexing it again", document_id)
         try:
             # A dated seed excerpt must not lose to an undated page from the scraper (issue #5).
             await ingest_document(document, models, store, allow_near_duplicate=True)

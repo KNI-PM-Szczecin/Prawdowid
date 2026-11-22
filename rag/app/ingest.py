@@ -109,7 +109,7 @@ async def ingest_document(
     previous_ids = await db.active_chunk_ids_for_document(source.document_id)
 
     texts = chunk_text(document.text, settings.chunk_max_chars, settings.chunk_overlap_chars)
-    dense_vectors, sparse_vectors = await asyncio.to_thread(models.embed_documents, texts)
+    dense_vectors, lexical_vectors = await asyncio.to_thread(models.embed_documents, texts)
     if not allow_near_duplicate:
         near_duplicate_of = await store.near_duplicate_document(dense_vectors, source.document_id)
         if near_duplicate_of is not None:
@@ -126,15 +126,15 @@ async def ingest_document(
                 source_type=source.source_type,
                 published_at=source.published_at,
                 dense=dense,
-                sparse=sparse,
+                lexical=lexical,
             )
-            for chunk_id, text, dense, sparse in zip(chunk_ids, texts, dense_vectors, sparse_vectors, strict=True)
+            for chunk_id, text, dense, lexical in zip(chunk_ids, texts, dense_vectors, lexical_vectors, strict=True)
         ]
     )
     try:
         await db.upsert_source_with_chunks(source, text_hash, chunk_ids)
     except Exception:
-        # Qdrant was written first; without the metadata the points would be orphans that search retrieves and
+        # The vectors were written first; without the metadata the points would be orphans that search retrieves and
         # then drops, so the write is undone before the error reaches the caller.
         await store.delete(chunk_ids)
         raise
@@ -161,9 +161,9 @@ async def ingest_document(
 
 
 async def delete_document_chunks(document_id: str, store: VectorStore) -> int:
-    """Hard delete in Qdrant, soft delete in Postgres; returns how many chunks were active (0 = nothing to delete).
+    """Hard delete of the vectors, soft delete of the metadata; returns how many chunks were active (0 = none).
     Chunks are marked deleted in PostgreSQL first: a failing index delete must never bring the text
-    back into results, and points hidden by metadata are invisible to search until the optimizer merges."""
+    back into results, and points hidden by metadata are invisible to search until the next vacuum."""
     chunk_ids = await db.active_chunk_ids_for_document(document_id)
     if chunk_ids:
         await db.mark_chunks_deleted(chunk_ids)

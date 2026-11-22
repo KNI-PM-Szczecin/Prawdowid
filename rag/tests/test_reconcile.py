@@ -4,7 +4,7 @@ from uuid import uuid4
 from app import db
 from app.reconcile import reconcile_vectors
 
-ACTIVE, STALE, UNKNOWN = uuid4(), uuid4(), uuid4()
+ACTIVE, STALE, UNKNOWN, ORPHAN = uuid4(), uuid4(), uuid4(), uuid4()
 
 
 class FakeStore:
@@ -24,7 +24,11 @@ def _states(monkeypatch):
     async def chunk_states():
         return {ACTIVE: False, STALE: True}
 
+    async def mark_chunks_deleted(chunk_ids):
+        return None
+
     monkeypatch.setattr(db, "chunk_states", chunk_states)
+    monkeypatch.setattr(db, "mark_chunks_deleted", mark_chunks_deleted)
 
 
 def test_reconcile_deletes_only_points_postgres_marks_deleted(monkeypatch):
@@ -43,3 +47,19 @@ def test_reconcile_can_also_drop_points_postgres_never_saw(monkeypatch):
     assert sorted(map(str, store.deleted)) == sorted(map(str, [STALE, UNKNOWN]))
     assert (report.stale_deleted, report.unknown_deleted) == (1, 1)
     assert store.points == [ACTIVE]
+
+
+def test_reconcile_soft_deletes_active_metadata_that_has_no_vector(monkeypatch):
+    marked: list = []
+
+    async def chunk_states():
+        return {ACTIVE: False, ORPHAN: False, STALE: True}
+
+    async def mark_chunks_deleted(chunk_ids):
+        marked.extend(chunk_ids)
+
+    monkeypatch.setattr(db, "chunk_states", chunk_states)
+    monkeypatch.setattr(db, "mark_chunks_deleted", mark_chunks_deleted)
+    report = asyncio.run(reconcile_vectors(FakeStore()))
+    assert marked == [ORPHAN]
+    assert (report.orphan_metadata_deleted, report.active_chunks) == (1, 1)

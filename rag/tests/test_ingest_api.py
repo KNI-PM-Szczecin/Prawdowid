@@ -112,7 +112,7 @@ def test_paraphrased_copy_is_rejected_409_with_near_message(client):
 
 
 def test_old_chunks_hidden_even_when_index_delete_fails(client):
-    """PG is the source of truth: a failing Qdrant delete may never bring the old text back into results."""
+    """PG is the source of truth: a failing vector delete may never bring the old text back into results."""
     first = client.post("/ingest", json={"documents": [DOCUMENT]}, headers=HEADERS)
     assert first.status_code == 200
     app.state.store.delete = _failing_delete
@@ -122,7 +122,7 @@ def test_old_chunks_hidden_even_when_index_delete_fails(client):
 
 
 async def _failing_delete(chunk_ids):
-    raise OSError("qdrant unreachable")
+    raise OSError("database unreachable")
 
 
 def test_external_sources_describe_data_sent_and_state(client):
@@ -146,7 +146,7 @@ def test_external_sources_describe_data_sent_and_state(client):
 
 
 def test_failed_metadata_write_removes_the_new_vectors(client, monkeypatch):
-    """Qdrant is written first; when PostgreSQL then fails, the new points must not stay behind as orphans."""
+    """The vectors are written first; when PostgreSQL then fails, the new points must not stay behind as orphans."""
     deleted: list = []
 
     async def failing_upsert(source, content_hash, chunk_ids):

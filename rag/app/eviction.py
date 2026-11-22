@@ -90,7 +90,7 @@ async def run_eviction(store: VectorStore) -> EvictionReport:
     Evicts the highest-scoring unprotected chunks until the active set fits eviction_max_active_chunks.
     Score = effective_age * age_weight - read_count * read_weight (+ bonus for over-quota topics).
     Never drops the corpus below eviction_min_documents / eviction_min_domains (brief minimum).
-    The soft delete in PostgreSQL rolls back if the Qdrant hard delete fails, keeping both stores consistent.
+    The soft delete in PostgreSQL rolls back if the vector delete fails, keeping both tables consistent.
     """
     chunk_ids: list[UUID] = []
     async with db.pool().acquire() as connection, connection.transaction():

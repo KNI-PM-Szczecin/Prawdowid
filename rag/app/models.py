@@ -325,7 +325,7 @@ class HealthResponse(ApiModel):
     status: Literal["ok", "degraded"]
     corpus_version: str | None
     database: DependencyStatus
-    qdrant: DependencyStatus
+    vector_index: DependencyStatus
     incident_catalog: DependencyStatus
 
 
@@ -343,4 +343,5 @@ class ReconcileReport(ApiModel):
     stale_deleted: int
     unknown: int
     unknown_deleted: int
+    orphan_metadata_deleted: int
     active_chunks: int

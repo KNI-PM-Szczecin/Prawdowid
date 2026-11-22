@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS sources (
     document_id VARCHAR(255) PRIMARY KEY,
     title TEXT NOT NULL,
@@ -43,11 +45,5 @@ CREATE INDEX IF NOT EXISTS idx_document_metadata_active
 -- Duplicate detection runs per ingested document; a full scan of sources would dominate bulk corpus syncs.
 CREATE INDEX IF NOT EXISTS idx_sources_content_hash ON sources (content_hash);
 
--- Which Qdrant owns this database (app/instance.py). One row: a second Qdrant on the same database would invalidate
--- the first one's vectors on every re-ingest, so rag/ refuses to start when the owner is another Qdrant.
-CREATE TABLE IF NOT EXISTS rag_instance (
-    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-    qdrant_instance_id UUID NOT NULL,
-    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE rag_instance ENABLE ROW LEVEL SECURITY;
+-- Superseded by pgvector: vectors live in this database, so there is no second store whose owner must be tracked.
+DROP TABLE IF EXISTS rag_instance;

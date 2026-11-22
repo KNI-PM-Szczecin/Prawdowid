@@ -32,8 +32,8 @@ async def match_report(claim: str, models: EmbeddingModels, reports: VectorStore
     Every report is stored, so later paraphrases can match any of them. Returns (case id, matched, score).
     The claim arrives masked by the backend; only the claim text and the case id are kept.
     """
-    dense, sparse = await asyncio.to_thread(models.embed_queries, [claim])
-    candidates = await reports.hybrid_search(dense[0], sparse[0], REPORT_CANDIDATES, None)
+    dense, lexical = await asyncio.to_thread(models.embed_queries, [claim])
+    candidates = await reports.hybrid_search(dense[0], lexical[0], REPORT_CANDIDATES, None)
     case_id, matched, best = uuid4(), False, None
     if candidates:
         scores = await asyncio.to_thread(_symmetric_scores, models, claim, [hit.text for hit in candidates])
@@ -41,13 +41,13 @@ async def match_report(claim: str, models: EmbeddingModels, reports: VectorStore
         best = scores[best_index]
         if best >= REPORT_MATCH_MIN_SCORE:
             case_id, matched = UUID(candidates[best_index].payload["case_id"]), True
-    stored_dense, stored_sparse = await asyncio.to_thread(models.embed_documents, [claim])
+    stored_dense, stored_lexical = await asyncio.to_thread(models.embed_documents, [claim])
     await reports.upsert_raw(
         [
             RawPoint(
                 point_id=uuid4(),
                 dense=stored_dense[0],
-                sparse=stored_sparse[0],
+                lexical=stored_lexical[0],
                 payload={"text": claim, "case_id": str(case_id), "created_at": datetime.now(UTC).isoformat()},
             )
         ]

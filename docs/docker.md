@@ -9,11 +9,10 @@ Cały system uruchamia się jednym `docker compose`. Jury i zespół nie muszą 
 | `front` | `deploy/front.Dockerfile` (build Vite, serwuje Caddy) | Strona WWW. Przekazuje `/api/*` do `backend` | **8080** (publiczny punkt wejścia) |
 | `backend` | `deploy/backend.Dockerfile` (Go) | API i kanały (WWW oraz adapter demonstracyjny `POST /api/channels/demo`). **Agent jest pakietem Go w tym samym obrazie**, osobnego kontenera nie ma | `127.0.0.1:3001` (tylko do debugowania) |
 | `rag` | `rag/Dockerfile` (Python, FastAPI) | Wyszukiwanie, korpus, Google Fact Check, katalog kampanii | `127.0.0.1:8001` |
-| `qdrant` | `qdrant/qdrant` | Baza wektorowa | brak (tylko sieć wewnętrzna) |
-| `postgres` | `postgres:17-alpine`, profil `local-db` | Lokalna baza (zamiast Supabase) | brak (tylko sieć wewnętrzna) |
+| `postgres` | `pgvector/pgvector:pg17`, profil `local-db` | Lokalna baza z wektorami korpusu (zamiast Supabase) | brak (tylko sieć wewnętrzna) |
 | `eval` | `deploy/eval.Dockerfile`, profil `tools` | Zestaw testów i miary, uruchamiany na żądanie | brak |
 
-Przepływ: przeglądarka → `front:8080` → `backend:3001` → `rag:8000` → `qdrant` + baza. Tylko `front` jest otwarty dla sieci. Pozostałe usługi słuchają na `127.0.0.1` albo wcale (nie wystawiaj ich na zewnątrz: `rag` ma endpointy administracyjne, a Qdrant nie ma uwierzytelnienia).
+Przepływ: przeglądarka → `front:8080` → `backend:3001` → `rag:8000` → baza (PostgreSQL z pgvector). Tylko `front` jest otwarty dla sieci. Pozostałe usługi słuchają na `127.0.0.1` albo wcale (nie wystawiaj ich na zewnątrz: `rag` ma endpointy administracyjne).
 
 ## Wymagania
 - Docker z wtyczką Compose (`docker compose version`), około 8 GB wolnego miejsca (obrazy i modele).
@@ -55,9 +54,7 @@ docker compose up -d --build
 ```
 `postgres` się wtedy nie startuje, a `backend` i `rag` łączą się z Supabase.
 
-**Uwaga: lokalny `rag` nie może używać bazy produkcji.** Teksty i wektory korpusu są w Qdrancie, a stan fragmentów (aktywny czy usunięty) w PostgreSQL. Gdy kilka środowisk ma wspólną bazę, ale każde własny Qdrant, każda ponowna indeksacja (seed przy starcie, `fetch_corpus`, `import_law`) zapisuje nowe fragmenty tylko do swojego Qdranta i oznacza stare jako usunięte we wspólnej bazie. Inne środowiska tracą wtedy swoje fragmenty i wyszukiwanie zwraca pustą listę, więc każde twierdzenie dostaje `insufficient_evidence`. Objaw w logu `rag`: `Seed document ... has no vectors in this Qdrant` albo `Skipped N of M retrieved chunks without active metadata`. Lokalnie używaj profilu `local-db`, a jeśli `backend` ma zostać na Supabase, ustaw `rag/` osobną bazę przez `RAG_POSTGRES_DSN`.
-
-`rag` pilnuje tego sam: Qdrant ma stały identyfikator w metadanych kolekcji, a baza zapisuje w tabeli `rag_instance`, który Qdrant jest jej właścicielem. Pierwszy Qdrant, który wystartuje na bazie, ją przejmuje; `rag` z innym Qdrantem na tej samej bazie **nie wystartuje** (`ForeignDatabaseError` w logu, z instrukcją). Gdy Qdrant właściciela stracił dane (np. skasowany wolumen na Railway), uruchom `rag` raz z `RAG_CLAIM_DATABASE=true`, potem usuń zmienną i odbuduj korpus (`POST /admin/corpus/law`, `POST /admin/corpus/fetch`).
+**Uwaga: lokalny `rag` nie powinien używać bazy produkcji.** Wektory, teksty i metadane korpusu leżą w jednej bazie (PostgreSQL z rozszerzeniem `pgvector`; Supabase ma je wbudowane, `rag` włącza je sam przy starcie). Dzięki temu nie ma drugiego magazynu, który mógłby się rozjechać z bazą, ale lokalny `rag` wskazany na bazę produkcji pisałby do produkcyjnego korpusu: seed przy starcie, `fetch_corpus`, `import_law` i harmonogram nocny zmieniają dane. Lokalnie używaj profilu `local-db` (obraz `pgvector/pgvector`), a jeśli `backend` ma zostać na Supabase, ustaw `rag/` osobną bazę przez `RAG_POSTGRES_DSN`.
 
 ## Zasilanie korpusu
 
@@ -72,7 +69,7 @@ curl -X POST http://127.0.0.1:8001/admin/corpus/fetch -H "X-Admin-Token: $RAG_AD
 # import ze scrapera ze wspólnej bazy (tabela ScrappedData)
 curl -X POST "http://127.0.0.1:8001/admin/corpus/sync?maxDocuments=5000" -H "X-Admin-Token: $RAG_ADMIN_TOKEN"
 ```
-Szczegóły i pozostałe endpointy: `rag/README.md`. Korpus leży w wolumenach (`qdrant_data`, `postgres_data`), więc przeżywa restart. Przed pokazem sprawdź listę: `curl http://127.0.0.1:8001/sources`.
+Szczegóły i pozostałe endpointy: `rag/README.md`. Korpus leży w bazie (wolumen `postgres_data` albo Supabase), więc przeżywa restart. Przed pokazem sprawdź listę: `curl http://127.0.0.1:8001/sources`.
 
 ## Testy w kontenerze
 
@@ -121,4 +118,4 @@ Do pracy nad kodem uruchom infrastrukturę z `rag/` (`cd rag && docker compose -
 
 - **Obrazy z `deploy/` budują się na Railway** (wdrożenie działa pod jednym publicznym adresem, zob. `README.md`, sekcja Wdrożenie). Błąd lokalnego `docker compose build` zgłoś w PR.
 - **Drugi kanał** to adapter demonstracyjny `POST /api/channels/demo` w procesie `backend` (dopuszczony przez brief zamiast komunikatora). Bot Discord nie jest zaimplementowany, a `DISCORD_BOT_TOKEN` nie jest przez kod czytany.
-- **Rag i Qdrant nie mają publicznych adresów**, więc endpointów administracyjnych na Railway nie wywołasz z zewnątrz: użyj `railway ssh` do usługi `rag` albo `backend` (`http://rag.railway.internal:8000`).
+- **Rag nie ma publicznego adresu**, więc endpointów administracyjnych na Railway nie wywołasz z zewnątrz: użyj `railway ssh` do usługi `rag` albo `backend` (`http://rag.railway.internal:8000`).
