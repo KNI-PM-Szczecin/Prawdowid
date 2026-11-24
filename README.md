@@ -29,6 +29,10 @@ Oba kanały wołają tę samą logikę, więc dają ten sam wynik.
 | --- | --- |
 | ![Wynik](docs/screenshots/result.png) | ![Dostępność](docs/screenshots/accessibility.png) |
 
+| W trakcie sprawdzania | Wynik na telefonie |
+| --- | --- |
+| ![Sprawdzanie w toku](docs/screenshots/loading.png) | ![Wynik na wąskim ekranie](readme/confirmation.png) |
+
 ## Jak to działa
 
 ```text
