@@ -222,3 +222,48 @@ func TestRunStorePurgeOlderThan(t *testing.T) {
 		t.Fatalf("fresh run was purged: %d rows, want 1", rows)
 	}
 }
+
+func TestPromptLogKeepsTimeAfterDeleteButErasesText(t *testing.T) {
+	pool := newTestPool(t)
+	ctx := context.Background()
+	store := newTestStore(t, ctx, pool)
+
+	requestID := newTestRequestID(t)
+	defer deleteTestRun(t, pool, requestID)
+	defer func() {
+		if _, err := pool.Exec(ctx, `DELETE FROM prompt_log WHERE request_id = $1`, requestID); err != nil {
+			t.Errorf("cleanup prompt log %s: %v", requestID, err)
+		}
+	}()
+
+	request := agent.VerifyRequest{RequestID: requestID, Channel: webChannel, Input: "pytanie jury", InputType: agent.InputTypeText}
+	result := agent.CheckResult{
+		RequestID: requestID, Status: agent.StatusOK, Claims: []agent.Claim{}, Limitations: []string{},
+		Meta: agent.RunMeta{Channel: webChannel, LatencyMs: testLatencyMs},
+	}
+	if err := store.save(ctx, request, result); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	readLog := func() (text *string, channel string) {
+		err := pool.QueryRow(ctx,
+			`SELECT input_masked, channel FROM prompt_log WHERE request_id = $1`, requestID).Scan(&text, &channel)
+		if err != nil {
+			t.Fatalf("read prompt log: %v", err)
+		}
+		return text, channel
+	}
+	text, channel := readLog()
+	if text == nil || *text != "pytanie jury" || channel != webChannel {
+		t.Fatalf("prompt log = %v / %q, want the saved question on the web channel", text, channel)
+	}
+
+	deleted, err := store.delete(ctx, requestID)
+	if err != nil || !deleted {
+		t.Fatalf("delete = %v, %v, want true, nil", deleted, err)
+	}
+	text, _ = readLog()
+	if text != nil {
+		t.Fatalf("prompt log text after delete = %q, want NULL", *text)
+	}
+}
